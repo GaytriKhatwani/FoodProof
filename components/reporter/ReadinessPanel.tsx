@@ -1,6 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
 import type { ReportDetail } from "@/lib/contracts";
 import { coveredRoles, ROLE_LABEL } from "./EvidenceSection";
 import { PREPARATION_LABEL, cx } from "./ui";
@@ -18,7 +17,6 @@ import styles from "./reporter.module.css";
 export interface ReadinessItem {
   label: string;
   done: boolean;
-  action?: ReactNode;
 }
 
 export function readinessItems(report: ReportDetail): ReadinessItem[] {
