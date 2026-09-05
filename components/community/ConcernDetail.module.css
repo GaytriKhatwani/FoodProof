@@ -1,0 +1,166 @@
+/*
+ * Concern detail. Evidence sits beside its explanation, sections are separated
+ * by thin rules, and no decorative badge is used for anything a reader could
+ * mistake for a safety verdict (docs/DESIGN.md).
+ */
+
+.back {
+  margin: 0 0 var(--space-md);
+  font-weight: 600;
+}
+
+.head {
+  margin-bottom: var(--space-md);
+}
+
+.sampleTag {
+  display: inline-block;
+  margin: 0 0 var(--space-sm);
+  color: var(--color-status-ink);
+  background: var(--color-tint);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-control);
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(34px, 4.6vw, 50px);
+  line-height: 1.06;
+  letter-spacing: -0.025em;
+  margin: 0 0 4px;
+}
+
+.brand {
+  margin: 0 0 var(--space-sm);
+  font-size: 18px;
+}
+
+.meta {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.noticeBody {
+  margin: 0;
+}
+
+.section {
+  padding: var(--space-lg) 0;
+  border-top: 1px solid var(--color-rule);
+}
+
+.sectionTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(22px, 2.6vw, 30px);
+  letter-spacing: -0.02em;
+  margin: 0 0 var(--space-sm);
+}
+
+.body {
+  margin: 0 0 var(--space-sm);
+  max-width: 68ch;
+  white-space: pre-wrap;
+}
+
+.footnote {
+  margin: var(--space-sm) 0 0;
+  max-width: 68ch;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.assetList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-md);
+  list-style: none;
+  margin: 0 0 var(--space-md);
+  padding: 0;
+}
+
+.asset {
+  min-width: 0;
+}
+
+.assetButton {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.assetButton:hover {
+  border-color: var(--color-primary);
+}
+
+.assetImage {
+  display: block;
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  background: var(--color-tint);
+}
+
+.assetCaption {
+  display: block;
+  padding: var(--space-sm);
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.facts {
+  margin: 0;
+  max-width: 68ch;
+}
+
+.facts dt {
+  font-weight: 600;
+  margin-top: var(--space-sm);
+}
+
+.facts dd {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+}
+
+.statusList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.statusList li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.statusChannel {
+  font-weight: 600;
+}
+
+.responseList {
+  list-style: none;
+  margin: var(--space-md) 0 0;
+  padding: 0;
+}
+
+.response {
+  padding: var(--space-md) 0;
+  border-top: 1px solid var(--color-rule);
+}
+
+.responseHead {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
