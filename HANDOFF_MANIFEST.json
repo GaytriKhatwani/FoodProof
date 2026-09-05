@@ -1,0 +1,136 @@
+{
+  "files": [
+    {
+      "path": ".gitignore",
+      "bytes": 111,
+      "sha256": "f8339d91ac2a2c15344b6d830639ff1d8e23471d93c81a9ca95f15115f7534b4"
+    },
+    {
+      "path": "AGENTS.md",
+      "bytes": 2278,
+      "sha256": "44f516ba36519d3599bac296db1e1242d5250a7452c2cab7db6337cbff9cf0c8"
+    },
+    {
+      "path": "docs/DESIGN.md",
+      "bytes": 3533,
+      "sha256": "f31ab77f9b7caeb6d61618138934b6712000024f901f65339d7b74f277452c49"
+    },
+    {
+      "path": "docs/FOODPROOF_ACCEPTANCE_CHECKLIST.md",
+      "bytes": 4134,
+      "sha256": "e11871d7750d9770afb90c4b9174e3b5e017dc7af54c8e1f9fdcf675fd948af9"
+    },
+    {
+      "path": "docs/FOODPROOF_AGENT_PROMPTS.md",
+      "bytes": 3381,
+      "sha256": "18d0cfc845efa86fb84223e747b98b94fe76bddecbcdd8f34956894af8754eb5"
+    },
+    {
+      "path": "docs/FOODPROOF_API_DETAILS.md",
+      "bytes": 7903,
+      "sha256": "543fa9baa0bfd020a693099028d78de89c2b18401be79a55c96cbddbe6872046"
+    },
+    {
+      "path": "docs/FOODPROOF_BUILD_HANDOFF.md",
+      "bytes": 3962,
+      "sha256": "96d7a2b070bd2160a5b0125ed15ceb0fdf17b54021803eada23275309a05b03b"
+    },
+    {
+      "path": "docs/FOODPROOF_BUILD_TICKETS.md",
+      "bytes": 8285,
+      "sha256": "567fc73de16336db442b99f9e46164cf5d754c3bbe77c5a5f51852f0df3c19d1"
+    },
+    {
+      "path": "docs/FOODPROOF_DECISIONS.md",
+      "bytes": 15118,
+      "sha256": "82cc5f928e4d5b6f1675cc1d45d1c61226300c6382e7bc15b9a20b1cb0546ae8"
+    },
+    {
+      "path": "docs/FOODPROOF_MEASUREMENT_AND_PILOT.md",
+      "bytes": 18230,
+      "sha256": "c81fcdcbb9f8c0d9b9fbf7acf116eef0cc6a402687b51421a5ce488249a416f5"
+    },
+    {
+      "path": "docs/FOODPROOF_PRD.md",
+      "bytes": 4462,
+      "sha256": "7385af459ad5d15bb6b5774f6bb5167e15a60c480c2e46c3bf274d47d54ced2b"
+    },
+    {
+      "path": "docs/FOODPROOF_PRODUCT_BRIEF.md",
+      "bytes": 15952,
+      "sha256": "a586c986a880c239680ddc039e6a7abcf674529ba4d7ceff262f8b47321af12b"
+    },
+    {
+      "path": "docs/FOODPROOF_PROTOTYPE_TO_BUILD.md",
+      "bytes": 3002,
+      "sha256": "cc6333d68c68db26c2f1942f2cdeb1dd9677e12d1403bb652df028d8ec22e3a9"
+    },
+    {
+      "path": "docs/FOODPROOF_REVIEW_REPORT.md",
+      "bytes": 7875,
+      "sha256": "fb6b29841163497a8e719ff594fab77d91bab40da5d463c5fd49b44c7892e542"
+    },
+    {
+      "path": "docs/FOODPROOF_SCREENS.md",
+      "bytes": 17776,
+      "sha256": "6655e53e565eb55c32ff1c2f95d6793d5e402795691e4efff5d65bb12b9153db"
+    },
+    {
+      "path": "docs/FOODPROOF_SETUP_AND_OPERATIONS.md",
+      "bytes": 5842,
+      "sha256": "6d663bdd182285fdedd2da25fe3dc53336c5cec3981b7505777682e950792e9a"
+    },
+    {
+      "path": "docs/FOODPROOF_TECHNICAL_SPEC.md",
+      "bytes": 26630,
+      "sha256": "203c4f8d963bd854411d9208f50d4a12caf21096c02df449ef26e0d6d43b4fef"
+    },
+    {
+      "path": "docs/FOODPROOF_WORKFLOWS.md",
+      "bytes": 10563,
+      "sha256": "86f31b39ee79dfef5954c3163095ae0e4db69db9a5763c14a6b8b5533c313b80"
+    },
+    {
+      "path": "docs/PRODUCT.md",
+      "bytes": 3572,
+      "sha256": "47a04ff50dd573b28b42ce2c6639404e716464bcb6fa67515cc8db39003fe53c"
+    },
+    {
+      "path": "README.md",
+      "bytes": 1590,
+      "sha256": "b1b513b5e3f505daf6635c118f7addc1f4f5e3eecdbbe6057c6ceafeb4354475"
+    },
+    {
+      "path": "design/assets/clear-signal-label-preview.jpg",
+      "bytes": 247109,
+      "sha256": "751d86d199af99d9e7d07e2255cd2cfcb8761a0f8c65c91fc757f931aaf4b94b"
+    },
+    {
+      "path": "design/assets/clear-signal-label.png",
+      "bytes": 2557957,
+      "sha256": "3f07623d94042571df8d2ccfb15be8d10bfa6998f99351ef4a0a10f2e47252f0"
+    },
+    {
+      "path": "design/assets/clear-signal-label.png.json",
+      "bytes": 1884,
+      "sha256": "22196a1a86220cfd435564c74274195855cece0ac422b1653996a0a4e8e84e8a"
+    },
+    {
+      "path": "design/foodproof-clear-signal.fragment.html",
+      "bytes": 373463,
+      "sha256": "36b5e5df3c9a57b392fc77060617bf2b9fa699413fc26580f8dd7e7615bde9ce"
+    },
+    {
+      "path": "design/foodproof-clear-signal.html",
+      "bytes": 422306,
+      "sha256": "32f28335823e9638c8da02c878e52c22d748ea3d00b0bb2816df73ebccd61ad5"
+    },
+    {
+      "path": "design/reference/approved-concept.png",
+      "bytes": 1749775,
+      "sha256": "ca2e6a746f7f687377c1403947ea66a456c071e4af1eb7f8999a3fd44242d4d7"
+    }
+  ],
+  "local_markdown_links": "passed",
+  "application_tests": "not run; documentation only"
+}
