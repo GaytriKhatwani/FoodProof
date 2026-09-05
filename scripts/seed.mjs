@@ -14,9 +14,13 @@
 // Usage:
 //   npm run dev              # in one terminal
 //   node --env-file=.env.local scripts/seed.mjs
+//   node --env-file=.env.local scripts/seed.mjs --reset   # replace the seeded example first
 
 import { createClient } from "@supabase/supabase-js";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import nodePath from "node:path";
+import { fileURLToPath } from "node:url";
 
 const APP_ORIGIN = process.env.APP_ORIGIN;
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -35,22 +39,105 @@ const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0
 
 const SEED_USER_LABEL = "seed@foodproof";
 const SEED_REVIEWER_LABEL = "seed-reviewer@foodproof";
+const SEED_LABELS = [SEED_USER_LABEL, SEED_REVIEWER_LABEL];
 
-function samplePng() {
-  const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-  const chunk = (type, data) => {
-    const len = data.length;
-    const b = [(len >>> 24) & 0xff, (len >>> 16) & 0xff, (len >>> 8) & 0xff, len & 0xff];
-    for (const c of type) b.push(c.charCodeAt(0));
-    b.push(...data, 0, 0, 0, 0);
-    return b;
+// Repo root, regardless of the cwd the script is invoked from.
+const REPO_ROOT = nodePath.resolve(nodePath.dirname(fileURLToPath(import.meta.url)), "..");
+// Fictional label photograph (design/assets), compressed copy: well under the
+// 3 MB evidence cap and light enough for a 360px phone. Always fictional/
+// illustrative — never evidence against a real brand (docs/FOODPROOF_PROTOTYPE_TO_BUILD.md).
+const FICTIONAL_LABEL_PATH = nodePath.join(REPO_ROOT, "design", "assets", "clear-signal-label-preview.jpg");
+
+const STORAGE_BUCKETS = ["demo-originals", "demo-reviewed"];
+
+/**
+ * Remove ONLY the rows owned by demo_access rows labelled exactly
+ * `seed@foodproof` or `seed-reviewer@foodproof` (and everything under them),
+ * plus their Storage objects in both private buckets — same child->parent
+ * order as `deleteAccess` in tests/helpers/live.ts. Never touches any other
+ * access row: the only selector is an exact label match.
+ */
+async function resetSeed() {
+  const { data: access, error: accessErr } = await supabase
+    .from("demo_access")
+    .select("id")
+    .in("label", SEED_LABELS);
+  if (accessErr) throw new Error(`--reset: read demo_access failed: ${accessErr.message}`);
+  const ids = (access ?? []).map((a) => a.id);
+  if (ids.length === 0) {
+    console.log("--reset: no seed access rows found. Nothing to remove.");
+    return;
+  }
+
+  const { data: reports } = await supabase.from("reports").select("id").in("owner_access_id", ids);
+  const reportIds = (reports ?? []).map((r) => r.id);
+
+  let revIds = [];
+  if (reportIds.length) {
+    const { data: revs } = await supabase
+      .from("publication_revisions")
+      .select("id")
+      .in("report_id", reportIds);
+    revIds = (revs ?? []).map((r) => r.id);
+  }
+
+  const counts = {};
+  const del = async (table, col, values) => {
+    if (!values.length) {
+      counts[table] = 0;
+      return;
+    }
+    const { error, count } = await supabase
+      .from(table)
+      .delete({ count: "exact" })
+      .in(col, values);
+    if (error) throw new Error(`--reset: delete ${table} failed: ${error.message}`);
+    counts[table] = count ?? 0;
   };
-  return Uint8Array.from([
-    ...sig,
-    ...chunk("IHDR", [0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]),
-    ...chunk("IDAT", [0x78, 0x9c, 0x62, 0, 0, 0, 2, 0, 1]),
-    ...chunk("IEND", []),
-  ]);
+
+  let storageRemoved = 0;
+  for (const bucket of STORAGE_BUCKETS) {
+    for (const reportId of reportIds) {
+      const { data: objects } = await supabase.storage.from(bucket).list(reportId);
+      if (objects && objects.length) {
+        const { error } = await supabase.storage
+          .from(bucket)
+          .remove(objects.map((o) => `${reportId}/${o.name}`));
+        if (error) throw new Error(`--reset: remove storage ${bucket} failed: ${error.message}`);
+        storageRemoved += objects.length;
+      }
+    }
+  }
+
+  await del("publication_assets", "revision_id", revIds);
+  await del("publications", "report_id", reportIds);
+  await del("publication_revisions", "report_id", reportIds);
+  await del("content_flags", "report_id", reportIds);
+  await del("report_events", "report_id", reportIds);
+  await del("updates", "report_id", reportIds);
+  await del("submissions", "report_id", reportIds);
+  await del("complaint_drafts", "report_id", reportIds);
+  await del("evidence", "report_id", reportIds);
+  await del("operation_receipts", "actor_id", ids);
+  await del("reports", "id", reportIds);
+  await del("demo_sessions", "access_id", ids);
+  await del("demo_access", "id", ids);
+
+  console.log("--reset: removed the previously seeded example (counts only, never ids/codes):");
+  console.log(`  demo_access:            ${counts.demo_access}`);
+  console.log(`  reports:                ${counts.reports}`);
+  console.log(`  evidence:               ${counts.evidence}`);
+  console.log(`  publication_revisions:  ${counts.publication_revisions}`);
+  console.log(`  publications:           ${counts.publications}`);
+  console.log(`  publication_assets:     ${counts.publication_assets}`);
+  console.log(`  content_flags:          ${counts.content_flags}`);
+  console.log(`  report_events:          ${counts.report_events}`);
+  console.log(`  updates:                ${counts.updates}`);
+  console.log(`  submissions:            ${counts.submissions}`);
+  console.log(`  complaint_drafts:       ${counts.complaint_drafts}`);
+  console.log(`  operation_receipts:     ${counts.operation_receipts}`);
+  console.log(`  demo_sessions:          ${counts.demo_sessions}`);
+  console.log(`  storage objects (both buckets): ${storageRemoved}`);
 }
 
 async function alreadySeeded() {
@@ -116,8 +203,9 @@ async function login(code) {
 }
 
 async function uploadLabel(cookie, reportId) {
+  const bytes = await readFile(FICTIONAL_LABEL_PATH);
   const form = new FormData();
-  form.append("file", new Blob([samplePng()], { type: "image/png" }), "label.png");
+  form.append("file", new Blob([bytes], { type: "image/jpeg" }), "fictional-label.jpg");
   form.append("kind", "label");
   form.append("roles", JSON.stringify(["identity", "claim", "ingredients"]));
   const { json } = await call("POST", `/api/reports/${reportId}/evidence`, { cookie, form });
@@ -135,8 +223,10 @@ async function main() {
     throw new Error(`Cannot reach the app at ${APP_ORIGIN}. Start it with "npm run dev".`);
   });
 
-  if (await alreadySeeded()) {
-    console.log("Seed example already published. Nothing to do.");
+  if (process.argv.includes("--reset")) {
+    await resetSeed();
+  } else if (await alreadySeeded()) {
+    console.log("Seed example already published. Nothing to do. (Use --reset to replace it.)");
     return;
   }
 

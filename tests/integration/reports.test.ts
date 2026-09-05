@@ -2,6 +2,7 @@ import { afterAll, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import type { ReportWriteRequest } from "@/lib/contracts";
 import { ApiError } from "@/lib/server/errors";
+import { withReceipt } from "@/lib/server/idempotency";
 import { createReport, patchReport, confirmFacts } from "@/lib/server/reports";
 import { getOwnReport, listOwnReports } from "@/lib/server/data";
 import {
@@ -129,6 +130,50 @@ liveDescribe("report persistence (live Supabase)", () => {
       ),
     );
     expect(err.code).toBe("CONFLICT");
+  });
+
+  it("releases the receipt when the operation fails, so an identical retry succeeds", async () => {
+    const accessId = await tester();
+    const key = randomUUID();
+    const operation = "test.idempotency-failure";
+    const body = { some: "payload" };
+
+    let calls = 0;
+    const failThenSucceed = async () => {
+      calls += 1;
+      if (calls === 1) throw new ApiError("CONFLICT", "Simulated first-attempt failure.");
+      return { ok: true, calls };
+    };
+
+    // First attempt: produce() fails. The caller sees the ORIGINAL error, not
+    // a cleanup error, and the reservation is released (not left dangling).
+    const firstErr = await expectApiError(
+      withReceipt(accessId, operation, key, body, failThenSucceed),
+    );
+    expect(firstErr.code).toBe("CONFLICT");
+    expect(firstErr.message).toBe("Simulated first-attempt failure.");
+
+    // Identical retry (same key, same body): succeeds instead of being stuck
+    // behind a permanent "already being processed" CONFLICT.
+    const retryResult = await withReceipt(accessId, operation, key, body, failThenSucceed);
+    expect(retryResult).toEqual({ ok: true, calls: 2 });
+
+    // Exactly one receipt row remains for this key, holding the successful response.
+    const { data: rows, error } = await client
+      .from("operation_receipts")
+      .select("response_json")
+      .eq("actor_id", accessId)
+      .eq("operation", operation)
+      .eq("idempotency_key", key);
+    if (error) throw error;
+    expect(rows).toHaveLength(1);
+    expect(rows?.[0]?.response_json).toEqual({ ok: true, calls: 2 });
+
+    // A further identical call now replays the stored response without
+    // invoking produce() again (no duplicate work, no duplicate row).
+    const replay = await withReceipt(accessId, operation, key, body, failThenSucceed);
+    expect(replay).toEqual({ ok: true, calls: 2 });
+    expect(calls).toBe(2);
   });
 
   it("confirms facts, then clears confirmation when label facts change", async () => {

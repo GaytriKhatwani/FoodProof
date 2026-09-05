@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createHash, randomBytes } from "node:crypto";
 import { E2E_ORIGIN } from "./origin";
 import { createInvitation, deleteInvitations, enterPilot } from "./helpers";
+import { samplePng } from "../helpers/sample-image";
 
 /**
  * Regression coverage for the Next.js Data Cache defect: every Supabase READ
@@ -57,24 +58,6 @@ async function sessionCookieValue(request: APIRequestContext): Promise<string> {
   const cookie = state.cookies.find((c) => c.name === "fp_session" || c.name.includes("session"));
   if (!cookie) throw new Error("No session cookie found in storage state.");
   return cookie.value;
-}
-
-/** A minimal, valid-enough PNG (correct signature + chunk framing) for uploads. */
-function samplePng(): Buffer {
-  const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-  const chunk = (type: string, data: number[]) => {
-    const len = data.length;
-    const b = [(len >>> 24) & 0xff, (len >>> 16) & 0xff, (len >>> 8) & 0xff, len & 0xff];
-    for (const c of type) b.push(c.charCodeAt(0));
-    b.push(...data, 0, 0, 0, 0);
-    return b;
-  };
-  return Buffer.from([
-    ...sig,
-    ...chunk("IHDR", [0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]),
-    ...chunk("IDAT", [0x78, 0x9c, 0x62, 0, 0, 0, 2, 0, 1]),
-    ...chunk("IEND", []),
-  ]);
 }
 
 const accessIds: string[] = [];
@@ -170,7 +153,7 @@ test.describe("API freshness (Next Data Cache must never serve stale Supabase re
     const uploadRes = await page.request.post(`/api/reports/${reportId}/evidence`, {
       headers: { Origin: E2E_ORIGIN, "Idempotency-Key": crypto.randomUUID() },
       multipart: {
-        file: { name: "label.png", mimeType: "image/png", buffer: samplePng() },
+        file: { name: "label.png", mimeType: "image/png", buffer: Buffer.from(samplePng()) },
         kind: "label",
         roles: JSON.stringify(["identity", "claim", "ingredients"]),
       },
