@@ -2,7 +2,7 @@
 
 An evidence and complaint-preparation app for India's celiac community.
 
-**Status: T0 foundation scaffolded and verified (typecheck, lint, tests, production build all pass). Feature slices T1–T3 have not started.** Supabase, Mixpanel, AI and deployment are configured later and are not verified live.
+**Status: T0 foundation + T1 data/persistence delivered and verified live against a dedicated demo Supabase project (42 tests, typecheck, lint all pass).** T2/T3 UI, T4 AI + live Mixpanel ingestion, and T5 deployment have not started. AI and deployment are configured later and are not verified live.
 
 Start with [the handoff](docs/FOODPROOF_BUILD_HANDOFF.md), then [the PRD](docs/FOODPROOF_PRD.md). Review [the audit and open items](docs/FOODPROOF_REVIEW_REPORT.md) before assigning [build tickets](docs/FOODPROOF_BUILD_TICKETS.md). Current build progress and the exact next step are in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
 
@@ -31,10 +31,27 @@ homepage (`/`) renders with no configuration; server env is validated lazily.
 No secret is ever prefixed `NEXT_PUBLIC_`. `/api/health` is a demo-only readiness
 fixture (returns config-group booleans, never values) available when `DEMO_MODE=true`.
 
-The scaffold is the T0 foundation only: shared contracts (`lib/contracts/`),
-typed service interfaces with explicit not-implemented stubs (`lib/server/`),
-initial migration (`supabase/migrations/0001_init.sql`), Clear Signal tokens and
-a static public homepage. Feature behaviour arrives in T1–T3.
+### Demo project setup (T1)
+
+Against a **dedicated demo** Supabase project (never production):
+
+1. Apply the schema: paste `supabase/migrations/0001_init.sql` into the Supabase
+   SQL Editor and run it. On a project where `0001` was applied before the
+   `service_role` grants were folded in, also run `0002_service_role_grants.sql`.
+2. Create the private storage buckets: `node --env-file=.env.local scripts/setup-storage.mjs`.
+3. Generate invitation codes (shown once; distribute privately, never commit):
+   `node --env-file=.env.local scripts/create-invitations.mjs --users 2`.
+4. Seed the fictional pilot example (run `npm run dev` first; it drives the real
+   API): `node --env-file=.env.local scripts/seed.mjs`.
+5. Integration tests self-skip without live credentials; with `.env.local` present
+   they run against the demo project and clean up after themselves.
+   Teardown (dry-run by default): `node --env-file=.env.local scripts/teardown.mjs`.
+
+T1 replaces the `lib/server/` stubs with real demo-Supabase implementations and
+adds the data API under `app/api/**` (session/limiter, reports, evidence + guarded
+media, drafts, external history, publication/moderation, feed, flags, analytics
+proxy). T2/T3 build the UI against these frozen contracts; T4 wires live AI and
+Mixpanel ingestion.
 
 ## Release sequence
 
