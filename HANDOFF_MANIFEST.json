@@ -12,13 +12,13 @@
     },
     {
       "path": "IMPLEMENTATION_STATUS.md",
-      "bytes": 16668,
-      "sha256": "1a82bc42e200690344a431b172ae9028f43cf3ad02338e2cae16fb8b7ec64cbf"
+      "bytes": 18210,
+      "sha256": "d0f15e516f42a3789e8112e4db301034ead62f038503ca17bac7f6f5c2b7f315"
     },
     {
       "path": "README.md",
-      "bytes": 5055,
-      "sha256": "f4780710aeac00330e01e882eb4b08244e47e8d1f85c9d137fb8e5eb163d5088"
+      "bytes": 5166,
+      "sha256": "20c00d34fd1bf2cd4dbe6c0f1b8bfe5e696e008cdcdb00630d1644cea28fc2c3"
     },
     {
       "path": "design/assets/clear-signal-label-preview.jpg",
@@ -137,5 +137,5 @@
     }
   ],
   "local_markdown_links": "passed",
-  "application_tests": "typecheck/lint/build pass; vitest 47 passed (47), 0 skipped, against the live demo Supabase project with migration 0003 applied: boundary (6), direct-client denial with the publishable key (5), publication/moderation (5), drafts/history (6), reports (6), evidence (3) executed live, plus contracts/unit (15)"
+  "application_tests": "typecheck/lint/build pass; vitest 47/47 (all integration suites live incl. direct-client denial, migration 0003 applied); playwright 4/4 (T1 closure + shared-client pre-slice merged)"
 }

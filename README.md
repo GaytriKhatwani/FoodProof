@@ -22,7 +22,8 @@ npm run build     # production build
 npm run start     # serve the production build
 npm run typecheck # tsc --noEmit
 npm run lint      # next lint
-npm run test      # vitest run
+npm run test      # vitest run (unit/contract + live integration suites)
+npm run test:e2e  # playwright test (browser specs; starts next dev)
 ```
 
 Copy `.env.example` to `.env.local` and fill values from your dedicated DEMO

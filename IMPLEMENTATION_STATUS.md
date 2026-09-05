@@ -9,20 +9,15 @@ tracks build progress only.
 ## Repository state
 
 - Remote `origin` = https://github.com/GaytriKhatwani/FoodProof.git
-- **T1 closure work is on branch `fix/t1-closure`** (branched from `main`, not
-  pushed, not merged). It is a security/data-integrity pass over the delivered T1:
-  - `fix(t1)` — rename the secret key env var; test-only publishable key; real
-    direct-client denial test
-  - `feat(t1)` — transactional publication/withdrawal functions (migration 0003)
-    + blocked-not-passed live gating
-  - `docs(t1)` — closure status, deferred hardening, manifest refresh
-- `main` carries T0 + the delivered T1 (merged from `t1-data` and pushed):
-  - `docs(t1)` — record T1 delivered/verified; setup, scripts, honest limitations
-  - `feat(t1)` — fictional seed + teardown scripts; robust test cleanup
-  - `feat(t1)` — consented analytics proxy (structural; live ingestion at T4)
-  - `feat(t1)` — publication, moderation, public feed, and flags
-  - `feat(t1)` — demo boundary + persistence foundation (session, reports, evidence, history)
-  - (T0 commits precede these on `main`)
+- **Pushed**: `main` == `origin/main`, working tree clean, linear history (fast-forward merges).
+- Merged into `main` on 6 September 2026, in order:
+  - `fix/t1-closure` (3 commits) — T1 closure: secret-key rename, test-only publishable
+    key, real direct-client denial test, transactional functions (migration 0003).
+  - `feat/shared-client-e2e` (3 commits) — shared client adapter, session hook, client
+    analytics adapter, pilot middleware gate, Playwright harness (integration-owner
+    pre-slice for T2/T3; the only dependency change is `@playwright/test`).
+- T1 (`t1-data`) and T0 commits precede these on `main`.
+- Worktrees for in-flight branches live under `../FoodProof-worktrees/<name>`.
 
 ## Done
 
@@ -56,7 +51,7 @@ tracks build progress only.
     real API), `teardown` (ordered, guarded).
   - **Migrations**: `0001_init.sql` now includes explicit `service_role` grants;
     `0002_service_role_grants.sql` applies the same grants to an already-migrated project.
-- **T1 closure (branch `fix/t1-closure`)**
+- **T1 closure (merged to `main`)**
   - **Secret key renamed**: `SUPABASE_SERVICE_ROLE_KEY` → **`SUPABASE_SECRET_KEY`**
     everywhere (`lib/server/env.ts`, `lib/server/supabase.ts`, `tests/helpers/live.ts`,
     all four operator scripts, `.env.example`, README and the specification/operations
@@ -99,6 +94,26 @@ tracks build progress only.
   - **Publication-request ordering** — selected evidence is validated *before* the
     revision row is written, so a rejected selection no longer leaves an orphan pending
     request that blocks the reporter's next attempt.
+- **Shared client + browser-test harness (integration-owner pre-slice, merged)**
+  - `lib/client/api.ts`: browser-safe typed adapter over the frozen HTTP API (uniform
+    envelope parsing; `ClientApiError` with code/fields/request id/Retry-After;
+    `Idempotency-Key` convention: one key per logical user action, reused on retry;
+    multipart evidence upload; guarded media URL helpers). UI code calls the API only
+    through it — never raw `fetch`, never Supabase.
+  - `lib/client/session.tsx`: `SessionProvider` / `useSession()` over `GET /api/me`
+    (`loading | ready | anonymous | unavailable`), consent update and exit; it makes no
+    redirect decisions.
+  - `lib/analytics/index.ts`: real client adapter (`clientAnalytics.track/emit`) posting
+    allowlisted view/copy/handoff events to `/api/analytics`, fire-and-forget, never
+    throws; `noopClientAnalytics` retained for tests.
+  - `middleware.ts` + `lib/session-cookie.ts`: cookie-presence gate on `/pilot/:path+`
+    (never `/pilot` itself or `/api/**`) redirecting to `/pilot?next=…`, echoing only
+    pilot-internal `next` values; every API request is still validated server-side.
+  - Playwright harness: `playwright.config.ts` (chromium; `desktop` 1280×800 and
+    `mobile` 360×740 projects; `next dev` web server), `tests/e2e/helpers.ts`
+    (invitation create/cleanup via the secret key, `enterPilot` via the session API),
+    `tests/e2e/public-home.spec.ts` (no pilot-data request from `/`; middleware
+    redirect). Run with `npm run test:e2e`.
 
 ## Migration 0003 — APPLIED on the demo project
 
@@ -123,6 +138,7 @@ or skipped suite is not evidence that its assertions hold.**
 | Lint | `npm run lint` | PASS |
 | Build | `npm run build` | PASS |
 | Tests | `npm run test` | PASS — 47 passed (47), 8 files passed, 0 skipped, 0 blocked |
+| Browser tests | `npm run test:e2e` | PASS — 4 passed (2 specs × desktop/mobile), on the merged tree |
 
 Every suite executed live, with 0003 applied and `SUPABASE_PUBLISHABLE_KEY` set:
 
@@ -231,14 +247,16 @@ failure actually leaves behind, and why that is recoverable rather than contradi
 
 ## Exact next action
 
-1. **Review and merge `fix/t1-closure`.** Migration 0003 is applied on the demo project and
-   the full suite passes live against it (47/47), so the branch is ready. Rename
-   `SUPABASE_SERVICE_ROLE_KEY` to `SUPABASE_SECRET_KEY` in every other environment (other
-   local checkouts, any deployment) and add the test-only `SUPABASE_PUBLISHABLE_KEY`
-   wherever the tests run. Apply 0003 to any further Supabase project before using it.
-2. Then assign T2 (reporter UI) and T3 (community UI) on their own branches, built against
-   the frozen `lib/contracts/` and the live T1 API (do not edit the shared
-   schemas/migrations/lockfile). When inviting testers, the operator runs
-   `create-invitations.mjs` and distributes codes privately; `seed.mjs` populates the demo
-   feed (it drives the publication path, so it needs 0003 applied). T4 (AI + live Mixpanel)
-   and T5 (deploy) follow the merges.
+1. **T2 (reporter UI) and T3 (community/moderation UI) run in parallel** on
+   `feat/t2-reporter-ui` and `feat/t3-community-review-ui`, each in its own worktree from
+   this `main`, against the frozen `lib/contracts/`, the live T1 API and the shared client
+   (`lib/client/*`, `lib/analytics`). Ownership: T2 = `app/pilot/reports/**`,
+   `components/reporter/**`, reporter browser specs. T3 = `/`, `/pilot` entry,
+   `app/pilot/layout.tsx` + shell, `app/pilot/feed/**`, `app/pilot/concerns/**`,
+   `app/pilot/review/**`, `components/{shell,community,review}/**`, community/reviewer
+   browser specs. Neither edits package manifests, lockfiles, migrations,
+   `lib/contracts/**`, `lib/server/**`, `app/api/**`, `app/globals.css` tokens or the
+   shared client; contract gaps go to the integration owner for one recorded decision.
+2. Then T4 (integrate + AI + live Mixpanel ingestion) and T5 (guarded deploy) follow the
+   merges. When inviting testers, the operator runs `create-invitations.mjs` and
+   distributes codes privately; `seed.mjs` populates the demo feed (needs 0003 applied).
