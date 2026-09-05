@@ -226,6 +226,14 @@ async function requestConcernRevision(
     throw new ApiError("CONFLICT", "A review request is already pending for this concern.");
   }
 
+  // A concern revision always needs at least one image (label roles). This is
+  // enforced here independently of the request schema, since server functions
+  // are also called directly (e.g. from tests) without going through the HTTP
+  // validation layer.
+  if (body.selected_evidence_ids.length === 0) {
+    throw new ApiError("VALIDATION_FAILED", "Select at least one image.");
+  }
+
   // Validate the selection before anything is persisted.
   const selected = await validateSelectedEvidence(
     supabase,

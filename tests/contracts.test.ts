@@ -5,6 +5,7 @@ import {
   EventName,
   EventProperties,
   HTTP_STATUS_FOR_CODE,
+  PublicationRequest,
   PublicReport,
   ReportWriteRequest,
   SessionCreateRequest,
@@ -47,6 +48,23 @@ describe("request schemas", () => {
       audience: "invited_pilot", // server-owned; client cannot set it
     });
     expect(bad.success).toBe(false);
+  });
+
+  it("requires selected images for a concern revision but allows none for a response revision", () => {
+    const noParent = PublicationRequest.safeParse({
+      expected_version: 0,
+      consent: true,
+      selected_evidence_ids: [],
+    });
+    expect(noParent.success).toBe(false);
+
+    const withParent = PublicationRequest.safeParse({
+      expected_version: 0,
+      consent: true,
+      selected_evidence_ids: [],
+      source_update_id: crypto.randomUUID(),
+    });
+    expect(withParent.success).toBe(true);
   });
 });
 
