@@ -24,7 +24,7 @@ import {
   cleanupStorage,
   createAccess,
   deleteAccess,
-  liveDescribe,
+  liveSuite,
   samplePng,
   testClient,
 } from "../helpers/live";
@@ -34,8 +34,17 @@ import {
  * FOODPROOF_API_DETAILS.md): exact-snapshot approval, reviewer-only decisions,
  * withdrawal/removal hiding responses and assets, no stale resurrection, and the
  * public projection carrying no owner-linked fields.
+ *
+ * Approval, withdrawal, removal, flag resolution and relinking now run inside
+ * the transactional functions of migration 0003, so this suite reports BLOCKED
+ * (skipped, with the reason in its name) until that migration is applied to the
+ * demo project. A blocked suite proves nothing.
  */
-liveDescribe("publication + moderation (live Supabase)", () => {
+const publicationSuite = await liveSuite("publication + moderation (live Supabase)", {
+  requiresSchema3: true,
+});
+
+publicationSuite.run(publicationSuite.title, () => {
   const client = testClient();
   const createdAccess: string[] = [];
   const createdReports: string[] = [];

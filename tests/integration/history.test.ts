@@ -16,7 +16,7 @@ import {
   cleanupStorage,
   createAccess,
   deleteAccess,
-  liveDescribe,
+  liveSuite,
   samplePng,
   testClient,
 } from "../helpers/live";
@@ -24,8 +24,16 @@ import {
 /**
  * Complaint drafts, external history and reporter lifecycle
  * (FOODPROOF_TECHNICAL_SPEC.md §4/§6/§8, FOODPROOF_API_DETAILS.md).
+ *
+ * Close/reopen now runs inside `fp_set_lifecycle` (migration 0003), so this
+ * suite reports BLOCKED (skipped, with the reason in its name) until that
+ * migration is applied to the demo project. A blocked suite proves nothing.
  */
-liveDescribe("drafts + external history (live Supabase)", () => {
+const historySuite = await liveSuite("drafts + external history (live Supabase)", {
+  requiresSchema3: true,
+});
+
+historySuite.run(historySuite.title, () => {
   const client = testClient();
   const createdAccess: string[] = [];
   const createdReports: string[] = [];

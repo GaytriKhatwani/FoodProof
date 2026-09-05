@@ -7,7 +7,7 @@ import type {
   SubmissionCreateRequest,
   UpdateCreateRequest,
 } from "@/lib/contracts";
-import { ApiError } from "./errors";
+import { ApiError, mapRpcError } from "./errors";
 import { getServiceClient } from "./supabase";
 import { getOwnReport, loadOwnedReport } from "./data";
 import { recordEvent } from "./audit";
@@ -192,6 +192,12 @@ export async function recordUpdate(
   );
 }
 
+/**
+ * Close/reopen in ONE transaction (`fp_set_lifecycle`, migration 0003): the
+ * timeline entry, the lifecycle change and the audit event land together.
+ * Previously the timeline row was inserted first, so a failed or stale lifecycle
+ * update left a "closed" entry on a report that is still open.
+ */
 async function setLifecycle(
   accessId: string,
   reportId: string,
@@ -201,43 +207,18 @@ async function setLifecycle(
   closeReason: string | null,
 ): Promise<ReportDetail> {
   const supabase = getServiceClient();
-  const report = await loadOwnedReport(accessId, reportId, supabase);
-  const from = to === "closed_by_reporter" ? "open" : "closed_by_reporter";
-  if (report.lifecycle !== from) {
-    throw new ApiError(
-      "CONFLICT",
-      to === "closed_by_reporter" ? "This report is already closed." : "This report is already open.",
-    );
-  }
-  const { error: uErr } = await supabase.from("updates").insert({
-    report_id: reportId,
-    kind: auditKind,
-    occurred_at: today(),
-    summary,
-    actor_access_id: accessId,
-  });
-  if (uErr) throw uErr;
+  await loadOwnedReport(accessId, reportId, supabase);
 
-  const { data: upd, error } = await supabase
-    .from("reports")
-    .update({
-      lifecycle: to,
-      close_reason: closeReason,
-      version: report.version + 1,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", reportId)
-    .eq("version", report.version)
-    .select("id");
-  if (error) throw error;
-  if (!upd || upd.length === 0) {
-    throw new ApiError("CONFLICT", "This report changed since you loaded it.");
-  }
-  await recordEvent({
-    reportId,
-    actorAccessId: accessId,
-    type: to === "closed_by_reporter" ? "report_closed" : "report_reopened",
+  const { error } = await supabase.rpc("fp_set_lifecycle", {
+    p_report_id: reportId,
+    p_owner: accessId,
+    p_to: to,
+    p_audit_kind: auditKind,
+    p_summary: summary,
+    p_close_reason: closeReason,
   });
+  if (error) throw mapRpcError("fp_set_lifecycle", error);
+
   return getOwnReport(accessId, reportId, supabase);
 }
 

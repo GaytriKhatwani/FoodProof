@@ -2,7 +2,6 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Channel,
-  DecisionAction,
   FlagRequest,
   PublicExternalStatus,
   PublicationRequest,
@@ -10,7 +9,7 @@ import type {
   ReviewDecisionRequest,
   ReviewRequestState,
 } from "@/lib/contracts";
-import { ApiError } from "./errors";
+import { ApiError, mapRpcError } from "./errors";
 import { getServiceClient } from "./supabase";
 import { loadOwnedReport } from "./data";
 import { evidenceStorage } from "./storage";
@@ -21,10 +20,17 @@ import { withReceipt } from "./idempotency";
  * Publication and moderation (FOODPROOF_TECHNICAL_SPEC.md §5,
  * FOODPROOF_API_DETAILS.md). A publication request freezes an immutable,
  * allowlisted payload plus sanitized asset copies built from OWNED data — never
- * a client-supplied public payload. Approval updates the revision state and the
- * publication pointer together under an optimistic guard, so a stale or repeated
- * approval cannot resurrect withdrawn/removed content. Withdrawing or removing a
- * parent hides all of its responses and assets.
+ * a client-supplied public payload.
+ *
+ * Every operation that would otherwise leave a contradictory public projection
+ * halfway through runs as ONE database transaction, in the `fp_*` functions of
+ * `supabase/migrations/0003_transactional_operations.sql`: approval (revision
+ * state + publication pointer + audit, refusing a stale approval that would
+ * resurrect hidden content), withdrawal, reviewer removal, flag resolution with
+ * removal, and relinking. Ownership and the reviewer role are still checked here
+ * before the call, and again inside the function. If 0003 is not applied the
+ * call fails loudly naming the migration — there is no silent fallback to the
+ * old step-by-step path.
  */
 
 interface ConcernPayload {
@@ -121,14 +127,19 @@ async function nextRevision(supabase: SupabaseClient, reportId: string): Promise
   return (data?.revision ?? 0) + 1;
 }
 
-/** Build sanitized reviewed asset copies for the selected evidence. */
-async function freezeAssets(
+/**
+ * Validate the selected evidence and return its private object paths. This runs
+ * BEFORE any revision row is written, so a rejected selection leaves nothing
+ * behind: previously the revision was inserted first, and a validation failure
+ * left an orphan pending request that blocked the owner's next attempt.
+ */
+async function validateSelectedEvidence(
   supabase: SupabaseClient,
   reportId: string,
-  revisionId: string,
   evidenceIds: string[],
   requireLabel: boolean,
-): Promise<void> {
+): Promise<{ evidenceId: string; objectPath: string }[]> {
+  const selected: { evidenceId: string; objectPath: string }[] = [];
   for (const evId of evidenceIds) {
     const { data: ev, error } = await supabase
       .from("evidence")
@@ -148,10 +159,22 @@ async function freezeAssets(
     if (!String(ev.mime_type).startsWith("image/")) {
       throw new ApiError("VALIDATION_FAILED", "Only images can be published as assets.");
     }
-    const reviewed = await evidenceStorage.putReviewedCopy(ev.object_path as string);
+    selected.push({ evidenceId: evId, objectPath: ev.object_path as string });
+  }
+  return selected;
+}
+
+/** Build sanitized reviewed asset copies for already-validated evidence. */
+async function freezeAssets(
+  supabase: SupabaseClient,
+  revisionId: string,
+  selected: { evidenceId: string; objectPath: string }[],
+): Promise<void> {
+  for (const item of selected) {
+    const reviewed = await evidenceStorage.putReviewedCopy(item.objectPath);
     const { error: insErr } = await supabase.from("publication_assets").insert({
       revision_id: revisionId,
-      source_evidence_id: evId,
+      source_evidence_id: item.evidenceId,
       object_path: reviewed.objectPath,
     });
     if (insErr) throw insErr;
@@ -203,6 +226,14 @@ async function requestConcernRevision(
     throw new ApiError("CONFLICT", "A review request is already pending for this concern.");
   }
 
+  // Validate the selection before anything is persisted.
+  const selected = await validateSelectedEvidence(
+    supabase,
+    reportId,
+    body.selected_evidence_ids,
+    true,
+  );
+
   const payload: ConcernPayload = {
     report_id: reportId,
     product_id: report.product_id,
@@ -238,7 +269,7 @@ async function requestConcernRevision(
     throw error;
   }
 
-  await freezeAssets(supabase, reportId, rev.id, body.selected_evidence_ids, true);
+  await freezeAssets(supabase, rev.id, selected);
   await recordEvent({
     reportId,
     actorAccessId: accessId,
@@ -313,6 +344,15 @@ async function requestResponseRevision(
     if (sub?.channel) channel = sub.channel as Channel;
   }
 
+  // Response images are optional and not required to cover label roles, but the
+  // selection is still validated before anything is persisted.
+  const selected = await validateSelectedEvidence(
+    supabase,
+    reportId,
+    body.selected_evidence_ids,
+    false,
+  );
+
   const payload: ResponsePayload = {
     channel,
     summary: update.summary,
@@ -343,8 +383,7 @@ async function requestResponseRevision(
     throw error;
   }
 
-  // Response images are optional and not required to cover label roles.
-  await freezeAssets(supabase, reportId, rev.id, body.selected_evidence_ids, false);
+  await freezeAssets(supabase, rev.id, selected);
   await recordEvent({
     reportId,
     actorAccessId: accessId,
@@ -372,34 +411,14 @@ export function withdrawPublication(
     const supabase = getServiceClient();
     await loadOwnedReport(accessId, reportId, supabase);
 
-    // Hide the publication and mark the approved concern revision withdrawn.
-    const { data: pub, error: pubErr } = await supabase
-      .from("publications")
-      .select("approved_revision_id, visible")
-      .eq("report_id", reportId)
-      .maybeSingle();
-    if (pubErr) throw pubErr;
-    if (pub && pub.visible) {
-      const { error: hideErr } = await supabase
-        .from("publications")
-        .update({ visible: false, hidden_at: new Date().toISOString() })
-        .eq("report_id", reportId);
-      if (hideErr) throw hideErr;
-      await supabase
-        .from("publication_revisions")
-        .update({ state: "withdrawn" })
-        .eq("id", pub.approved_revision_id);
-    }
-
-    // Invalidate any pending approval requests for this report.
-    const { error: cancelErr } = await supabase
-      .from("publication_revisions")
-      .update({ state: "withdrawn" })
-      .eq("report_id", reportId)
-      .eq("state", "pending_review");
-    if (cancelErr) throw cancelErr;
-
-    await recordEvent({ reportId, actorAccessId: accessId, type: "publication_withdrawn" });
+    // One transaction hides the publication, withdraws the approved concern and
+    // its dependent approved responses, cancels anything still in review, and
+    // records the audit event — so no pending revision survives to be approved.
+    const { error } = await supabase.rpc("fp_withdraw_publication", {
+      p_report_id: reportId,
+      p_actor: accessId,
+    });
+    if (error) throw mapRpcError("fp_withdraw_publication", error);
     return { report_id: reportId, withdrawn: true };
   });
 }
@@ -418,72 +437,28 @@ export function decideReview(
     async () => {
       const supabase = getServiceClient();
       await assertReviewer(supabase, reviewerAccessId);
-      const { data: rev, error } = await supabase
-        .from("publication_revisions")
-        .select("id, report_id, source_update_id, state, version")
-        .eq("id", revisionId)
-        .maybeSingle();
-      if (error) throw error;
-      if (!rev) throw new ApiError("NOT_FOUND", "Review request not found.");
-      if (rev.state !== "pending_review") {
-        throw new ApiError("CONFLICT", "This request has already been decided.");
-      }
-      if (body.expected_version !== rev.version) throw STALE();
 
       const needsReason = body.action === "request_changes" || body.action === "reject";
       if (needsReason && !body.reason) {
         throw new ApiError("VALIDATION_FAILED", "A reason is required for this decision.");
       }
-      const nextState = mapAction(body.action);
 
-      // Guarded state transition (prevents stale/repeated approval).
-      const { data: updated, error: uErr } = await supabase
-        .from("publication_revisions")
-        .update({
-          state: nextState,
-          reviewed_by: reviewerAccessId,
-          reviewed_at: new Date().toISOString(),
-          reason: body.reason ?? null,
-          version: rev.version + 1,
-        })
-        .eq("id", revisionId)
-        .eq("version", rev.version)
-        .eq("state", "pending_review")
-        .select("id, state, revision, reason, created_at, source_update_id");
-      if (uErr) throw uErr;
-      const row = updated?.[0];
-      if (!row) throw STALE();
-
-      // Approving a concern revision moves the publication pointer atomically-ish.
-      if (body.action === "approve" && !rev.source_update_id) {
-        const { error: pErr } = await supabase.from("publications").upsert(
-          {
-            report_id: rev.report_id,
-            approved_revision_id: revisionId,
-            visible: true,
-            approved_at: new Date().toISOString(),
-            hidden_at: null,
-          },
-          { onConflict: "report_id" },
-        );
-        if (pErr) throw pErr;
-      }
-
-      await recordEvent({
-        reportId: rev.report_id,
-        actorAccessId: reviewerAccessId,
-        type:
-          body.action === "approve"
-            ? "review_approved"
-            : body.action === "request_changes"
-              ? "review_changes_requested"
-              : "review_rejected",
-        relatedEntityId: revisionId,
-        metadata: body.reason ? { reason: body.reason } : null,
+      // One transaction performs the decision, the publication-pointer move and
+      // the audit event, under the same optimistic version/state guards. It
+      // refuses an approval of a revision that predates a withdrawal or removal,
+      // so a stale approval can never resurrect hidden content.
+      const { data, error } = await supabase.rpc("fp_decide_review", {
+        p_revision_id: revisionId,
+        p_reviewer: reviewerAccessId,
+        p_expected_version: body.expected_version,
+        p_action: body.action,
+        p_reason: body.reason ?? null,
       });
+      if (error) throw mapRpcError("fp_decide_review", error);
+      const row = data as DecisionRow;
 
       return {
-        publication_revision_id: row.id,
+        publication_revision_id: row.publication_revision_id,
         content_kind: row.source_update_id ? "response" : "concern",
         state: row.state,
         reason: row.reason ?? null,
@@ -494,49 +469,14 @@ export function decideReview(
   );
 }
 
-function mapAction(action: DecisionAction): "approved" | "changes_requested" | "rejected" {
-  switch (action) {
-    case "approve":
-      return "approved";
-    case "request_changes":
-      return "changes_requested";
-    case "reject":
-      return "rejected";
-  }
-}
-
-/** Hide a publication and mark its revisions removed. Caller enforces reviewer. */
-async function removeContentCore(
-  supabase: SupabaseClient,
-  reviewerAccessId: string,
-  reportId: string,
-  reason: string,
-): Promise<void> {
-  const { data: report, error } = await supabase
-    .from("reports")
-    .select("id")
-    .eq("id", reportId)
-    .maybeSingle();
-  if (error) throw error;
-  if (!report) throw new ApiError("NOT_FOUND", "Report not found.");
-
-  await supabase
-    .from("publications")
-    .update({ visible: false, hidden_at: new Date().toISOString() })
-    .eq("report_id", reportId);
-  // Mark approved/pending revisions removed; cancels pending approvals too.
-  await supabase
-    .from("publication_revisions")
-    .update({ state: "removed" })
-    .eq("report_id", reportId)
-    .in("state", ["approved", "pending_review", "changes_requested"]);
-
-  await recordEvent({
-    reportId,
-    actorAccessId: reviewerAccessId,
-    type: "content_removed",
-    metadata: { reason },
-  });
+/** Row shape returned by `fp_decide_review` (migration 0003). */
+interface DecisionRow {
+  publication_revision_id: string;
+  source_update_id: string | null;
+  state: ReviewRequestState["state"];
+  reason: string | null;
+  revision: number;
+  created_at: string;
 }
 
 export function removeContent(
@@ -548,7 +488,14 @@ export function removeContent(
   return withReceipt(reviewerAccessId, "review.remove", idempotencyKey, { reportId, reason }, async () => {
     const supabase = getServiceClient();
     await assertReviewer(supabase, reviewerAccessId);
-    await removeContentCore(supabase, reviewerAccessId, reportId, reason);
+    // Hiding the publication, cancelling every still-approvable revision and
+    // writing the moderation audit event happen in one transaction.
+    const { error } = await supabase.rpc("fp_remove_content", {
+      p_report_id: reportId,
+      p_reviewer: reviewerAccessId,
+      p_reason: reason,
+    });
+    if (error) throw mapRpcError("fp_remove_content", error);
     return { report_id: reportId, removed: true };
   });
 }
@@ -562,34 +509,15 @@ export function relinkProduct(
   return withReceipt(reviewerAccessId, "review.relink", idempotencyKey, { reportId, body }, async () => {
     const supabase = getServiceClient();
     await assertReviewer(supabase, reviewerAccessId);
-    const { data: report, error } = await supabase
-      .from("reports")
-      .select("id, product_id")
-      .eq("id", reportId)
-      .maybeSingle();
-    if (error) throw error;
-    if (!report) throw new ApiError("NOT_FOUND", "Report not found.");
-
-    const { data: product, error: prodErr } = await supabase
-      .from("products")
-      .select("id")
-      .eq("id", body.product_id)
-      .maybeSingle();
-    if (prodErr) throw prodErr;
-    if (!product) throw new ApiError("VALIDATION_FAILED", "Target product not found.");
-
-    const { error: upErr } = await supabase
-      .from("reports")
-      .update({ product_id: body.product_id })
-      .eq("id", reportId);
-    if (upErr) throw upErr;
-
-    await recordEvent({
-      reportId,
-      actorAccessId: reviewerAccessId,
-      type: "product_relinked",
-      metadata: { from: report.product_id, to: body.product_id, reason: body.reason },
+    // The product change and the log that explains it are one unit: a moderator
+    // action never lands without its audit record.
+    const { error } = await supabase.rpc("fp_relink_product", {
+      p_report_id: reportId,
+      p_reviewer: reviewerAccessId,
+      p_product_id: body.product_id,
+      p_reason: body.reason,
     });
+    if (error) throw mapRpcError("fp_relink_product", error);
     return { report_id: reportId, product_id: body.product_id };
   });
 }
@@ -642,35 +570,15 @@ export function resolveFlag(
   return withReceipt(reviewerAccessId, "flag.resolve", idempotencyKey, { flagId, opts }, async () => {
     const supabase = getServiceClient();
     await assertReviewer(supabase, reviewerAccessId);
-    const { data: flag, error } = await supabase
-      .from("content_flags")
-      .select("id, report_id, state")
-      .eq("id", flagId)
-      .maybeSingle();
-    if (error) throw error;
-    if (!flag) throw new ApiError("NOT_FOUND", "Flag not found.");
-
-    if (opts.remove) {
-      await removeContentCore(
-        supabase,
-        reviewerAccessId,
-        flag.report_id,
-        opts.note ?? "Removed after flag review.",
-      );
-    }
-    const { error: uErr } = await supabase
-      .from("content_flags")
-      .update({ state: "handled", reviewer_note: opts.note ?? null })
-      .eq("id", flagId);
-    if (uErr) throw uErr;
-
-    await recordEvent({
-      reportId: flag.report_id,
-      actorAccessId: reviewerAccessId,
-      type: "flag_resolved",
-      relatedEntityId: flagId,
-      metadata: opts.note ? { note: opts.note } : null,
+    // Resolving the flag and (optionally) removing the content are one unit, so
+    // a handled flag can never point at content that is still published.
+    const { error } = await supabase.rpc("fp_resolve_flag", {
+      p_flag_id: flagId,
+      p_reviewer: reviewerAccessId,
+      p_note: opts.note ?? null,
+      p_remove: Boolean(opts.remove),
     });
+    if (error) throw mapRpcError("fp_resolve_flag", error);
     return { flag_id: flagId, state: "handled" };
   });
 }
