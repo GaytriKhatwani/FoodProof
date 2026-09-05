@@ -2,8 +2,8 @@
   "files": [
     {
       "path": ".gitignore",
-      "bytes": 111,
-      "sha256": "f8339d91ac2a2c15344b6d830639ff1d8e23471d93c81a9ca95f15115f7534b4"
+      "bytes": 125,
+      "sha256": "5d3d2d2c31d18c0716fbe502abdebcbdc4a51e4e44589d1c3e01287e9e79354a"
     },
     {
       "path": "AGENTS.md",
@@ -97,8 +97,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 1590,
-      "sha256": "b1b513b5e3f505daf6635c118f7addc1f4f5e3eecdbbe6057c6ceafeb4354475"
+      "bytes": 2625,
+      "sha256": "2083b22e0634316f7c49d0ef2947115b210e0e4bb5d2b90f2dcb15de4a879cde"
     },
     {
       "path": "design/assets/clear-signal-label-preview.jpg",
@@ -132,5 +132,5 @@
     }
   ],
   "local_markdown_links": "passed",
-  "application_tests": "not run; documentation only"
+  "application_tests": "typecheck/lint/vitest/next build pass (T0)"
 }
