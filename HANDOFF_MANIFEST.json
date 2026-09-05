@@ -12,13 +12,13 @@
     },
     {
       "path": "IMPLEMENTATION_STATUS.md",
-      "bytes": 6537,
-      "sha256": "e4c1af139c16fdd09ae5e794588f900367574dbf88b810d0b979a715c13fe505"
+      "bytes": 16668,
+      "sha256": "1a82bc42e200690344a431b172ae9028f43cf3ad02338e2cae16fb8b7ec64cbf"
     },
     {
       "path": "README.md",
-      "bytes": 3803,
-      "sha256": "7ad0a2b78f20e296d20e2386feb0dae2c9e4ac616d5c8d4299d53eaa62213290"
+      "bytes": 5055,
+      "sha256": "f4780710aeac00330e01e882eb4b08244e47e8d1f85c9d137fb8e5eb163d5088"
     },
     {
       "path": "design/assets/clear-signal-label-preview.jpg",
@@ -117,13 +117,13 @@
     },
     {
       "path": "docs/FOODPROOF_SETUP_AND_OPERATIONS.md",
-      "bytes": 5842,
-      "sha256": "6d663bdd182285fdedd2da25fe3dc53336c5cec3981b7505777682e950792e9a"
+      "bytes": 5836,
+      "sha256": "5db0dd05c616dddd7880e7fb7c83fe37ee6e0af5af1b8f8baca8080a45f34179"
     },
     {
       "path": "docs/FOODPROOF_TECHNICAL_SPEC.md",
-      "bytes": 26630,
-      "sha256": "203c4f8d963bd854411d9208f50d4a12caf21096c02df449ef26e0d6d43b4fef"
+      "bytes": 26624,
+      "sha256": "11a41bf35f573bbf5c8ce99904afba2ef2ff41ec47b12091a13794b86afebc2c"
     },
     {
       "path": "docs/FOODPROOF_WORKFLOWS.md",
@@ -137,5 +137,5 @@
     }
   ],
   "local_markdown_links": "passed",
-  "application_tests": "typecheck/lint pass; vitest 42/42 incl. 4 live demo-Supabase integration suites (T1); next build pass (T0)"
+  "application_tests": "typecheck/lint/build pass; vitest 47 passed (47), 0 skipped, against the live demo Supabase project with migration 0003 applied: boundary (6), direct-client denial with the publishable key (5), publication/moderation (5), drafts/history (6), reports (6), evidence (3) executed live, plus contracts/unit (15)"
 }

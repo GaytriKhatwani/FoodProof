@@ -2,7 +2,7 @@
 
 An evidence and complaint-preparation app for India's celiac community.
 
-**Status: T0 foundation + T1 data/persistence delivered and verified live against a dedicated demo Supabase project (42 tests, typecheck, lint all pass).** T2/T3 UI, T4 AI + live Mixpanel ingestion, and T5 deployment have not started. AI and deployment are configured later and are not verified live.
+**Status: T0 foundation + T1 data/persistence delivered and verified live against a dedicated demo Supabase project; a T1 closure pass (branch `fix/t1-closure`) adds transactional database functions and a real direct-client denial test.** Typecheck, lint, build and all 47 tests pass, with every integration suite executed live against the demo project (`supabase/migrations/0003_transactional_operations.sql` is applied there; a new project needs it applied before those operations work) — see [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for the exact counts. T2/T3 UI, T4 AI + live Mixpanel ingestion, and T5 deployment have not started. AI and deployment are configured later and are not verified live.
 
 Start with [the handoff](docs/FOODPROOF_BUILD_HANDOFF.md), then [the PRD](docs/FOODPROOF_PRD.md). Review [the audit and open items](docs/FOODPROOF_REVIEW_REPORT.md) before assigning [build tickets](docs/FOODPROOF_BUILD_TICKETS.md). Current build progress and the exact next step are in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
 
