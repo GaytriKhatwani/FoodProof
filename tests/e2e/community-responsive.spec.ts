@@ -50,11 +50,18 @@ test.describe("layout", () => {
     await expect(nav.getByRole("link", { name: "Feed" })).toBeVisible();
     await expect(nav.getByRole("link", { name: "My reports" })).toBeVisible();
 
-    await page
+    // Found by search: the shared demo project may push the seeded example off
+    // the first page of the feed. The count line proves the feed has loaded and
+    // hydrated before the form is used.
+    await expect(page.getByText(/Showing \d+ reviewed concern|No concerns loaded/)).toBeVisible();
+    await page.getByLabel("Search product or brand").fill(SEED_PRODUCT);
+    await page.getByRole("button", { name: "Search" }).click();
+    const link = page
       .getByRole("listitem")
       .filter({ hasText: SEED_PRODUCT })
-      .getByRole("link", { name: "View concern" })
-      .click();
+      .getByRole("link", { name: "View concern" });
+    await expect(link).toHaveAttribute("href", /source=search$/);
+    await link.click();
     await expect(page.getByRole("heading", { level: 1, name: SEED_PRODUCT })).toBeVisible();
     await expectNoSidewaysScroll(page);
 

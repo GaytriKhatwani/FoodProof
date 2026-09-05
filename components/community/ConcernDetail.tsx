@@ -9,7 +9,7 @@ import type { PublicReport } from "@/lib/contracts";
 import { failureKind, loadFailureCopy } from "@/components/shell/errors";
 import {
   CHANNEL_LABEL,
-  EXTERNAL_STATUS_LABEL,
+  externalStatusLabel,
   formatDate,
   productTitle,
 } from "@/components/shell/format";
@@ -215,17 +215,17 @@ export function ConcernDetail({ reportId }: { reportId: string }) {
         <ul className={styles.statusList}>
           <li>
             <span className={styles.statusChannel}>{CHANNEL_LABEL.brand}:</span>{" "}
-            {EXTERNAL_STATUS_LABEL[report.external_status.brand]}
+            {externalStatusLabel(report.external_status?.brand)}
           </li>
           <li>
             <span className={styles.statusChannel}>{CHANNEL_LABEL.government}:</span>{" "}
-            {EXTERNAL_STATUS_LABEL[report.external_status.government]}
+            {externalStatusLabel(report.external_status?.government)}
           </li>
         </ul>
         <p className={styles.footnote}>
           This is the reporter&rsquo;s own record of what they sent, frozen when this version
           was approved
-          {report.external_status.as_recorded_at
+          {report.external_status?.as_recorded_at
             ? ` (recorded ${formatDate(report.external_status.as_recorded_at)})`
             : ""}
           . It is not a government status, it does not confirm that anything was received,

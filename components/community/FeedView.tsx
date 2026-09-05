@@ -6,7 +6,7 @@ import { api } from "@/lib/client/api";
 import { clientAnalytics } from "@/lib/analytics";
 import type { PublicFeedItem } from "@/lib/contracts";
 import { loadFailureCopy } from "@/components/shell/errors";
-import { EXTERNAL_STATUS_LABEL, formatDate, productTitle } from "@/components/shell/format";
+import { externalStatusLabel, formatDate, productTitle } from "@/components/shell/format";
 import { LoadingBlock, StateBlock } from "@/components/shell/states";
 import styles from "./FeedView.module.css";
 
@@ -234,11 +234,11 @@ export function FeedView() {
                   <div className={styles.itemStatuses}>
                     <p className={styles.status}>
                       <span className={styles.statusChannel}>Brand:</span>{" "}
-                      {EXTERNAL_STATUS_LABEL[item.external_status.brand]}
+                      {externalStatusLabel(item.external_status?.brand)}
                     </p>
                     <p className={styles.status}>
                       <span className={styles.statusChannel}>Official channel:</span>{" "}
-                      {EXTERNAL_STATUS_LABEL[item.external_status.government]}
+                      {externalStatusLabel(item.external_status?.government)}
                     </p>
                     <Link
                       className={styles.viewLink}

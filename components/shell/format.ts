@@ -54,6 +54,21 @@ export const EXTERNAL_STATUS_LABEL: Record<PublicExternalStatus, string> = {
   response_reported: "Response recorded by the reporter",
 };
 
+/**
+ * Label one channel's reviewed status, tolerating a snapshot that does not
+ * carry it. A frozen payload written before this field existed (or written by
+ * anything other than the current publication service) leaves it missing, and a
+ * single such record must not take the whole feed down. The fallback says the
+ * status is absent from that version — it never guesses "no submission", which
+ * would state something about the reporter that the snapshot does not.
+ */
+export function externalStatusLabel(status: PublicExternalStatus | null | undefined): string {
+  if (status && status in EXTERNAL_STATUS_LABEL) {
+    return EXTERNAL_STATUS_LABEL[status];
+  }
+  return "Not recorded in this version";
+}
+
 export const CHANNEL_LABEL: Record<"brand" | "government", string> = {
   brand: "Brand",
   government: "Official channel",

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { createInvitation, deleteInvitations, enterPilot } from "./helpers";
 
 /**
@@ -9,6 +9,37 @@ import { createInvitation, deleteInvitations, enterPilot } from "./helpers";
  */
 
 const SEED_PRODUCT = "Millet Cookies (sample)";
+
+/**
+ * Open the seeded example from the feed. The demo project is shared with other
+ * agents' runs, so the example is found by searching rather than by assuming it
+ * sits on the first page.
+ */
+async function openSeededConcern(page: Page) {
+  await expectFeedInteractive(page);
+  await page.getByLabel("Search product or brand").fill(SEED_PRODUCT);
+  await page.getByRole("button", { name: "Search" }).click();
+
+  const link = page
+    .getByRole("listitem")
+    .filter({ hasText: SEED_PRODUCT })
+    .getByRole("link", { name: "View concern" });
+  // Waiting for the searched link proves the results rerendered, so the click
+  // cannot land on the pre-search card.
+  await expect(link).toHaveAttribute("href", /source=search$/);
+  await link.click();
+}
+
+/**
+ * Wait until the feed has loaded its first page. The count line only appears
+ * after the client fetch resolves, which also means React has hydrated and the
+ * search form's submit handler is attached.
+ */
+async function expectFeedInteractive(page: Page) {
+  await expect(
+    page.getByText(/Showing \d+ reviewed concern|No concerns loaded|No reviewed concerns yet/),
+  ).toBeVisible();
+}
 
 const createdAccessIds: string[] = [];
 
@@ -25,13 +56,9 @@ test.describe("community concern detail", () => {
     await enterPilot(page, invitation.code);
 
     await page.goto("/pilot/feed");
-    await page
-      .getByRole("listitem")
-      .filter({ hasText: SEED_PRODUCT })
-      .getByRole("link", { name: "View concern" })
-      .click();
+    await openSeededConcern(page);
 
-    await expect(page).toHaveURL(/\/pilot\/concerns\/[0-9a-f-]{36}\?source=feed$/);
+    await expect(page).toHaveURL(/\/pilot\/concerns\/[0-9a-f-]{36}\?source=search$/);
     await expect(page.getByRole("heading", { level: 1, name: SEED_PRODUCT })).toBeVisible();
 
     // Approved for publication is never presented as verified safety.
@@ -41,7 +68,15 @@ test.describe("community concern detail", () => {
     // Approved evidence is served through the guarded publication-asset route.
     const image = page.getByRole("img", { name: /Approved evidence image 1 of/ });
     await expect(image).toBeVisible();
-    await expect(image).toHaveAttribute("src", /^\/api\/publication-assets\/[0-9a-f-]{36}$/);
+    const source = await image.getAttribute("src");
+    expect(source).toMatch(/^\/api\/publication-assets\/[0-9a-f-]{36}$/);
+
+    // The guarded route must serve the bytes to this session, not just resolve
+    // to a URL. That those bytes decode in the browser is asserted separately,
+    // in tests/e2e/media-decodes.spec.ts.
+    const asset = await page.request.get(source as string);
+    expect(asset.status()).toBe(200);
+    expect(asset.headers()["content-type"]).toMatch(/^image\//);
 
     // Confirmed label facts, quoted from the reporter's own confirmation.
     await expect(page.getByText("Gluten-free (front of pack)")).toBeVisible();
@@ -79,11 +114,7 @@ test.describe("community concern detail", () => {
     await enterPilot(page, invitation.code);
 
     await page.goto("/pilot/feed");
-    await page
-      .getByRole("listitem")
-      .filter({ hasText: SEED_PRODUCT })
-      .getByRole("link", { name: "View concern" })
-      .click();
+    await openSeededConcern(page);
 
     await page.getByRole("button", { name: /Approved evidence 1 of/ }).click();
     const dialog = page.getByRole("dialog", { name: "Evidence image" });

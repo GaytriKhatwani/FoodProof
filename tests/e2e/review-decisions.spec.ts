@@ -2,6 +2,7 @@ import { test, expect, type APIRequestContext, type Page } from "@playwright/tes
 import { randomUUID } from "node:crypto";
 import { createInvitation, deleteInvitations, enterPilot } from "./helpers";
 import { E2E_ORIGIN } from "./origin";
+import { samplePng } from "../helpers/sample-image";
 
 /**
  * Reviewer decisions and stale recovery — `/pilot/review/:requestId`
@@ -18,23 +19,6 @@ const createdAccessIds: string[] = [];
 test.afterAll(async () => {
   await deleteInvitations(createdAccessIds);
 });
-
-/** A 1x1 PNG, the same shape the operator seed uploads as sample evidence. */
-function samplePng(): Buffer {
-  const chunk = (type: string, data: number[]) => {
-    const length = data.length;
-    const bytes = [(length >>> 24) & 0xff, (length >>> 16) & 0xff, (length >>> 8) & 0xff, length & 0xff];
-    for (const char of type) bytes.push(char.charCodeAt(0));
-    bytes.push(...data, 0, 0, 0, 0);
-    return bytes;
-  };
-  return Buffer.from([
-    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-    ...chunk("IHDR", [0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]),
-    ...chunk("IDAT", [0x78, 0x9c, 0x62, 0, 0, 0, 2, 0, 1]),
-    ...chunk("IEND", []),
-  ]);
-}
 
 async function apiSession(request: APIRequestContext, code: string) {
   const response = await request.post("/api/demo/session", {
@@ -76,7 +60,7 @@ async function requestPublication(request: APIRequestContext, productName: strin
   const upload = await request.post(`/api/reports/${report.report_id}/evidence`, {
     headers: { Origin: E2E_ORIGIN, "Idempotency-Key": randomUUID() },
     multipart: {
-      file: { name: "label.png", mimeType: "image/png", buffer: samplePng() },
+      file: { name: "label.png", mimeType: "image/png", buffer: Buffer.from(samplePng()) },
       kind: "label",
       roles: JSON.stringify(["identity", "claim", "ingredients"]),
     },
