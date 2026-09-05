@@ -111,3 +111,32 @@ test("an unknown report id shows the not-available state without other data", as
   await expect(page.getByText("This record is not available.")).toBeVisible();
   await expect(page.getByRole("link", { name: "Back to my reports" })).toBeVisible();
 });
+
+test("a dialog traps focus, closes on Escape and returns focus to its trigger", async ({ page }) => {
+  test.skip(!reportId, "depends on the report created above");
+  await signIn(page);
+  await page.goto(`/pilot/reports/${reportId}`);
+
+  const trigger = page.getByRole("button", { name: "Close my follow-up" }).first();
+  await trigger.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  // Focus starts inside the dialog.
+  await expect(dialog.locator(":focus")).toHaveCount(1);
+
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
+test("the record fits its viewport with no horizontal scrolling", async ({ page }) => {
+  test.skip(!reportId, "depends on the report created above");
+  await signIn(page);
+  await page.goto(`/pilot/reports/${reportId}`);
+  await expect(page.getByRole("heading", { name: "Sample Pantry Oat Mix" })).toBeVisible();
+
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(1);
+});

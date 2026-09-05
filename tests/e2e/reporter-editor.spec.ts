@@ -137,3 +137,33 @@ test("a from-concern link that cannot be loaded prefills nothing and says so", a
   await expect(page.getByText(/could not be loaded, so nothing was prefilled/)).toBeVisible();
   await expect(page.getByLabel("Product name")).toHaveValue("");
 });
+
+test("a stale save shows the reload prompt and keeps the reporter's text", async ({ page, context }) => {
+  test.skip(!reportId, "depends on the draft created above");
+  await signIn(page);
+  await page.goto(`/pilot/reports/${reportId}/edit`);
+
+  // A second tab in the same demo session saves first, so this tab's
+  // expected_version is behind.
+  const other = await context.newPage();
+  await other.goto(`/pilot/reports/${reportId}/edit`);
+  await other.getByLabel("Batch number (optional)").fill("BATCH-OTHER-TAB");
+  await other.getByRole("button", { name: "Save private draft" }).click();
+  await expect(other.getByText("Saved to the demo service.")).toBeVisible();
+  await other.close();
+
+  await page.getByLabel("Batch number (optional)").fill("BATCH-THIS-TAB");
+  await page.getByRole("button", { name: "Save private draft" }).click();
+
+  await expect(page.getByText("This record changed since you loaded it.")).toBeVisible();
+  await expect(page.getByLabel("Batch number (optional)")).toHaveValue("BATCH-THIS-TAB");
+
+  // Reloading keeps the unsaved text; saving is blocked until the reload lands,
+  // so the retry can never carry the old expected_version.
+  await page.getByRole("button", { name: "Reload the saved version" }).click();
+  await expect(page.getByText(/Reloaded the saved version/)).toBeVisible();
+  await expect(page.getByLabel("Batch number (optional)")).toHaveValue("BATCH-THIS-TAB");
+  await page.getByRole("button", { name: "Save private draft" }).click();
+  await expect(page.getByText("Saved to the demo service.")).toBeVisible();
+  await expect(page.getByText("This record changed since you loaded it.")).toHaveCount(0);
+});

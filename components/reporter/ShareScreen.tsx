@@ -32,7 +32,7 @@ import styles from "./reporter.module.css";
  * evidence blocks the REQUEST only; private saving is always still allowed.
  */
 export function ShareScreen({ reportId }: { reportId: string }) {
-  const { detail, status, failure, reload, apply } = useReportDetail(reportId);
+  const { detail, status, refreshing, failure, reload } = useReportDetail(reportId);
   const { keyFor, settled } = useIdempotencyKeys();
   const [selected, setSelected] = useState<string[] | null>(null);
   const [consent, setConsent] = useState(false);
@@ -338,6 +338,11 @@ export function ShareScreen({ reportId }: { reportId: string }) {
             {blocked}
           </p>
         ) : null}
+        {refreshing ? (
+          <p className={styles.saveState} role="status" aria-live="polite">
+            Reloading the saved version…
+          </p>
+        ) : null}
         {requestFailure ? (
           <FailureNotice
             failure={requestFailure}
@@ -351,7 +356,7 @@ export function ShareScreen({ reportId }: { reportId: string }) {
             type="button"
             className="btn-primary"
             onClick={() => void request()}
-            disabled={sending || pending || !ready}
+            disabled={sending || refreshing || pending || !ready}
           >
             {sending
               ? "Sending…"

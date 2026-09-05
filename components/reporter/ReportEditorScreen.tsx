@@ -114,6 +114,8 @@ export function ReportEditorScreen({
   const [saveFailure, setSaveFailure] = useState<Failure | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [prefillNote, setPrefillNote] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshNote, setRefreshNote] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [confirmFailure, setConfirmFailure] = useState<Failure | null>(null);
   const startedRef = useRef(false);
@@ -146,18 +148,38 @@ export function ReportEditorScreen({
     }
   }, []);
 
-  /** Re-read the report without touching the editor's typed values. */
-  const refreshDetailOnly = useCallback(async () => {
+  /**
+   * Re-read the report without touching the editor's typed values. `announce`
+   * is used by the stale-version recovery: it reports the outcome and, while it
+   * is in flight, saving is blocked — otherwise a save fired mid-reload would
+   * still carry the old `expected_version` and fail again.
+   */
+  const refreshDetailOnly = useCallback(async (announce = false) => {
     const id = idRef.current;
     if (!id) return;
+    setRefreshing(true);
+    if (announce) setRefreshNote(null);
     try {
       const result = await api.reports.get(id);
       setDetail(result);
       setLoadFailure(null);
+      if (announce) {
+        setSaveFailure(null);
+        setSaveState("idle");
+        setRefreshNote(
+          "Reloaded the saved version. Everything you typed is still below — check it, then save again.",
+        );
+      }
     } catch (error) {
       const failure = toFailure(error);
       setLoadFailure(failure);
+      if (announce) {
+        setRefreshNote(null);
+        setSaveFailure(failure);
+      }
       trackFlowError("load", failure);
+    } finally {
+      setRefreshing(false);
     }
   }, []);
 
@@ -418,7 +440,7 @@ export function ReportEditorScreen({
 
         {step === 1 ? (
           detail ? (
-            <EvidenceSection report={detail} onChanged={refreshDetailOnly} />
+            <EvidenceSection report={detail} onChanged={() => refreshDetailOnly()} />
           ) : (
             <div>
               <h2 className={styles.sectionTitle}>Evidence</h2>
@@ -432,7 +454,7 @@ export function ReportEditorScreen({
                   type="button"
                   className="btn-primary"
                   onClick={() => void save("stay")}
-                  disabled={saveState === "saving"}
+                  disabled={saveState === "saving" || refreshing}
                 >
                   Save private draft
                 </button>
@@ -504,7 +526,7 @@ export function ReportEditorScreen({
                     type="button"
                     className="btn-primary"
                     onClick={() => void confirmFacts()}
-                    disabled={confirming}
+                    disabled={confirming || refreshing}
                   >
                     {confirming ? "Saving…" : "I checked this wording against my photo"}
                   </button>
@@ -514,7 +536,7 @@ export function ReportEditorScreen({
                     failure={confirmFailure}
                     onRetry={() => void confirmFacts()}
                     onReload={
-                      confirmFailure.kind === "stale" ? () => void refreshDetailOnly() : undefined
+                      confirmFailure.kind === "stale" ? () => void refreshDetailOnly(true) : undefined
                     }
                   />
                 ) : null}
@@ -583,7 +605,7 @@ export function ReportEditorScreen({
             type="button"
             className={styles.btnSecondary}
             onClick={() => void save("stay")}
-            disabled={saveState === "saving"}
+            disabled={saveState === "saving" || refreshing}
           >
             Save private draft
           </button>
@@ -602,7 +624,7 @@ export function ReportEditorScreen({
               type="button"
               className="btn-primary"
               onClick={() => void save("open-record")}
-              disabled={saveState === "saving"}
+              disabled={saveState === "saving" || refreshing}
             >
               Save report and open the record
             </button>
@@ -611,6 +633,16 @@ export function ReportEditorScreen({
       </div>
 
       <SaveState state={saveState} />
+      {refreshing ? (
+        <p className={styles.saveState} role="status" aria-live="polite">
+          Reloading the saved version…
+        </p>
+      ) : null}
+      {refreshNote ? (
+        <p className={styles.okNote} role="status">
+          {refreshNote}
+        </p>
+      ) : null}
       {dirty ? (
         <p className={styles.small}>
           Unsaved changes on this screen. They are not stored until a save
@@ -621,7 +653,7 @@ export function ReportEditorScreen({
         <FailureNotice
           failure={saveFailure}
           onRetry={saveFailure.kind === "stale" ? undefined : () => void save("stay")}
-          onReload={saveFailure.kind === "stale" ? () => void refreshDetailOnly() : undefined}
+          onReload={saveFailure.kind === "stale" ? () => void refreshDetailOnly(true) : undefined}
         />
       ) : null}
 

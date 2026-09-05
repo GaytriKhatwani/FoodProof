@@ -108,14 +108,6 @@ async function approveAsOwner(page: Page, targetReportId: string): Promise<void>
   try {
     const reviewerPage = await context.newPage();
     await enterPilot(reviewerPage, reviewerInvitation.code);
-    // KNOWN SERVER DEFECT (reported to the integration owner, fix in progress):
-    // Supabase reads made inside a route handler are served from Next's fetch
-    // Data Cache, which also persists in `.next/cache/fetch-cache`. The FIRST
-    // GET /api/review/queue in a fresh cache is correct; every later one replays
-    // that frozen payload, so the request this spec just created is missing and
-    // this lookup throws. Deliberately NOT worked around here — no cache
-    // busting, no hand-rolled fetch — so the defect stays visible until the
-    // non-caching Supabase fetch lands on main.
     const queue = await ok(reviewerPage.request, "get", "/api/review/queue");
     const item = (queue.items as { publication_revision_id: string; report_id: string }[]).find(
       (entry) => entry.report_id === targetReportId,
@@ -208,6 +200,39 @@ test("the from-concern link copies product identity only", async ({ page }) => {
   await page.getByRole("button", { name: "3 Concern" }).click();
   await expect(page.getByLabel("Your concern")).toHaveValue("");
   await expect(page.getByLabel("Gluten-free wording on the label")).toHaveValue("");
+});
+
+test("a recorded response can be proposed for review without any attachment", async ({ page }) => {
+  test.skip(!reportId, "depends on the published report");
+  await signIn(page);
+  const headers = (key: string) => ({ Origin: E2E_ORIGIN, "Idempotency-Key": key });
+  const submission = await ok(page.request, "post", `/api/reports/${reportId}/submissions`, {
+    headers: headers(uuid()),
+    data: {
+      channel: "brand",
+      recipient: "Sample Pantry consumer care",
+      submitted_at: new Date().toISOString().slice(0, 10),
+    },
+  });
+  await ok(page.request, "post", `/api/reports/${reportId}/updates`, {
+    headers: headers(uuid()),
+    data: {
+      submission_id: submission.id,
+      kind: "response",
+      sender: "Sample Pantry customer team",
+      occurred_at: new Date().toISOString().slice(0, 10),
+      summary: "They said the packaging is under review. Fictional demo content.",
+    },
+  });
+
+  await page.goto(`/pilot/reports/${reportId}`);
+  await page.getByRole("button", { name: "Preview response for sharing" }).first().click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("You can propose the summary on its own", { exact: false })).toBeVisible();
+  await dialog.getByRole("checkbox", { name: /I want this response summary/ }).check();
+  await dialog.getByRole("button", { name: "Request response review" }).click();
+
+  await expect(page.getByText("Response sent for owner review", { exact: false })).toBeVisible();
 });
 
 test("withdrawing hides the community version and keeps the private record", async ({ page }) => {

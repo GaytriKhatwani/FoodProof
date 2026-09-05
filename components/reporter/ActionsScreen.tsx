@@ -41,7 +41,7 @@ interface DraftText {
 }
 
 export function ActionsScreen({ reportId }: { reportId: string }) {
-  const { detail, status, failure, reload } = useReportDetail(reportId);
+  const { detail, status, refreshing, failure, reload } = useReportDetail(reportId);
   const { keyFor, settled } = useIdempotencyKeys();
   const [channel, setChannel] = useState<Channel>("brand");
   const [texts, setTexts] = useState<Partial<Record<Channel, DraftText>>>({});
@@ -332,7 +332,7 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
                 type="button"
                 className="btn-primary"
                 onClick={() => void save()}
-                disabled={saveState === "saving"}
+                disabled={saveState === "saving" || refreshing}
               >
                 Save draft
               </button>
@@ -359,6 +359,11 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
               ) : null}
             </div>
             <SaveState state={saveState} />
+            {refreshing ? (
+              <p className={styles.saveState} role="status" aria-live="polite">
+                Reloading the saved draft…
+              </p>
+            ) : null}
             {savedDraft ? (
               <p className={styles.small}>
                 A draft for this channel is saved (version {savedDraft.version}).

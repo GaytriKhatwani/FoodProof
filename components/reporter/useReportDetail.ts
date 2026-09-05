@@ -14,6 +14,8 @@ import { toFailure, trackFlowError, type Failure } from "./failure";
 export interface ReportDetailState {
   detail: ReportDetail | null;
   status: "loading" | "ready" | "failed";
+  /** True while a re-read is in flight, including a reload of an already-loaded report. */
+  refreshing: boolean;
   failure: Failure | null;
   reload: () => Promise<void>;
   apply: (detail: ReportDetail) => void;
@@ -22,11 +24,13 @@ export interface ReportDetailState {
 export function useReportDetail(reportId: string): ReportDetailState {
   const [detail, setDetail] = useState<ReportDetail | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "failed">("loading");
+  const [refreshing, setRefreshing] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
   const reported = useRef(false);
 
   const reload = useCallback(async () => {
     setStatus((previous) => (previous === "ready" ? previous : "loading"));
+    setRefreshing(true);
     try {
       const result = await api.reports.get(reportId);
       setDetail(result);
@@ -41,6 +45,8 @@ export function useReportDetail(reportId: string): ReportDetailState {
         trackFlowError("load", next);
         reported.current = true;
       }
+    } finally {
+      setRefreshing(false);
     }
   }, [reportId]);
 
@@ -54,5 +60,5 @@ export function useReportDetail(reportId: string): ReportDetailState {
     setStatus("ready");
   }, []);
 
-  return { detail, status, failure, reload, apply };
+  return { detail, status, refreshing, failure, reload, apply };
 }
