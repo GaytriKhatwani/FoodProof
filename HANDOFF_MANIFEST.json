@@ -12,13 +12,13 @@
     },
     {
       "path": "IMPLEMENTATION_STATUS.md",
-      "bytes": 5192,
-      "sha256": "a8b9c516e44e3a568c746b35dd92fe3c3423a2bd94ac3444b39aa41517fb92e8"
+      "bytes": 6537,
+      "sha256": "e4c1af139c16fdd09ae5e794588f900367574dbf88b810d0b979a715c13fe505"
     },
     {
       "path": "README.md",
-      "bytes": 2733,
-      "sha256": "78b8da9c93f7770af49f8deae49ee79ba10f0f6594381de85133845e95779154"
+      "bytes": 3803,
+      "sha256": "7ad0a2b78f20e296d20e2386feb0dae2c9e4ac616d5c8d4299d53eaa62213290"
     },
     {
       "path": "design/assets/clear-signal-label-preview.jpg",
@@ -72,8 +72,8 @@
     },
     {
       "path": "docs/FOODPROOF_BUILD_HANDOFF.md",
-      "bytes": 4266,
-      "sha256": "f513a42f97bfdfdccd8fbf6144b8704a62291fa668b97e3cf4a76e5aef1d216c"
+      "bytes": 4387,
+      "sha256": "d4be09bd10fb0fc8d1027d9a70cec340a66e22d200749f492aef45952a4cf34d"
     },
     {
       "path": "docs/FOODPROOF_BUILD_TICKETS.md",
@@ -137,5 +137,5 @@
     }
   ],
   "local_markdown_links": "passed",
-  "application_tests": "typecheck/lint/vitest/next build pass (T0)"
+  "application_tests": "typecheck/lint pass; vitest 42/42 incl. 4 live demo-Supabase integration suites (T1); next build pass (T0)"
 }

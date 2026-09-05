@@ -8,14 +8,15 @@ tracks build progress only.
 
 ## Repository state
 
-- Branch `t1-data` (off `main`). Remote `origin` = https://github.com/GaytriKhatwani/FoodProof.git
-- **Not pushed** — T1 commits are local only; pushing needs authorization (AGENTS.md).
-- Commits on `t1-data` (newest first):
+- Branch `main`. Remote `origin` = https://github.com/GaytriKhatwani/FoodProof.git
+- **Pushed**: T1 merged from `t1-data` into `main` and pushed; local `main` == `origin/main`. Working tree clean.
+- T1 commits (newest first):
+  - `docs(t1)` — record T1 delivered/verified; setup, scripts, honest limitations
   - `feat(t1)` — fictional seed + teardown scripts; robust test cleanup
   - `feat(t1)` — consented analytics proxy (structural; live ingestion at T4)
   - `feat(t1)` — publication, moderation, public feed, and flags
   - `feat(t1)` — demo boundary + persistence foundation (session, reports, evidence, history)
-  - (T0 commits on `main`)
+  - (T0 commits precede these on `main`)
 
 ## Done
 
@@ -99,6 +100,8 @@ denial is enabled by the migration and asserted when `SUPABASE_ANON_KEY` is prov
 
 ## Exact next action
 
-Push `t1-data` (needs authorization) and open a PR, or continue with T2/T3 UI against the
-T1 API on their own branches. When inviting testers, the operator runs
-`create-invitations.mjs` and distributes codes privately; `seed.mjs` populates the demo feed.
+Assign T2 (reporter UI) and T3 (community UI) on their own branches, built against the
+frozen `lib/contracts/` and the live T1 API (do not edit the shared schemas/migration/
+lockfile). When inviting testers, the operator runs `create-invitations.mjs` and
+distributes codes privately; `seed.mjs` populates the demo feed. T4 (AI + live Mixpanel)
+and T5 (deploy) follow the merges.
