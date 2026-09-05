@@ -4,7 +4,7 @@ An evidence and complaint-preparation app for India's celiac community.
 
 **Status: T0 foundation scaffolded and verified (typecheck, lint, tests, production build all pass). Feature slices T1–T3 have not started.** Supabase, Mixpanel, AI and deployment are configured later and are not verified live.
 
-Start with [the handoff](docs/FOODPROOF_BUILD_HANDOFF.md), then [the PRD](docs/FOODPROOF_PRD.md). Review [the audit and open items](docs/FOODPROOF_REVIEW_REPORT.md) before assigning [build tickets](docs/FOODPROOF_BUILD_TICKETS.md).
+Start with [the handoff](docs/FOODPROOF_BUILD_HANDOFF.md), then [the PRD](docs/FOODPROOF_PRD.md). Review [the audit and open items](docs/FOODPROOF_REVIEW_REPORT.md) before assigning [build tickets](docs/FOODPROOF_BUILD_TICKETS.md). Current build progress and the exact next step are in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
 
 - Repository: https://github.com/GaytriKhatwani/FoodProof.git
 - Local folder: `/Users/gaytrikhatwani/ClaudeProjects/GovtCaseStudy/FoodProof/`

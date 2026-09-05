@@ -1,6 +1,6 @@
 # FoodProof — Start here
 
-Status: documentation reviewed for team handoff, 5 September 2026. User approved Clear Signal. No application, live integration or deployment is delivered by this package.
+Status: documentation reviewed and T0 foundation delivered, 5 September 2026. User approved Clear Signal. The T0 scaffold (Next.js app, frozen shared contracts, initial migration, Clear Signal tokens, static homepage) is committed and pushed to `origin/main`; see IMPLEMENTATION_STATUS.md at the repository root for build progress and the exact next step. No live integration (Supabase/Mixpanel/AI) or deployment is delivered yet, and feature slices T1–T3 have not started.
 
 ## Build target
 

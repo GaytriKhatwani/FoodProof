@@ -11,6 +11,46 @@
       "sha256": "44f516ba36519d3599bac296db1e1242d5250a7452c2cab7db6337cbff9cf0c8"
     },
     {
+      "path": "IMPLEMENTATION_STATUS.md",
+      "bytes": 5192,
+      "sha256": "a8b9c516e44e3a568c746b35dd92fe3c3423a2bd94ac3444b39aa41517fb92e8"
+    },
+    {
+      "path": "README.md",
+      "bytes": 2733,
+      "sha256": "78b8da9c93f7770af49f8deae49ee79ba10f0f6594381de85133845e95779154"
+    },
+    {
+      "path": "design/assets/clear-signal-label-preview.jpg",
+      "bytes": 247109,
+      "sha256": "751d86d199af99d9e7d07e2255cd2cfcb8761a0f8c65c91fc757f931aaf4b94b"
+    },
+    {
+      "path": "design/assets/clear-signal-label.png",
+      "bytes": 2557957,
+      "sha256": "3f07623d94042571df8d2ccfb15be8d10bfa6998f99351ef4a0a10f2e47252f0"
+    },
+    {
+      "path": "design/assets/clear-signal-label.png.json",
+      "bytes": 1884,
+      "sha256": "22196a1a86220cfd435564c74274195855cece0ac422b1653996a0a4e8e84e8a"
+    },
+    {
+      "path": "design/foodproof-clear-signal.fragment.html",
+      "bytes": 373463,
+      "sha256": "36b5e5df3c9a57b392fc77060617bf2b9fa699413fc26580f8dd7e7615bde9ce"
+    },
+    {
+      "path": "design/foodproof-clear-signal.html",
+      "bytes": 422306,
+      "sha256": "32f28335823e9638c8da02c878e52c22d748ea3d00b0bb2816df73ebccd61ad5"
+    },
+    {
+      "path": "design/reference/approved-concept.png",
+      "bytes": 1749775,
+      "sha256": "ca2e6a746f7f687377c1403947ea66a456c071e4af1eb7f8999a3fd44242d4d7"
+    },
+    {
       "path": "docs/DESIGN.md",
       "bytes": 3533,
       "sha256": "f31ab77f9b7caeb6d61618138934b6712000024f901f65339d7b74f277452c49"
@@ -32,8 +72,8 @@
     },
     {
       "path": "docs/FOODPROOF_BUILD_HANDOFF.md",
-      "bytes": 3962,
-      "sha256": "96d7a2b070bd2160a5b0125ed15ceb0fdf17b54021803eada23275309a05b03b"
+      "bytes": 4266,
+      "sha256": "f513a42f97bfdfdccd8fbf6144b8704a62291fa668b97e3cf4a76e5aef1d216c"
     },
     {
       "path": "docs/FOODPROOF_BUILD_TICKETS.md",
@@ -94,41 +134,6 @@
       "path": "docs/PRODUCT.md",
       "bytes": 3572,
       "sha256": "47a04ff50dd573b28b42ce2c6639404e716464bcb6fa67515cc8db39003fe53c"
-    },
-    {
-      "path": "README.md",
-      "bytes": 2625,
-      "sha256": "2083b22e0634316f7c49d0ef2947115b210e0e4bb5d2b90f2dcb15de4a879cde"
-    },
-    {
-      "path": "design/assets/clear-signal-label-preview.jpg",
-      "bytes": 247109,
-      "sha256": "751d86d199af99d9e7d07e2255cd2cfcb8761a0f8c65c91fc757f931aaf4b94b"
-    },
-    {
-      "path": "design/assets/clear-signal-label.png",
-      "bytes": 2557957,
-      "sha256": "3f07623d94042571df8d2ccfb15be8d10bfa6998f99351ef4a0a10f2e47252f0"
-    },
-    {
-      "path": "design/assets/clear-signal-label.png.json",
-      "bytes": 1884,
-      "sha256": "22196a1a86220cfd435564c74274195855cece0ac422b1653996a0a4e8e84e8a"
-    },
-    {
-      "path": "design/foodproof-clear-signal.fragment.html",
-      "bytes": 373463,
-      "sha256": "36b5e5df3c9a57b392fc77060617bf2b9fa699413fc26580f8dd7e7615bde9ce"
-    },
-    {
-      "path": "design/foodproof-clear-signal.html",
-      "bytes": 422306,
-      "sha256": "32f28335823e9638c8da02c878e52c22d748ea3d00b0bb2816df73ebccd61ad5"
-    },
-    {
-      "path": "design/reference/approved-concept.png",
-      "bytes": 1749775,
-      "sha256": "ca2e6a746f7f687377c1403947ea66a456c071e4af1eb7f8999a3fd44242d4d7"
     }
   ],
   "local_markdown_links": "passed",
