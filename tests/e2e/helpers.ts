@@ -13,15 +13,14 @@ import { test, type Page } from "@playwright/test";
 
 const SUPABASE_URL_VAR = "SUPABASE_URL";
 
-/** Legacy name removed after the T1 closure merge. */
 function secretKey(): string | undefined {
-  return process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return process.env.SUPABASE_SECRET_KEY;
 }
 
 /** Name of the first missing required env var, or null when both are present. */
 function missingLiveCredential(): string | null {
   if (!process.env[SUPABASE_URL_VAR]) return SUPABASE_URL_VAR;
-  if (!secretKey()) return "SUPABASE_SECRET_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY)";
+  if (!secretKey()) return "SUPABASE_SECRET_KEY";
   return null;
 }
 
