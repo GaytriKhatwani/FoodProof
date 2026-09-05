@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SkipLink } from "@/components/shell/SkipLink";
 
 /**
  * Public home — `/` (docs/FOODPROOF_SCREENS.md §1).
@@ -6,11 +7,13 @@ import Link from "next/link";
  * previews. Navigation follows the approved Clear Signal preview (D31); there is
  * no login link in phase one. No government logo, guaranteed outcome, safety
  * lookup, endorsement, or invented statistic. The contact route is configured
- * by the owner, never invented here.
+ * by the owner, never invented here: this page points at the channel an
+ * invitation arrived through rather than publishing an address of its own.
  */
 export default function HomePage() {
   return (
     <>
+      <SkipLink />
       <header className="site-header container">
         <span className="wordmark">
           <strong>Food</strong>Proof
@@ -23,7 +26,7 @@ export default function HomePage() {
         </nav>
       </header>
 
-      <main>
+      <main id="main">
         <section className="hero container">
           <h1>Food labels deserve a closer look.</h1>
           <p className="hero-sub">
@@ -82,8 +85,10 @@ export default function HomePage() {
 
         <section className="section container" aria-label="Pilot notice">
           <p className="notice">
-            Pilot notice: this is an invited demo using sample or redacted
-            information. Illustrative example only.
+            Pilot notice: this is an invited demo. Everything inside it — products,
+            brands, concerns and responses — is an illustrative example using sample
+            or redacted information. Nothing in the pilot describes a real complaint
+            about a real company.
           </p>
         </section>
       </main>
@@ -96,8 +101,9 @@ export default function HomePage() {
             safety.
           </p>
           <p className="muted">
-            Contact route: to be configured by the product owner before the
-            invited pilot.
+            Built for the celiac community in India. If you were invited to the
+            pilot, reply through the same channel your invitation arrived on; there
+            is no public contact address for this phase.
           </p>
         </div>
       </footer>

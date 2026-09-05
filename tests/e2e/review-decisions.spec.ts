@@ -170,6 +170,14 @@ test.describe("reviewer decisions", () => {
     await confirmChecklists(page);
     await expect(approve).toBeEnabled();
 
+    // The review screen carries the widest content in the pilot (a frozen
+    // snapshot table and a raw JSON block); neither may scroll the page.
+    const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
+
     await approve.click();
     await expect(page.getByRole("heading", { name: "Approved for publication" })).toBeVisible();
     await expect(page.getByText(/not a statement that the product is safe/)).toBeVisible();
