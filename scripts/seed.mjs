@@ -4,8 +4,10 @@
 // driving the SAME application API/publication services a real reporter uses —
 // never raw inserts that bypass invariants. It bootstraps a dedicated seed
 // reporter + reviewer (demo_access), then over HTTP: creates the report, uploads
-// label evidence, confirms facts, requests publication, approves it as reviewer,
-// records a simulated brand response, and publishes + approves that response.
+// label evidence, confirms facts, records a simulated brand submission, requests
+// the concern's publication (so its frozen external status correctly shows the
+// brand submission already reported), approves it as reviewer, records the
+// simulated brand response, and publishes + approves that response revision.
 // It also leaves a second, unreported fictional product as an unpublished draft.
 //
 // Idempotent: if the seed example is already published, it exits without change.
@@ -235,7 +237,10 @@ async function main() {
   const user = await login(userCode);
   const reviewer = await login(reviewerCode);
 
-  // 1) Published fictional concern.
+  // 1) Fictional concern, with the brand submission recorded before the
+  // concern's publication is requested — so the frozen external status on the
+  // published concern correctly reads submission_reported for brand (and
+  // no_submission_recorded for government, since none is recorded).
   const { json: created } = await call("POST", "/api/reports", {
     cookie: user,
     body: {
@@ -260,6 +265,15 @@ async function main() {
     },
   });
 
+  const { json: submission } = await call("POST", `/api/reports/${reportId}/submissions`, {
+    cookie: user,
+    body: {
+      channel: "brand",
+      recipient: "Testbrand Foods consumer care (sample)",
+      submitted_at: daysAgo(10),
+    },
+  });
+
   const { json: pubReq } = await call("POST", `/api/reports/${reportId}/publication-requests`, {
     cookie: user,
     body: {
@@ -273,15 +287,11 @@ async function main() {
     body: { expected_version: 0, action: "approve" },
   });
 
-  // 2) Simulated brand response, published and approved.
-  const { json: submission } = await call("POST", `/api/reports/${reportId}/submissions`, {
-    cookie: user,
-    body: {
-      channel: "brand",
-      recipient: "Testbrand Foods consumer care (sample)",
-      submitted_at: daysAgo(10),
-    },
-  });
+  // 2) Simulated brand response, published and approved. This runs after the
+  // concern is approved: a response revision requires a visible published
+  // parent, and its own publication does not add or change concern revisions —
+  // the concern's frozen status stays what step 1 recorded (per §5, "as
+  // recorded in this published update").
   const { json: update } = await call("POST", `/api/reports/${reportId}/updates`, {
     cookie: user,
     body: {

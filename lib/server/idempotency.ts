@@ -12,6 +12,16 @@ import { sha256Hex } from "./crypto";
  * idempotency_key)); a retry with the same key and body replays the stored
  * response, while the same key with a different body is a 409 CONFLICT. Session
  * and consent responses are NOT stored here (no token/consent payload caching).
+ *
+ * If `produce()` throws (a stale-version conflict, validation failure, a
+ * transient database error, ...), the reservation is released — the receipt
+ * row is deleted, but only while its `response_json` is still NULL, so a
+ * concurrent request that finished in the meantime is never clobbered — and
+ * the original error is rethrown unchanged. This lets an identical retry of a
+ * genuinely failed request succeed instead of being stuck behind a permanent
+ * "already being processed" CONFLICT. A concurrent duplicate that arrives
+ * while the first attempt is still in flight (reservation present, no
+ * response yet) still gets that CONFLICT.
  */
 
 const IdempotencyKey = z.string().uuid();
@@ -40,7 +50,10 @@ function stableStringify(value: unknown): string {
 /**
  * Run a mutation under an idempotency receipt. On first use it produces the
  * result and stores it; on an identical retry it replays the stored response;
- * on a reused key with a different body it throws CONFLICT.
+ * on a reused key with a different body it throws CONFLICT; on a genuine
+ * in-flight duplicate (reserved, not yet completed) it throws CONFLICT too.
+ * If `produce()` throws, the reservation is released and the original error
+ * is rethrown, so an identical retry after a failure gets a fresh attempt.
  */
 export async function withReceipt<T>(
   actorId: string,
@@ -80,7 +93,38 @@ export async function withReceipt<T>(
     throw insErr;
   }
 
-  const result = await produce();
+  let result: T;
+  try {
+    result = await produce();
+  } catch (produceErr) {
+    // Release the reservation so an identical retry of a genuinely failed
+    // request can succeed, rather than being stuck behind a permanent
+    // "already being processed" CONFLICT forever. Only delete while the
+    // response is still unset, so a concurrent request that completed in the
+    // meantime (and stored its response) is never clobbered.
+    try {
+      const { error: cleanupErr } = await supabase
+        .from("operation_receipts")
+        .delete()
+        .eq("actor_id", actorId)
+        .eq("operation", operation)
+        .eq("idempotency_key", key)
+        .is("response_json", null);
+      if (cleanupErr) {
+        console.error(
+          "[idempotency] failed to release reservation after produce() error",
+          { actorId, operation, idempotencyKey: key, cleanupErr },
+        );
+      }
+    } catch (cleanupThrown) {
+      console.error(
+        "[idempotency] failed to release reservation after produce() error",
+        { actorId, operation, idempotencyKey: key, cleanupThrown },
+      );
+    }
+    throw produceErr;
+  }
+
   await supabase
     .from("operation_receipts")
     .update({ response_json: result as unknown as Record<string, unknown> })
