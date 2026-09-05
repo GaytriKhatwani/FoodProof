@@ -297,3 +297,18 @@ begin
     execute format('revoke all on table %I from anon, authenticated;', t);
   end loop;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- Server access. The service role bypasses RLS (BYPASSRLS) but still needs
+-- table privileges. Grant them explicitly rather than depending on the
+-- project's default privileges, so the boundary holds on any demo project:
+-- service_role is the ONLY role with access; anon/authenticated stay revoked.
+-- ---------------------------------------------------------------------------
+grant usage on schema public to service_role;
+grant all privileges on all tables in schema public to service_role;
+grant all privileges on all sequences in schema public to service_role;
+grant execute on all functions in schema public to service_role;
+
+alter default privileges in schema public grant all on tables to service_role;
+alter default privileges in schema public grant all on sequences to service_role;
+alter default privileges in schema public grant execute on functions to service_role;

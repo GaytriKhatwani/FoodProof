@@ -1,0 +1,263 @@
+import "server-only";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type {
+  ReportDetail,
+  ReportUpdate,
+  Submission,
+  SubmissionCreateRequest,
+  UpdateCreateRequest,
+} from "@/lib/contracts";
+import { ApiError } from "./errors";
+import { getServiceClient } from "./supabase";
+import { getOwnReport, loadOwnedReport } from "./data";
+import { recordEvent } from "./audit";
+import { withReceipt } from "./idempotency";
+
+/**
+ * External history and reporter lifecycle (FOODPROOF_TECHNICAL_SPEC.md §4/§6).
+ * Submissions, responses and follow-ups are always user-recorded — the app makes
+ * no external claim. Attachments must belong to the same report; dates cannot be
+ * set in the future; closure/reopen append an audit update atomically.
+ */
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function assertNotFuture(date: string, field: string): void {
+  if (date > today()) {
+    throw new ApiError("VALIDATION_FAILED", "Date cannot be in the future.", {
+      fields: { [field]: "Not a future date." },
+    });
+  }
+}
+
+async function assertEvidenceBelongs(
+  supabase: SupabaseClient,
+  reportId: string,
+  evidenceId: string,
+  allowedKinds?: string[],
+): Promise<void> {
+  const { data, error } = await supabase
+    .from("evidence")
+    .select("report_id, kind")
+    .eq("id", evidenceId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data || data.report_id !== reportId) {
+    throw new ApiError("VALIDATION_FAILED", "Attachment does not belong to this report.");
+  }
+  if (allowedKinds && !allowedKinds.includes(data.kind)) {
+    throw new ApiError("VALIDATION_FAILED", `Attachment must be of kind: ${allowedKinds.join(", ")}.`);
+  }
+}
+
+async function assertSubmissionBelongs(
+  supabase: SupabaseClient,
+  reportId: string,
+  submissionId: string,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from("submissions")
+    .select("report_id")
+    .eq("id", submissionId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data || data.report_id !== reportId) {
+    throw new ApiError("VALIDATION_FAILED", "Submission does not belong to this report.");
+  }
+}
+
+function mapSubmission(s: Record<string, unknown>): Submission {
+  return {
+    id: s.id as string,
+    channel: s.channel as Submission["channel"],
+    recipient: s.recipient as string,
+    submitted_at: s.submitted_at as string,
+    reference: (s.reference as string | null) ?? null,
+    has_acknowledgement: Boolean(s.acknowledgement_evidence_id),
+    created_at: s.created_at as string,
+  };
+}
+
+function mapUpdate(u: Record<string, unknown>): ReportUpdate {
+  return {
+    id: u.id as string,
+    submission_id: (u.submission_id as string | null) ?? null,
+    kind: u.kind as ReportUpdate["kind"],
+    sender: (u.sender as string | null) ?? null,
+    occurred_at: u.occurred_at as string,
+    summary: u.summary as string,
+    has_attachment: Boolean(u.evidence_id),
+    created_at: u.created_at as string,
+  };
+}
+
+export async function recordSubmission(
+  accessId: string,
+  reportId: string,
+  body: SubmissionCreateRequest,
+  idempotencyKey: string,
+): Promise<Submission> {
+  return withReceipt(
+    accessId,
+    "submission.create",
+    idempotencyKey,
+    { reportId, body },
+    async () => {
+      const supabase = getServiceClient();
+      await loadOwnedReport(accessId, reportId, supabase);
+      assertNotFuture(body.submitted_at, "submitted_at");
+      if (body.acknowledgement_evidence_id) {
+        await assertEvidenceBelongs(supabase, reportId, body.acknowledgement_evidence_id, [
+          "acknowledgement",
+        ]);
+      }
+      const { data, error } = await supabase
+        .from("submissions")
+        .insert({
+          report_id: reportId,
+          channel: body.channel,
+          recipient: body.recipient,
+          submitted_at: body.submitted_at,
+          reference: body.reference ?? null,
+          acknowledgement_evidence_id: body.acknowledgement_evidence_id ?? null,
+        })
+        .select("*")
+        .single();
+      if (error) throw error;
+      await recordEvent({
+        reportId,
+        actorAccessId: accessId,
+        type: "submission_recorded",
+        relatedEntityId: data.id,
+        metadata: { channel: body.channel },
+      });
+      return mapSubmission(data);
+    },
+  );
+}
+
+export async function recordUpdate(
+  accessId: string,
+  reportId: string,
+  body: UpdateCreateRequest,
+  idempotencyKey: string,
+): Promise<ReportUpdate> {
+  return withReceipt(
+    accessId,
+    "update.create",
+    idempotencyKey,
+    { reportId, body },
+    async () => {
+      const supabase = getServiceClient();
+      await loadOwnedReport(accessId, reportId, supabase);
+      assertNotFuture(body.occurred_at, "occurred_at");
+
+      if (!body.submission_id) {
+        throw new ApiError("VALIDATION_FAILED", "submission_id is required for this update.");
+      }
+      await assertSubmissionBelongs(supabase, reportId, body.submission_id);
+      if (body.kind === "response" && !body.sender) {
+        throw new ApiError("VALIDATION_FAILED", "sender is required for a response.");
+      }
+      if (body.evidence_id) {
+        await assertEvidenceBelongs(supabase, reportId, body.evidence_id);
+      }
+
+      const { data, error } = await supabase
+        .from("updates")
+        .insert({
+          report_id: reportId,
+          submission_id: body.submission_id,
+          kind: body.kind,
+          sender: body.sender ?? null,
+          occurred_at: body.occurred_at,
+          summary: body.summary,
+          evidence_id: body.evidence_id ?? null,
+          actor_access_id: accessId,
+        })
+        .select("*")
+        .single();
+      if (error) throw error;
+      await recordEvent({
+        reportId,
+        actorAccessId: accessId,
+        type: "update_recorded",
+        relatedEntityId: data.id,
+        metadata: { kind: body.kind },
+      });
+      return mapUpdate(data);
+    },
+  );
+}
+
+async function setLifecycle(
+  accessId: string,
+  reportId: string,
+  to: "open" | "closed_by_reporter",
+  auditKind: "closed" | "reopened",
+  summary: string,
+  closeReason: string | null,
+): Promise<ReportDetail> {
+  const supabase = getServiceClient();
+  const report = await loadOwnedReport(accessId, reportId, supabase);
+  const from = to === "closed_by_reporter" ? "open" : "closed_by_reporter";
+  if (report.lifecycle !== from) {
+    throw new ApiError(
+      "CONFLICT",
+      to === "closed_by_reporter" ? "This report is already closed." : "This report is already open.",
+    );
+  }
+  const { error: uErr } = await supabase.from("updates").insert({
+    report_id: reportId,
+    kind: auditKind,
+    occurred_at: today(),
+    summary,
+    actor_access_id: accessId,
+  });
+  if (uErr) throw uErr;
+
+  const { data: upd, error } = await supabase
+    .from("reports")
+    .update({
+      lifecycle: to,
+      close_reason: closeReason,
+      version: report.version + 1,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", reportId)
+    .eq("version", report.version)
+    .select("id");
+  if (error) throw error;
+  if (!upd || upd.length === 0) {
+    throw new ApiError("CONFLICT", "This report changed since you loaded it.");
+  }
+  await recordEvent({
+    reportId,
+    actorAccessId: accessId,
+    type: to === "closed_by_reporter" ? "report_closed" : "report_reopened",
+  });
+  return getOwnReport(accessId, reportId, supabase);
+}
+
+export function closeReport(
+  accessId: string,
+  reportId: string,
+  reason: string,
+  idempotencyKey: string,
+): Promise<ReportDetail> {
+  return withReceipt(accessId, "report.close", idempotencyKey, { reportId, reason }, () =>
+    setLifecycle(accessId, reportId, "closed_by_reporter", "closed", reason, reason),
+  );
+}
+
+export function reopenReport(
+  accessId: string,
+  reportId: string,
+  idempotencyKey: string,
+): Promise<ReportDetail> {
+  return withReceipt(accessId, "report.reopen", idempotencyKey, { reportId }, () =>
+    setLifecycle(accessId, reportId, "open", "reopened", "Reopened by reporter.", null),
+  );
+}

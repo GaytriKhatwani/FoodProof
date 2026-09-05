@@ -8,6 +8,12 @@ import { z } from "zod";
  * dependencies are unavailable.
  */
 
+/** Treat a present-but-empty env var (e.g. `AI_PROVIDER=`) as unset. */
+const optionalSecret = z.preprocess(
+  (v) => (v === "" ? undefined : v),
+  z.string().min(1).optional(),
+);
+
 const ServerEnvSchema = z.object({
   SUPABASE_URL: z.string().url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
@@ -16,9 +22,10 @@ const ServerEnvSchema = z.object({
   APP_ORIGIN: z.string().url(),
   RATE_LIMIT_HMAC_KEY: z.string().min(1),
   DEMO_MODE: z.literal("true"),
-  // Selected at T4; optional until the AI path is enabled.
-  AI_PROVIDER: z.string().min(1).optional(),
-  AI_PROVIDER_API_KEY: z.string().min(1).optional(),
+  // Selected at T4; optional until the AI path is enabled. An empty value in a
+  // local env file counts as unset rather than an invalid value.
+  AI_PROVIDER: optionalSecret,
+  AI_PROVIDER_API_KEY: optionalSecret,
 });
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;
