@@ -447,18 +447,58 @@ export async function getReviewQueue(
   const supabase = client ?? getServiceClient();
   const { data: revs, error } = await supabase
     .from("publication_revisions")
-    .select("id, report_id, source_update_id, revision, created_at")
+    .select("id, report_id, source_update_id, revision, created_at, payload")
     .eq("state", "pending_review")
     .order("created_at", { ascending: true });
   if (error) throw error;
 
-  const items: ReviewQueueItem[] = (revs ?? []).map((r) => ({
-    publication_revision_id: r.id,
-    report_id: r.report_id,
-    content_kind: r.source_update_id ? "response" : "concern",
-    request_type: r.source_update_id ? "response" : r.revision > 1 ? "correction" : "report",
-    requested_at: r.created_at,
-  }));
+  // A concern-revision payload (StoredConcernPayload) carries product identity
+  // directly, since it is the frozen snapshot that will be published. A
+  // response-revision payload (StoredResponsePayload) has no identity of its
+  // own (see lib/server/publication.ts ResponsePayload) — the report's current
+  // published payload is not part of this query, so fall back to the owning
+  // report's own product_name/brand columns for those rows. Batch that
+  // fallback lookup rather than querying per-row.
+  const responseReportIds = Array.from(
+    new Set((revs ?? []).filter((r) => r.source_update_id).map((r) => r.report_id)),
+  );
+  const reportIdentity = new Map<string, { product_name: string; brand: string }>();
+  if (responseReportIds.length > 0) {
+    const { data: reports, error: repErr } = await supabase
+      .from("reports")
+      .select("id, product_name, brand")
+      .in("id", responseReportIds);
+    if (repErr) throw repErr;
+    for (const rp of reports ?? []) {
+      reportIdentity.set(rp.id, { product_name: rp.product_name, brand: rp.brand });
+    }
+  }
+
+  const items: ReviewQueueItem[] = (revs ?? []).map((r) => {
+    const payload = r.payload as { product_name?: string; brand?: string } | null;
+    const identity = {
+      product_name: payload?.product_name ?? reportIdentity.get(r.report_id)?.product_name,
+      brand: payload?.brand ?? reportIdentity.get(r.report_id)?.brand,
+    };
+    // ReviewQueueItem.product_name/brand are non-nullable strings; a missing
+    // value here means the frozen payload lacks identity AND the owning report
+    // row is gone, which is a data-integrity fault, not something to mask with
+    // an empty string.
+    if (!identity.product_name || !identity.brand) {
+      throw new Error(
+        `getReviewQueue: no product identity for revision ${r.id} (report ${r.report_id}).`,
+      );
+    }
+    return {
+      publication_revision_id: r.id,
+      report_id: r.report_id,
+      content_kind: r.source_update_id ? "response" : "concern",
+      request_type: r.source_update_id ? "response" : r.revision > 1 ? "correction" : "report",
+      requested_at: r.created_at,
+      product_name: identity.product_name,
+      brand: identity.brand,
+    };
+  });
 
   const { data: flags, error: fErr } = await supabase
     .from("content_flags")
@@ -484,11 +524,12 @@ export async function getReviewDetail(
   payload: unknown;
   asset_ids: string[];
   created_at: string;
+  version: number;
 }> {
   const supabase = client ?? getServiceClient();
   const { data: rev, error } = await supabase
     .from("publication_revisions")
-    .select("id, report_id, source_update_id, state, revision, reason, payload, created_at")
+    .select("id, report_id, source_update_id, state, revision, reason, payload, created_at, version")
     .eq("id", revisionId)
     .maybeSingle();
   if (error) throw error;
@@ -510,6 +551,7 @@ export async function getReviewDetail(
     payload: rev.payload,
     asset_ids: (assets ?? []).map((a) => a.id),
     created_at: rev.created_at,
+    version: rev.version,
   };
 }
 

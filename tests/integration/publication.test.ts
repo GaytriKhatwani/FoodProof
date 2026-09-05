@@ -122,14 +122,23 @@ publicationSuite.run(publicationSuite.title, () => {
 
     // Reviewer sees the queued case and the exact frozen snapshot.
     const queue = await getReviewQueue();
-    expect(queue.items.some((i) => i.publication_revision_id === req.publication_revision_id)).toBe(true);
+    const queued = queue.items.find((i) => i.publication_revision_id === req.publication_revision_id);
+    expect(queued).toBeDefined();
+    expect(queued?.brand).toBe("Sample Pantry");
+    expect(queued?.product_name).toBe("Sample Pantry Crackers");
     const detail = await getReviewDetail(req.publication_revision_id);
     expect((detail.payload as { brand: string }).brand).toBe("Sample Pantry");
     expect(detail.asset_ids).toHaveLength(1);
+    expect(detail.version).toBe(0);
 
     // A tester cannot approve by direct service call (role enforced server-side).
     const forbidden = await expectApiError(
-      decideReview(owner, req.publication_revision_id, { expected_version: 0, action: "approve" }, randomUUID()),
+      decideReview(
+        owner,
+        req.publication_revision_id,
+        { expected_version: detail.version, action: "approve" },
+        randomUUID(),
+      ),
     );
     expect(forbidden.code).toBe("FORBIDDEN");
 
@@ -137,7 +146,7 @@ publicationSuite.run(publicationSuite.title, () => {
     const decided = await decideReview(
       reviewer,
       req.publication_revision_id,
-      { expected_version: 0, action: "approve" },
+      { expected_version: detail.version, action: "approve" },
       randomUUID(),
     );
     expect(decided.state).toBe("approved");
@@ -228,6 +237,16 @@ publicationSuite.run(publicationSuite.title, () => {
       randomUUID(),
     );
     expect(respReq.content_kind).toBe("response");
+
+    // A response revision's own snapshot carries no product identity, so the
+    // queue falls back to the owning report's brand/product_name.
+    const respQueue = await getReviewQueue();
+    const queuedResp = respQueue.items.find(
+      (i) => i.publication_revision_id === respReq.publication_revision_id,
+    );
+    expect(queuedResp?.brand).toBe("Sample Pantry");
+    expect(queuedResp?.product_name).toBe("Sample Pantry Crackers");
+
     await decideReview(reviewer, respReq.publication_revision_id, { expected_version: 0, action: "approve" }, randomUUID());
 
     const withResp = await getPublicReport(reportId);
@@ -298,7 +317,69 @@ publicationSuite.run(publicationSuite.title, () => {
         randomUUID(),
       ),
     );
-    // Empty selected_evidence_ids fails validation, or the missing parent conflicts.
-    expect(["VALIDATION_FAILED", "CONFLICT"]).toContain(err.code);
+    // A response revision may select no images; the missing published parent
+    // is what conflicts here.
+    expect(err.code).toBe("CONFLICT");
+  });
+
+  it("requests and approves a response revision with no attachment", async () => {
+    const owner = await newUser();
+    const reviewer = await newReviewer();
+    const { reportId, evidenceId, version } = await readyReport(owner);
+
+    const concern = await requestPublication(
+      owner,
+      reportId,
+      { expected_version: version, consent: true, selected_evidence_ids: [evidenceId] },
+      randomUUID(),
+    );
+    await decideReview(reviewer, concern.publication_revision_id, { expected_version: 0, action: "approve" }, randomUUID());
+
+    const submission = await recordSubmission(
+      owner,
+      reportId,
+      { channel: "government", recipient: "Food Safety Connect", submitted_at: "2026-09-01" },
+      randomUUID(),
+    );
+    const response = await recordUpdate(
+      owner,
+      reportId,
+      { submission_id: submission.id, kind: "response", sender: "FSC", occurred_at: "2026-09-02", summary: "The agency logged the complaint." },
+      randomUUID(),
+    );
+
+    const v = (await getOwnReport(owner, reportId)).version;
+    const respReq = await requestPublication(
+      owner,
+      reportId,
+      { expected_version: v, consent: true, selected_evidence_ids: [], source_update_id: response.id },
+      randomUUID(),
+    );
+    expect(respReq.content_kind).toBe("response");
+
+    const detail = await getReviewDetail(respReq.publication_revision_id);
+    expect(detail.asset_ids).toHaveLength(0);
+
+    await decideReview(reviewer, respReq.publication_revision_id, { expected_version: 0, action: "approve" }, randomUUID());
+
+    const pub = await getPublicReport(reportId);
+    const resp = pub.responses.find((r) => r.publication_revision_id === respReq.publication_revision_id);
+    expect(resp).toBeDefined();
+    expect(resp?.has_attachment).toBe(false);
+    expect(pub.approved_asset_ids).toHaveLength(1); // only the concern's own label image
+  });
+
+  it("rejects a concern revision with no selected images", async () => {
+    const owner = await newUser();
+    const { reportId, version } = await readyReport(owner);
+    const err = await expectApiError(
+      requestPublication(
+        owner,
+        reportId,
+        { expected_version: version, consent: true, selected_evidence_ids: [] },
+        randomUUID(),
+      ),
+    );
+    expect(err.code).toBe("VALIDATION_FAILED");
   });
 });

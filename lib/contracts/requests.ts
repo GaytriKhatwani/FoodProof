@@ -117,14 +117,25 @@ export const CloseRequest = z
   .strict();
 export type CloseRequest = z.infer<typeof CloseRequest>;
 
+/**
+ * A concern revision (no source_update_id) must select at least one image —
+ * the frozen snapshot needs identity/claim/ingredient label roles. A response
+ * revision (source_update_id present) may select none: response evidence is
+ * optional and never forced to cover label roles (FOODPROOF_API_DETAILS.md,
+ * FOODPROOF_SCREENS.md §9).
+ */
 export const PublicationRequest = z
   .object({
     expected_version: ExpectedVersion,
     consent: z.literal(true),
-    selected_evidence_ids: z.array(uuid).min(1),
+    selected_evidence_ids: z.array(uuid),
     source_update_id: uuid.optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (body) => body.source_update_id !== undefined || body.selected_evidence_ids.length > 0,
+    { message: "Select at least one image.", path: ["selected_evidence_ids"] },
+  );
 export type PublicationRequest = z.infer<typeof PublicationRequest>;
 
 export const ReviewDecisionRequest = z

@@ -284,6 +284,8 @@ export interface ReviewDetailResponse {
   payload: unknown;
   asset_ids: string[];
   created_at: string;
+  /** send as `expected_version` on the decision */
+  version: number;
 }
 
 /** GET /api/products/matches — see lib/server/products.ts ProductMatch/matchProducts(). */
