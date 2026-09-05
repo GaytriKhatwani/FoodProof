@@ -98,14 +98,59 @@ export async function createAccess(
   return { accessId: data.id as string, code };
 }
 
-/** Remove demo_access rows (sessions/reports/receipts cascade) created by a test. */
+/**
+ * Remove all data created under a test's demo_access rows. Several FKs use
+ * NO ACTION (publication_assets->evidence, report_events/publication_revisions/
+ * content_flags -> demo_access), and Postgres's end-of-statement check is not
+ * reliably satisfied by a single cascading delete here, so we delete every child
+ * table explicitly in child->parent order, scoped to the test's reports/accesses.
+ * Errors are surfaced so a leak is never silent.
+ */
 export async function deleteAccess(client: SupabaseClient, ids: string[]) {
   if (ids.length === 0) return;
-  await client.from("demo_access").delete().in("id", ids);
+
+  const { data: reports } = await client
+    .from("reports")
+    .select("id")
+    .in("owner_access_id", ids);
+  const reportIds = (reports ?? []).map((r) => r.id);
+
+  let revIds: string[] = [];
+  if (reportIds.length) {
+    const { data: revs } = await client
+      .from("publication_revisions")
+      .select("id")
+      .in("report_id", reportIds);
+    revIds = (revs ?? []).map((r) => r.id);
+  }
+
+  const del = async (table: string, col: string, values: string[]) => {
+    if (!values.length) return;
+    const { error } = await client.from(table).delete().in(col, values);
+    if (error) throw new Error(`cleanup ${table} failed: ${error.message}`);
+  };
+
+  await del("publication_assets", "revision_id", revIds);
+  await del("publications", "report_id", reportIds);
+  await del("publication_revisions", "report_id", reportIds);
+  await del("content_flags", "report_id", reportIds);
+  await del("report_events", "report_id", reportIds);
+  await del("updates", "report_id", reportIds);
+  await del("submissions", "report_id", reportIds);
+  await del("complaint_drafts", "report_id", reportIds);
+  await del("evidence", "report_id", reportIds);
+  await del("operation_receipts", "actor_id", ids);
+  await del("reports", "id", reportIds);
+  await del("demo_sessions", "access_id", ids);
+  await del("demo_access", "id", ids);
 }
 
 /** Remove limiter rows for the given address HMACs. */
 export async function deleteAttempts(client: SupabaseClient, hmacs: string[]) {
   if (hmacs.length === 0) return;
-  await client.from("demo_access_attempts").delete().in("address_hmac", hmacs);
+  const { error } = await client
+    .from("demo_access_attempts")
+    .delete()
+    .in("address_hmac", hmacs);
+  if (error) throw new Error(`deleteAttempts failed: ${error.message}`);
 }
