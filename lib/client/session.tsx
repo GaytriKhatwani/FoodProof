@@ -1,0 +1,92 @@
+"use client";
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import type { Me } from "@/lib/contracts";
+import { api, ClientApiError } from "@/lib/client/api";
+
+/**
+ * Client-side session state (FOODPROOF_TECHNICAL_SPEC.md §2). Fetches
+ * `GET /api/me` on mount and exposes it via `useSession()`. This hook makes NO
+ * redirect decisions — the pilot shell (T3) decides what to render for each
+ * status; the middleware (`middleware.ts`) is the actual entry gate.
+ */
+
+export type SessionStatus = "loading" | "ready" | "anonymous" | "unavailable";
+
+export interface SessionContextValue {
+  status: SessionStatus;
+  me?: Me;
+  /** Re-fetch `/api/me` and update status/me accordingly. */
+  refresh(): Promise<void>;
+  /** PUT the analytics-consent choice, then refresh `me`. */
+  setAnalyticsConsent(consent: boolean): Promise<void>;
+  /** DELETE the session, then set status to "anonymous". */
+  exit(): Promise<void>;
+}
+
+const SessionContext = createContext<SessionContextValue | null>(null);
+
+export function SessionProvider({ children }: { children: ReactNode }) {
+  const [status, setStatus] = useState<SessionStatus>("loading");
+  const [me, setMe] = useState<Me | undefined>(undefined);
+
+  const refresh = useCallback(async () => {
+    try {
+      const result = await api.me.get();
+      setMe(result);
+      setStatus("ready");
+    } catch (err) {
+      setMe(undefined);
+      if (err instanceof ClientApiError && err.code === "UNAUTHENTICATED") {
+        setStatus("anonymous");
+        return;
+      }
+      // DEPENDENCY_UNAVAILABLE, a network failure, or anything unexpected —
+      // never silently claim a loaded session.
+      setStatus("unavailable");
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    // Runs once on mount; `refresh` is stable (no external deps).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const setAnalyticsConsent = useCallback(
+    async (consent: boolean) => {
+      await api.me.setAnalyticsConsent(consent);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const exit = useCallback(async () => {
+    await api.session.destroy();
+    setMe(undefined);
+    setStatus("anonymous");
+  }, []);
+
+  const value = useMemo<SessionContextValue>(
+    () => ({ status, me, refresh, setAnalyticsConsent, exit }),
+    [status, me, refresh, setAnalyticsConsent, exit],
+  );
+
+  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
+}
+
+export function useSession(): SessionContextValue {
+  const ctx = useContext(SessionContext);
+  if (!ctx) {
+    throw new Error("useSession() must be called within a <SessionProvider>.");
+  }
+  return ctx;
+}

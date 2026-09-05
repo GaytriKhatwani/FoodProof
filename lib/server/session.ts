@@ -5,6 +5,7 @@ import { getServerEnv } from "./env";
 import { getServiceClient } from "./supabase";
 import { generateToken, sha256Hex } from "./crypto";
 import { invitationRateLimiter } from "./rate-limit";
+import { SESSION_COOKIE } from "@/lib/session-cookie";
 
 /**
  * Invitation/session boundary (FOODPROOF_TECHNICAL_SPEC.md §2).
@@ -15,7 +16,10 @@ import { invitationRateLimiter } from "./rate-limit";
  * caller is over the rate limit — the boundary never reveals code validity.
  */
 
-export const SESSION_COOKIE = "fp_session";
+// Single source of truth for the cookie name lives in lib/session-cookie.ts
+// (dependency-free, so the edge middleware can import it too); re-exported
+// here so existing importers of `SESSION_COOKIE` from this module still work.
+export { SESSION_COOKIE };
 export const SESSION_TTL_SECONDS = 8 * 60 * 60; // 8 hours (demo default)
 
 export interface ResolvedActor {
