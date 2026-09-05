@@ -139,6 +139,8 @@ export const ReviewQueueItem = z.object({
   content_kind: ContentKind,
   request_type: z.enum(["report", "response", "correction"]),
   requested_at: z.string(),
+  brand: z.string(),
+  product_name: z.string(),
 });
 export type ReviewQueueItem = z.infer<typeof ReviewQueueItem>;
 
