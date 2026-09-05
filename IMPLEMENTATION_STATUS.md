@@ -4,259 +4,242 @@ Last updated: 6 September 2026. Session: https://claude.ai/code/session_01ELqpSr
 
 This is the current-state record for whoever picks up next. Authoritative product
 scope lives in `docs/` (start at `docs/FOODPROOF_BUILD_HANDOFF.md`); this file
-tracks build progress only.
+tracks build progress only. **Stop point: T2 and T3 are merged; T4 and T5 have not
+started (owner instruction: hand off here).**
 
 ## Repository state
 
 - Remote `origin` = https://github.com/GaytriKhatwani/FoodProof.git
-- **Pushed**: `main` == `origin/main`, working tree clean, linear history (fast-forward merges).
-- Merged into `main` on 6 September 2026, in order:
-  - `fix/t1-closure` (3 commits) — T1 closure: secret-key rename, test-only publishable
-    key, real direct-client denial test, transactional functions (migration 0003).
-  - `feat/shared-client-e2e` (3 commits) — shared client adapter, session hook, client
-    analytics adapter, pilot middleware gate, Playwright harness (integration-owner
-    pre-slice for T2/T3; the only dependency change is `@playwright/test`).
-- T1 (`t1-data`) and T0 commits precede these on `main`.
-- Worktrees for in-flight branches live under `../FoodProof-worktrees/<name>`.
+- **Pushed**: `main` == `origin/main` at `d81ebeb`, working tree clean.
+- Merged into `main` on 6 September 2026, in order (each verified before merge):
+  1. `fix/t1-closure` — secret-key rename, test-only publishable key, real direct-client
+     denial test, transactional functions (migration 0003).
+  2. `feat/shared-client-e2e` — typed client API adapter, session hook, client analytics
+     adapter, pilot middleware gate, Playwright harness (the only dependency change).
+  3. `feat/review-contract-additions` (819347b) — review detail returns `version`; queue
+     items carry `brand`/`product_name`.
+  4. `fix/response-attachment-optional` (bd98bd1) — response revisions may be requested
+     with no attachment; concern revisions still need images.
+  5. `fix/no-store-supabase-fetch` (d41f0f9) — Supabase reads never served from Next's
+     Data Cache; `tests/e2e/api-freshness.spec.ts` guards it.
+  6. `fix/seed-real-image` (d1bd463) — seed uploads the fictional label photograph; valid
+     sample PNG; `seed.mjs --reset`; `tests/e2e/media-decodes.spec.ts`.
+  7. `fix/idempotency-release-on-failure` (5aeda9a) — a failed mutation releases its
+     receipt so an identical retry succeeds.
+  8. `fix/seed-order` (509314f) — seed records the brand submission before publishing so
+     the frozen public status reads correctly.
+  9. `feat/t2-reporter-ui` (merge aa2cd48) — reporter journey, after independent review
+     and repair.
+  10. `feat/t3-community-review-ui` (fast-forward to d81ebeb) — public home, entry, shell,
+      feed, concern detail, reviewer UI, after independent review and repair.
+- Branches for merged work still exist locally; the only remaining worktree is
+  `../FoodProof-worktrees/t3-community` (merged; safe to remove). Worktrees live under
+  `../FoodProof-worktrees/<name>` with their own `npm ci` and a copied `.env.local` whose
+  `APP_ORIGIN` sets that worktree's dev port (the same-origin check compares against it).
 
 ## Done
 
-- **T0 foundation** (scaffold + frozen contracts) — see git history; unchanged.
-- **T1 data & persistence** — the `lib/server/` stubs are replaced with real
-  implementations against a dedicated demo Supabase project, and the full data API
-  lives under `app/api/**`. Verified live end-to-end (see Checks).
-  - **Demo boundary**: invitation→session exchange (SHA-256 hashed codes/tokens,
-    HttpOnly cookie, 8h session / 7d invite, server-resolved actor/role), persistent
-    Supabase-backed invitation-attempt limiter (`record_access_attempt` RPC, 15-min
-    tumbling window, 5 failed attempts, 429 + Retry-After, generic response for
-    unknown/expired/revoked/blocked), same-origin guard, `/api/me` + analytics-consent.
-  - **Reports**: create/patch/confirm-facts with optimistic `expected_version`,
-    idempotency receipts, server-derived `preparation`, facts-invalidation; owner-only
-    read models; canonical product matching/resolve mirroring the SQL `norm()` key.
-  - **Evidence & storage**: content-sniffed uploads (magic bytes, 3 MB cap), private
-    buckets, guarded media route, role patch with pending-review lock, guarded delete;
-    reviewed-copy image **metadata stripping** (JPEG/PNG/WebP).
-  - **Drafts & history**: deterministic complaint template + per-channel draft save;
-    user-recorded submissions/updates with attachment + future-date validation;
-    close/reopen appending audit updates.
-  - **Publication & moderation**: immutable snapshot + sanitized asset copies from
-    owned data (concern + response revisions), reviewer decisions under an optimistic +
-    state guard, pointer move on approve, withdraw/remove/relink, flags + resolve;
-    reviewer role enforced from the stored record in the service. Public feed/detail +
-    reviewer queue/detail read only frozen snapshots; per-channel external status frozen
-    at publish time. Guarded publication-asset media.
-  - **Analytics**: `/api/analytics` proxy — server-derived envelope, consent gating,
-    event-dictionary allowlist; best-effort delivery (structural; see Deferred).
-  - **Operator scripts**: `setup-storage`, `create-invitations`, `seed` (§5a, drives the
-    real API), `teardown` (ordered, guarded).
-  - **Migrations**: `0001_init.sql` now includes explicit `service_role` grants;
-    `0002_service_role_grants.sql` applies the same grants to an already-migrated project.
-- **T1 closure (merged to `main`)**
-  - **Secret key renamed**: `SUPABASE_SERVICE_ROLE_KEY` → **`SUPABASE_SECRET_KEY`**
-    everywhere (`lib/server/env.ts`, `lib/server/supabase.ts`, `tests/helpers/live.ts`,
-    all four operator scripts, `.env.example`, README and the specification/operations
-    docs). Still server-only, still never `NEXT_PUBLIC_`. The Postgres role
-    `service_role` in the SQL is a database role and is unchanged.
-  - **`SUPABASE_PUBLISHABLE_KEY` is a TEST-ONLY setting** (`sb_publishable_...`, the
-    key a browser would hold). It is deliberately absent from `ServerEnvSchema` and is
-    never read from `lib/` or `app/`; only the direct-client denial test uses it.
-    `SUPABASE_ANON_KEY` is gone.
-  - **Direct-client (RLS + grants) denial is now really tested, or honestly skipped.**
-    The old assertion was a placeholder that passed when no key was configured; that is
-    removed. The suite seeds a row in every table it reads with the secret-key client,
-    then proves a publishable-key client is refused: SELECT on `demo_access`,
-    `demo_sessions`, `demo_access_attempts`, `reports`, `evidence`,
-    `publication_revisions`, `publications`, `publication_assets`, `content_flags` and
-    `operation_receipts`; INSERT/UPDATE/DELETE on `demo_access` and `reports` (with a
-    secret-client check that nothing persisted); the `record_access_attempt` RPC (and no
-    limiter counter created); uploads to both private buckets; and download /
-    `createSignedUrl` / `list` of objects the secret client stored. Without the key the
-    group is SKIPPED with the reason in its name — never counted as a pass.
-  - **Transactional operations** — `supabase/migrations/0003_transactional_operations.sql`
-    adds `plpgsql` functions (all SECURITY INVOKER, fixed `search_path`, EXECUTE granted
-    to `service_role` only) that the service layer calls by RPC:
-    `fp_decide_review` (revision state + publication pointer + audit in one transaction,
-    refusing an approval of a revision that predates a withdrawal/removal, and refusing a
-    response whose parent is not visible), `fp_withdraw_publication`, `fp_remove_content`,
-    `fp_resolve_flag`, `fp_relink_product`, `fp_set_lifecycle` (close/reopen) and
-    `fp_schema_version()`. Guard failures raise typed SQLSTATEs (FP403/FP404/FP409/FP422)
-    that `lib/server/errors.ts` maps onto the existing `ApiError` codes, so request and
-    response shapes, error codes and HTTP statuses are unchanged for callers. A missing
-    function (PostgREST `PGRST202`) throws a clear error naming migration 0003; there is
-    no silent fallback to the old step-by-step path.
-  - **RPC EXECUTE lockdown** — 0001 left Postgres's and Supabase's defaults in place, so
-    every function in `public` was reachable through PostgREST by a browser-held
-    publishable key: `norm()` was callable by `anon` and returned a result, and
-    `record_access_attempt()` was reachable (it failed only on the table privilege,
-    leaking the internal reason). 0003 revokes EXECUTE from `public`/`anon`/`authenticated`
-    on every function in the schema, grants it back to `service_role`, and stops new
-    functions inheriting the PUBLIC default.
-  - **Publication-request ordering** — selected evidence is validated *before* the
-    revision row is written, so a rejected selection no longer leaves an orphan pending
-    request that blocks the reporter's next attempt.
-- **Shared client + browser-test harness (integration-owner pre-slice, merged)**
-  - `lib/client/api.ts`: browser-safe typed adapter over the frozen HTTP API (uniform
-    envelope parsing; `ClientApiError` with code/fields/request id/Retry-After;
-    `Idempotency-Key` convention: one key per logical user action, reused on retry;
-    multipart evidence upload; guarded media URL helpers). UI code calls the API only
-    through it — never raw `fetch`, never Supabase.
-  - `lib/client/session.tsx`: `SessionProvider` / `useSession()` over `GET /api/me`
-    (`loading | ready | anonymous | unavailable`), consent update and exit; it makes no
-    redirect decisions.
-  - `lib/analytics/index.ts`: real client adapter (`clientAnalytics.track/emit`) posting
-    allowlisted view/copy/handoff events to `/api/analytics`, fire-and-forget, never
-    throws; `noopClientAnalytics` retained for tests.
-  - `middleware.ts` + `lib/session-cookie.ts`: cookie-presence gate on `/pilot/:path+`
-    (never `/pilot` itself or `/api/**`) redirecting to `/pilot?next=…`, echoing only
-    pilot-internal `next` values; every API request is still validated server-side.
-  - Playwright harness: `playwright.config.ts` (chromium; `desktop` 1280×800 and
-    `mobile` 360×740 projects; `next dev` web server), `tests/e2e/helpers.ts`
-    (invitation create/cleanup via the secret key, `enterPilot` via the session API),
-    `tests/e2e/public-home.spec.ts` (no pilot-data request from `/`; middleware
-    redirect). Run with `npm run test:e2e`.
+- **T0 foundation** and **T1 data & persistence** — unchanged from the T1 record (demo
+  boundary, reports, evidence + private storage + guarded media, drafts + history,
+  publication/moderation/feed/flags, analytics proxy, operator scripts, migrations
+  0001/0002). See git history.
+- **T1 closure** — `SUPABASE_SERVICE_ROLE_KEY` → `SUPABASE_SECRET_KEY` (server-only);
+  `SUPABASE_PUBLISHABLE_KEY` is a test-only setting used by the direct-client denial suite
+  (skipped with a stated reason when absent, never a placeholder pass). Migration
+  `0003_transactional_operations.sql` (APPLIED on the demo project; `select
+  fp_schema_version()` returns 3) makes approval + pointer, withdrawal, removal, flag
+  resolution, relink and close/reopen single transactions, refuses stale approvals that
+  would resurrect withdrawn content, and revokes function EXECUTE from
+  public/anon/authenticated (`norm()` and `record_access_attempt()` were callable by anon
+  before). Deliberately deferred hardening (evidence upload/removal/role change, report
+  writes, submission/update/draft audit rows, asset freezing) is documented in the
+  section of that name below.
+- **Shared client + browser-test harness** — `lib/client/api.ts` (uniform envelope,
+  `ClientApiError`, one `Idempotency-Key` per logical action reused on retry, multipart
+  upload, guarded media URL helpers), `lib/client/session.tsx` (`useSession()`),
+  `lib/analytics/index.ts` (`clientAnalytics.track`, fire-and-forget), `middleware.ts` +
+  `lib/session-cookie.ts` (cookie gate on `/pilot/:path+`), Playwright (`npm run
+  test:e2e`; origin from `APP_ORIGIN`; `desktop` 1280×800 and `mobile` 360×740).
+- **T2 reporter journey** (`app/pilot/(shell)/reports/**`, `components/reporter/**`,
+  `tests/e2e/reporter-*.spec.ts`): My reports; four-step guided editor with incomplete
+  private saving, evidence upload/roles/removal, manual fact confirmation with
+  reconfirmation-after-change, server-driven readiness, manual product linking,
+  from-concern identity-only prefill (`/pilot/reports/new?from_concern=<reportId>`);
+  community preview with required unchecked consent, review request, withdrawal,
+  resubmission; action preparation with deterministic template, per-channel editable
+  drafts, copy (distinct from sending), brand `mailto:` handoff with user-confirmed
+  address, official destination as a labelled non-functional placeholder, separate
+  "record that you sent it"; private timeline with separate brand/government histories,
+  responses (optional attachment), follow-ups, close-with-reason/reopen; recovery states
+  (failed save keeps inputs; stale → reload; locked-by-pending-review and
+  already-pending conflicts have their own honest copy; 401/503 explicit; no local
+  fallback). Client events: `report_started`, `complaint_text_copied`,
+  `brand_email_opened`, `flow_error_shown`.
+- **T3 community and moderation** (`app/page.tsx`, `app/pilot/page.tsx`,
+  `app/pilot/(shell)/layout.tsx`, `app/pilot/(shell)/{feed,concerns,review}/**`,
+  `components/{shell,community,review}/**`, `public/illustrative-label.jpg`,
+  `tests/e2e/{entry,community,review}-*.spec.ts`): public home (no pilot API request;
+  fictional label photograph with "Illustrative example" caption); invitation entry
+  (masked code, generic failure, 429 wait, unavailable state, `next` only within
+  `/pilot/`, role-based destination, equal allow/decline analytics consent, no
+  login/OTP/Google/role UI); pilot shell (skip link, nav Feed / My reports / Review
+  [reviewer only], test-identity label, analytics preference control, Exit; loading /
+  session-ended / backend-unavailable states); feed with search, cursor pagination,
+  honest empty states; concern detail with guarded images, zoom viewer, frozen
+  per-channel status, reviewed responses, private correction flag, "report this product
+  independently"; reviewer queue and detail with the exact frozen snapshot, checklists,
+  decisions with required reasons, `expected_version` from the loaded revision, 409
+  reload state, flag resolution, removal, relink; forbidden state for non-reviewers.
+  Client events: `demo_entered`, `feed_viewed`, `feed_search_completed`,
+  `feed_report_viewed`, `flow_error_shown`.
+- **Independent reviews** of T2 and T3 (product intent, exposure, state honesty, API
+  compatibility, recovery, accessibility, scope) found no blockers; all findings were
+  repaired on the owning branch before merge.
 
-## Migration 0003 — APPLIED on the demo project
-
-There is no Supabase CLI, `psql` or database connection string on the build machine, so
-`supabase/migrations/0003_transactional_operations.sql` can only be applied by pasting it
-into the **Supabase SQL Editor** of the demo project (README, Demo project setup, step 2).
-It is idempotent.
-
-**Status: applied.** `select fp_schema_version();` returns `3` on the demo project, and the
-full suite below ran against the real functions. Any OTHER project (a fresh demo project, a
-future deployment) must have 0003 applied before it works: the services that call the new
-functions fail loudly naming the file — there is no fallback to the old path — and the
-integration suites that exercise them report **BLOCKED** (skipped, with the reason in the
-suite name and a console warning) rather than failing confusingly or passing. **A blocked
-or skipped suite is not evidence that its assertions hold.**
-
-## Checks (last run 6 September 2026, against the live demo Supabase project)
+## Checks (merged tree `d81ebeb`, 6 September 2026, live demo Supabase project)
 
 | Check | Command | Result |
 |---|---|---|
-| Typecheck | `npm run typecheck` | PASS |
-| Lint | `npm run lint` | PASS |
-| Build | `npm run build` | PASS |
-| Tests | `npm run test` | PASS — 47 passed (47), 8 files passed, 0 skipped, 0 blocked |
-| Browser tests | `npm run test:e2e` | PASS — 4 passed (2 specs × desktop/mobile), on the merged tree |
+| Typecheck | `npm run typecheck` | PASS (orchestrator run on `main`) |
+| Lint | `npm run lint` | PASS (orchestrator run on `main`) |
+| Build | `npm run build` | PASS (orchestrator run on `main`) |
+| Tests | `npm run test` | PASS — 51 passed (51), 8 files, 0 skipped, 0 blocked (orchestrator run on `main`) |
+| Browser tests | `npm run test:e2e` | PASS — 114 passed (desktop + 360 px) on the T3 branch at the identical tree, run by the T3 agent; the orchestrator's own full run on `main` was interrupted by a tooling failure and must be re-run at the start of the next session (see Exact next action) |
 
-Every suite executed live, with 0003 applied and `SUPABASE_PUBLISHABLE_KEY` set:
+Live acceptance covered by the suites: everything in the T1 record plus direct-client
+denial with a real publishable-key client (tables, writes, RPCs, both buckets), read-your-
+writes through the real Next runtime (consent, feed after approval, withdrawn media stop
+serving), served images decode in Chromium, attachment-free response sharing,
+failed-then-retried idempotent mutations, the full moderation loop in the UI (approve →
+appears in feed → flagged → resolved → withdrawn → unavailable), stale-review recovery,
+forbidden state for non-reviewers, middleware redirect, public home makes no pilot request.
 
-| Suite | Result |
-|---|---|
-| `tests/integration/boundary.test.ts` — demo boundary | 6 executed live |
-| `tests/integration/boundary.test.ts` — direct client denial | 5 executed live |
-| `tests/integration/publication.test.ts` | 5 executed live (against the 0003 functions) |
-| `tests/integration/history.test.ts` | 6 executed live (close/reopen via `fp_set_lifecycle`) |
-| `tests/integration/reports.test.ts` | 6 executed live |
-| `tests/integration/evidence.test.ts` | 3 executed live |
-| `tests/contracts.test.ts`, `tests/unit/*` | 15 executed |
+## Deployment (owner-provided)
 
-`scripts/seed.mjs` and `scripts/teardown.mjs` were not re-run in this pass; they were
-verified on `main`, and `seed.mjs` drives the publication path that now goes through 0003.
+- https://food-proof.vercel.app — Vercel Git integration deploys `main` automatically; the
+  owner confirmed that is acceptable while nobody uses it.
+- `GET /api/health` on the deployment reports every config group present except `ai`;
+  the same-origin check accepts the deployed origin and rejects foreign origins; invitation
+  exchange reaches the database. `MIXPANEL_TOKEN` there is the owner's NEW demo Mixpanel
+  project (also in the local `.env.local`); no Mixpanel service account exists, so
+  ingestion read-back is verified by the owner in Live View. AI variables are not set on
+  Vercel yet.
 
-Live acceptance proven in this run: two-tester isolation by guessed id; generic response
-for unknown/expired/revoked codes; 5-attempt limiter; optimistic concurrency +
-idempotency; guarded media (owner/reviewer-with-case only); preparation recompute;
-exact-snapshot approval; reviewer-only decisions; withdrawal and removal hiding responses
-and assets; no stale resurrection; public projection carrying no owner ids or storage
-paths. **Direct-client denial is proven live** with a real publishable-key client: tables,
-INSERT/UPDATE/DELETE, the `record_access_attempt` RPC, `norm()` and every `fp_*` function,
-uploads to both private buckets, and download / signed URL / list of stored objects.
+## Demo Supabase project state
+
+Migrations 0001–0003 applied. `demo_access` holds exactly `seed@foodproof` and
+`seed-reviewer@foodproof`; one published fictional concern (real label photograph, frozen
+brand status `submission_reported`) with one reviewed simulated response, and one
+unpublished draft. Re-seed with `node --env-file=.env.local scripts/seed.mjs --reset`
+(dev server running; deletes only the two seed-labelled rows and their data). Create tester
+codes with `scripts/create-invitations.mjs` and distribute privately.
+
+## Contract rulings made during Phase 2 (integration owner)
+
+1. Review detail returns `version`; queue items carry `brand`/`product_name` (additive).
+2. `PublicationRequest.selected_evidence_ids` may be empty for RESPONSE revisions only
+   (API supplement: response evidence is optional); concern revisions still need images.
+3. A private draft's first save needs product name + brand (NOT NULL in the frozen schema;
+   the technical specification governs data contracts); everything else may stay
+   incomplete. No schema change.
+4. Server-owned mutation-success analytics events are emitted by nobody yet; clients never
+   emit them. This is T4 scope.
+5. UI code calls the API only through `lib/client/api.ts`; ownership boundaries held for
+   both UI branches (verified by diff).
+
+## Handoff notes (known gaps recorded, not fixed)
+
+- `PublicFeedItem` carries no asset ids (no card thumbnail); `PublicReport` asset ids carry
+  no roles (alt text is positional and generic).
+- `GET /api/feed/:id` returns one 404 for never-published, withdrawn and removed; the UI
+  shows one "not available" state (distinguishing would leak moderation outcomes).
+- `ReviewRequestState` has no `source_update_id`, so response review requests are listed
+  by date on the timeline; `updates` require a recorded submission first.
+- Reviewer API exposes only frozen copies, so review detail has one evidence pane, not a
+  private-source pane. Moderation actions state that they apply to whatever is currently
+  published, since the review payload cannot say whether a publication is visible.
+- `flow_error_shown` `error_code` mapping differs slightly between reporter
+  (`components/reporter/failure.ts`) and community (`components/shell/flow-error.ts`)
+  screens (`network` vs `unavailable` for `DEPENDENCY_UNAVAILABLE`); align in one place at T4.
+- The server does not validate its own public projection; an older frozen payload lacking
+  `external_status` once crashed the feed (UI now degrades to "Not recorded in this
+  version"; the example was re-seeded). Consider projection validation at T4.
+- No upload percentage (fetch has no progress events); indeterminate status is shown.
+- The official destination link stays a labelled placeholder until the owner verifies the
+  destination in a browser at T5; `official_channel_opened` is therefore never emitted.
+- Sessions of a `user` invitation can reach `/pilot/review` only to receive the forbidden
+  state; the API denies with 403 independently.
 
 ## Deferred / honest limitations
 
-- **AI (T4)**: no AI routes; `confirm-facts` records `method` but there is no live
-  extraction/drafting. The `AiAdapter` stub remains. The manual/template path works.
-- **Analytics live ingestion (T4)**: the proxy validates + gates + derives the envelope,
-  but delivery is best-effort and the placeholder Mixpanel token short-circuits it; real
-  ingestion/region and wiring mutation-success events into each route are T4.
-- **Atomicity**: publication approval, withdrawal, reviewer removal, flag resolution with
-  removal, relinking and close/reopen are now single database transactions (migration
-  0003, above). The remaining multi-step writes still use guarded optimistic writes plus
-  idempotency receipts; each one is listed below with what a partial failure leaves
-  behind.
-- **Reviewed copies** strip metadata segments (EXIF/XMP/text/comments) rather than doing a
-  full pixel re-encode (no native image dependency). Full transcode is a hardening item.
-- Integration tests run sequentially against one shared remote project (`vitest`
-  `fileParallelism:false`, 30s timeout) and take ~30–60s.
+- **AI (T4)**: no AI routes; `AiAdapter` stub remains; manual/template path works and is
+  mandatory. The owner has chosen a provider, model tier, effort level and a hard spend cap
+  (recorded outside these documents per the provider-neutral convention: see the
+  gitignored `.env.local` comment and the orchestrator's notes). Live extraction and
+  drafting are required for full phase-one acceptance (A05).
+- **Analytics live ingestion (T4)**: the proxy validates, gates on consent and derives the
+  envelope; delivery to the new demo Mixpanel project is unverified; server-owned
+  mutation-success events are not emitted anywhere.
+- **Atomicity**: see "Deliberately deferred hardening".
+- **Reviewed copies** strip metadata rather than re-encoding pixels.
+- Integration tests run sequentially against one shared remote project (~100 s); the full
+  browser suite takes ~7 minutes.
 
 ## Deliberately deferred hardening (evaluated, not promoted to a transaction)
 
-Every multi-step mutation in `lib/server/reports.ts`, `lib/server/history.ts`,
-`lib/server/evidence.ts` and `lib/server/drafts.ts` was reviewed. The ones below stay as
-guarded sequential writes **on purpose**; each entry states the steps, what a partial
-failure actually leaves behind, and why that is recoverable rather than contradictory.
-
-1. **Evidence upload** (`addEvidence`). Steps: store bytes in `demo-originals` → insert
-   the `evidence` row → recompute and persist `preparation` (bumping the report version) →
-   write the audit event. Partial failure after the row insert leaves `preparation` lagging
-   the evidence and the caller sees a 503/409. Not contradictory: `preparation` is a
-   *derived cache* whose single source of truth is `computePreparation` in
-   `lib/server/preparation.ts`; reimplementing that rule in SQL would fork it. A stale
-   `draft` is only under-reported readiness, nothing is public, and the next evidence or
-   report write recomputes it. If the row insert fails after the upload, the code deletes
-   the orphaned object explicitly.
-2. **Evidence removal** (`removeEvidence`). Steps: delete the row → delete the private
-   object (best effort) → recompute preparation/version → audit. If the recompute fails
-   after the delete, the report can keep `preparation = 'ready'` while a required label
-   role is gone. **Residual risk, stated plainly:** the reporter could then submit a
-   publication request that the readiness rule would have blocked. It cannot publish
-   anything false or unowned — every selected asset is still validated (owned, ready,
-   label kind, image) and a reviewer approves only the exact frozen snapshot they see —
-   and the next write to that report repairs the flag. Storage bytes can outlive the row;
-   `scripts/teardown.mjs` and the test cleanup remove such orphans.
-3. **Evidence role change** (`patchEvidenceRoles`). Steps: update `roles` → guarded
-   recompute of the report's preparation/version (raises CONFLICT if the report changed) →
-   audit → re-read. A CONFLICT can therefore be returned *after* the role change has
-   landed. Not contradictory: roles are owner-editable metadata, the retry writes the same
-   roles (idempotent) and recomputes preparation. Evidence that is a source of a pending
-   review request is locked before any of this, so an already-frozen publication snapshot
-   can never change.
-4. **Report create / patch / confirm-facts** (`lib/server/reports.ts`). Steps: one guarded
-   single-row write → internal `report_events` audit row. A failure between them leaves a
-   consistent, version-guarded report and one missing *internal* audit entry, never a
-   public claim. Retrying with the same `Idempotency-Key` returns CONFLICT ("already being
-   processed"); with a new key the `expected_version` guard rejects the duplicate, so the
-   write cannot land twice.
-5. **Submission / update recording** (`recordSubmission`, `recordUpdate`) and
-   **complaint-draft save** (`saveComplaintDraft`). Same shape: one guarded row write →
-   audit event. The user-visible history *is* `submissions`/`updates`/`complaint_drafts`;
-   `report_events` is an internal trail, and losing one entry there contradicts nothing.
-   All three are user-recorded facts and make no external claim.
-6. **Publication-request asset freezing** (`freezeAssets`). After validation, each selected
-   image is re-encoded into `demo-reviewed` and inserted as a `publication_asset`, one at a
-   time; Storage writes cannot join a database transaction, so this cannot be made fully
-   atomic. A partial run leaves a pending revision with fewer assets than selected, plus
-   orphaned reviewed objects. Not a contradictory public projection: nothing is public
-   until a reviewer approves, and the reviewer sees exactly the frozen asset set that
-   approval will publish. Nothing adds assets to a revision after the request.
+1. **Evidence upload** — store bytes → insert row → recompute `preparation` → audit. A
+   partial failure leaves `preparation` lagging (derived cache; single source of truth in
+   `lib/server/preparation.ts`); the next write recomputes it; an orphaned object is
+   deleted explicitly if the row insert fails.
+2. **Evidence removal** — delete row → delete object (best effort) → recompute → audit.
+   Residual risk: `preparation` can stay `ready` after a required role is gone until the
+   next write; nothing false or unowned can be published (assets are validated and the
+   reviewer approves only the frozen snapshot). Orphaned bytes are removed by teardown/test
+   cleanup.
+3. **Evidence role change** — update → guarded recompute (CONFLICT if the report changed)
+   → audit; a CONFLICT can follow a landed role change; retry is idempotent; pending-review
+   evidence is locked first.
+4. **Report create / patch / confirm-facts** — one guarded write → internal audit row; a
+   missing audit row contradicts nothing; the version guard prevents double writes.
+5. **Submission / update / draft save** — same shape; the user-visible record is the row.
+6. **Publication-request asset freezing** — Storage writes cannot join a transaction; a
+   partial run leaves a pending revision with fewer assets; nothing is public until
+   approval and the reviewer sees exactly the frozen set.
 
 ## Not started (do not begin without assignment)
 
-- **T2** reporter UI, **T3** community/moderation UI (build against the frozen
-  `lib/contracts/` + the T1 API), then **T4** integrate + AI + live analytics, **T5**
-  deployed pilot check.
+- **T4** integrate + AI + live analytics; **T5** deployed guarded-pilot check.
 
-## Open configuration (blocks the integrated pilot, not T1)
+## Open configuration
 
-- AI provider/model + data terms + budget — owner provides **before T4**.
-- Dedicated demo **Mixpanel** project/region/token for live ingestion (T4).
-- Deployed `APP_ORIGIN` on Vercel; official FSSAI destination browser-verification;
-  contact/moderator route; 30-day retention confirmation (T5).
+- AI variables on Vercel (`AI_PROVIDER`, `AI_PROVIDER_API_KEY`, model) — owner sets at T4/T5.
+- Mixpanel read-back (no service account) — owner verifies in Live View during T4.
+- Official FSSAI destination browser-verification; contact/moderator route; 30-day
+  retention confirmation (T5).
 
-## Exact next action
+## Exact next action (continuation prompt for the next session)
 
-1. **T2 (reporter UI) and T3 (community/moderation UI) run in parallel** on
-   `feat/t2-reporter-ui` and `feat/t3-community-review-ui`, each in its own worktree from
-   this `main`, against the frozen `lib/contracts/`, the live T1 API and the shared client
-   (`lib/client/*`, `lib/analytics`). Ownership: T2 = `app/pilot/reports/**`,
-   `components/reporter/**`, reporter browser specs. T3 = `/`, `/pilot` entry,
-   `app/pilot/layout.tsx` + shell, `app/pilot/feed/**`, `app/pilot/concerns/**`,
-   `app/pilot/review/**`, `components/{shell,community,review}/**`, community/reviewer
-   browser specs. Neither edits package manifests, lockfiles, migrations,
-   `lib/contracts/**`, `lib/server/**`, `app/api/**`, `app/globals.css` tokens or the
-   shared client; contract gaps go to the integration owner for one recorded decision.
-2. Then T4 (integrate + AI + live Mixpanel ingestion) and T5 (guarded deploy) follow the
-   merges. When inviting testers, the operator runs `create-invitations.mjs` and
-   distributes codes privately; `seed.mjs` populates the demo feed (needs 0003 applied).
+1. Re-run the full browser suite on `main` (`npm run test:e2e`, port 3000 free,
+   `.next/cache/fetch-cache` cleared, dev server stopped) and record the result here; the
+   expected outcome is 114 passed on both viewports. Remove the merged worktree
+   `../FoodProof-worktrees/t3-community`.
+2. **T4** on a new worktree from `main`: add `@anthropic-ai/sdk`-style provider code only
+   through the frozen `AiAdapter` interface (`lib/server/ai.ts`) using the owner's chosen
+   provider/model/effort (see `.env.local` comment; keep these documents neutral); map
+   `AI_PROVIDER` / `AI_PROVIDER_API_KEY` in `lib/server/env.ts`; implement
+   `POST /api/reports/:id/ai/extract` and `/ai/draft` per `docs/FOODPROOF_API_DETAILS.md`
+   with ownership checks, base64 image input from owned evidence only, structured output
+   validated by Zod, timeout and output caps, a durable spend ledger enforcing the owner's
+   hard cap (new migration `0004`, applied by the owner in the SQL Editor), never logging
+   evidence/prompts/output; UI: suggestions require user confirmation, "AI assistance
+   unavailable — continue manually" on any failure. Wire server-owned mutation-success
+   events in each mutation route through `lib/server/analytics.ts`, finalise Mixpanel
+   delivery to the new demo project (region host from `.env.local`), verify decline/withdraw
+   emit nothing, inspect payloads for content/PII, and align the two `flow_error_shown`
+   mappings. Then run the complete manual and assisted journeys and an independent
+   AI/privacy/analytics review before merging. Owner verifies ingestion in Live View.
+3. **T5**: set AI variables on Vercel, verify the deployed `APP_ORIGIN`, run the acceptance
+   checklist on https://food-proof.vercel.app at desktop and 360 px, keyboard-only, with
+   fictional labels; verify the official destination before enabling it; record evidence
+   per `docs/FOODPROOF_ACCEPTANCE_CHECKLIST.md`. No public launch, no tester contact, no
+   code distribution without explicit authorization.

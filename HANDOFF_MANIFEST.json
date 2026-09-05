@@ -12,13 +12,13 @@
     },
     {
       "path": "IMPLEMENTATION_STATUS.md",
-      "bytes": 18210,
-      "sha256": "d0f15e516f42a3789e8112e4db301034ead62f038503ca17bac7f6f5c2b7f315"
+      "bytes": 16894,
+      "sha256": "f658739b922377790c4f3e74de8a2bf471d8e2636eac27e6085ece972852d5db"
     },
     {
       "path": "README.md",
-      "bytes": 5166,
-      "sha256": "20c00d34fd1bf2cd4dbe6c0f1b8bfe5e696e008cdcdb00630d1644cea28fc2c3"
+      "bytes": 5373,
+      "sha256": "6266777754e1eb6bcacf364232178fb63aac86a6002ce7b8abbbe944f5dd99c3"
     },
     {
       "path": "design/assets/clear-signal-label-preview.jpg",
@@ -137,5 +137,5 @@
     }
   ],
   "local_markdown_links": "passed",
-  "application_tests": "typecheck/lint/build pass; vitest 47/47 (all integration suites live incl. direct-client denial, migration 0003 applied); playwright 4/4 (T1 closure + shared-client pre-slice merged)"
+  "application_tests": "typecheck/lint/build pass; vitest 51/51 live (direct-client denial, freshness, idempotency); playwright 114/114 on the T3 tree identical to main d81ebeb (orchestrator full run on main to be repeated next session); T2 + T3 merged"
 }
