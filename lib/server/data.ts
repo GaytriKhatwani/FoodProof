@@ -4,14 +4,20 @@ import type {
   CommunityVisibility,
   ComplaintDraft,
   EvidenceMeta,
+  PublicFeedItem,
+  PublicReport,
+  PublicResponseSummary,
   ReportDetail,
   ReportSummary,
   ReportUpdate,
+  ReviewQueueItem,
   ReviewRequestState,
   Submission,
 } from "@/lib/contracts";
 import { ApiError } from "./errors";
 import { getServiceClient } from "./supabase";
+import { evidenceStorage } from "./storage";
+import { sniffMime } from "./image";
 
 /**
  * Guarded owner-facing read models (FOODPROOF_TECHNICAL_SPEC.md §6/§7,
@@ -279,4 +285,275 @@ export async function getOwnReport(
     updates,
     review_requests,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Public projections and review reads. These read ONLY frozen, approved
+// snapshots (publication_revisions.payload) — never private tables recomputed
+// into public badges (FOODPROOF_TECHNICAL_SPEC.md §5, FOODPROOF_API_DETAILS.md).
+// ---------------------------------------------------------------------------
+
+interface StoredConcernPayload {
+  report_id: string;
+  product_id: string | null;
+  product_name: string;
+  brand: string;
+  variant: string | null;
+  concern_summary: string;
+  confirmed_claim_text: string | null;
+  confirmed_ingredients_text: string | null;
+  observation_date: string | null;
+  external_status: PublicFeedItem["external_status"];
+}
+
+interface StoredResponsePayload {
+  channel: PublicResponseSummary["channel"];
+  summary: string;
+  occurred_at: string;
+  has_attachment: boolean;
+  provenance: "user_recorded";
+}
+
+function feedItemFrom(
+  payload: StoredConcernPayload,
+  approvedRevisionId: string,
+  publishedAt: string,
+): PublicFeedItem {
+  return {
+    report_id: payload.report_id,
+    publication_revision_id: approvedRevisionId,
+    product_id: payload.product_id,
+    product_name: payload.product_name,
+    brand: payload.brand,
+    variant: payload.variant,
+    concern_summary: payload.concern_summary,
+    observation_date: payload.observation_date,
+    published_at: publishedAt,
+    author_label: "Anonymous contributor",
+    external_status: payload.external_status,
+  };
+}
+
+/** Approved, visible concerns, newest first, opaque-cursor paginated at 20/page. */
+export async function getFeed(
+  query: { q?: string; cursor?: string },
+  client?: SupabaseClient,
+): Promise<{ items: PublicFeedItem[]; nextCursor: string | null }> {
+  const supabase = client ?? getServiceClient();
+  const { data: pubs, error } = await supabase
+    .from("publications")
+    .select("report_id, approved_revision_id, approved_at")
+    .eq("visible", true)
+    .order("approved_at", { ascending: false });
+  if (error) throw error;
+
+  const revIds = (pubs ?? []).map((p) => p.approved_revision_id);
+  const payloads = new Map<string, StoredConcernPayload>();
+  if (revIds.length > 0) {
+    const { data: revs, error: rErr } = await supabase
+      .from("publication_revisions")
+      .select("id, payload")
+      .in("id", revIds);
+    if (rErr) throw rErr;
+    for (const r of revs ?? []) payloads.set(r.id, r.payload as StoredConcernPayload);
+  }
+
+  const q = query.q?.trim().toLowerCase();
+  let items: PublicFeedItem[] = [];
+  for (const p of pubs ?? []) {
+    const payload = payloads.get(p.approved_revision_id);
+    if (!payload) continue;
+    items.push(feedItemFrom(payload, p.approved_revision_id, p.approved_at));
+  }
+  if (q) {
+    items = items.filter(
+      (i) =>
+        i.brand.toLowerCase().includes(q) || i.product_name.toLowerCase().includes(q),
+    );
+  }
+
+  const offset = decodeCursor(query.cursor);
+  const page = items.slice(offset, offset + PAGE_SIZE);
+  const hasMore = items.length > offset + PAGE_SIZE;
+  return { items: page, nextCursor: hasMore ? encodeCursor(offset + PAGE_SIZE) : null };
+}
+
+/** Full approved concern projection plus approved response summaries. */
+export async function getPublicReport(
+  reportId: string,
+  client?: SupabaseClient,
+): Promise<PublicReport> {
+  const supabase = client ?? getServiceClient();
+  const { data: pub, error } = await supabase
+    .from("publications")
+    .select("approved_revision_id, approved_at, visible")
+    .eq("report_id", reportId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!pub || !pub.visible) throw new ApiError("NOT_FOUND", "Concern not found.");
+
+  const { data: rev, error: rErr } = await supabase
+    .from("publication_revisions")
+    .select("payload")
+    .eq("id", pub.approved_revision_id)
+    .single();
+  if (rErr) throw rErr;
+  const payload = rev.payload as StoredConcernPayload;
+
+  const { data: assets, error: aErr } = await supabase
+    .from("publication_assets")
+    .select("id")
+    .eq("revision_id", pub.approved_revision_id);
+  if (aErr) throw aErr;
+
+  const { data: respRevs, error: respErr } = await supabase
+    .from("publication_revisions")
+    .select("id, payload")
+    .eq("report_id", reportId)
+    .not("source_update_id", "is", null)
+    .eq("state", "approved")
+    .order("revision", { ascending: true });
+  if (respErr) throw respErr;
+
+  const responses: PublicResponseSummary[] = (respRevs ?? []).map((r) => {
+    const p = r.payload as StoredResponsePayload;
+    return {
+      publication_revision_id: r.id,
+      channel: p.channel,
+      summary: p.summary,
+      occurred_at: p.occurred_at,
+      has_attachment: p.has_attachment,
+      provenance: "user_recorded",
+    };
+  });
+
+  const base = feedItemFrom(payload, pub.approved_revision_id, pub.approved_at);
+  return {
+    ...base,
+    confirmed_claim_text: payload.confirmed_claim_text,
+    confirmed_ingredients_text: payload.confirmed_ingredients_text,
+    approved_asset_ids: (assets ?? []).map((a) => a.id),
+    responses,
+  };
+}
+
+/** Reviewer queue: pending review requests plus open flags. */
+export async function getReviewQueue(
+  client?: SupabaseClient,
+): Promise<{
+  items: ReviewQueueItem[];
+  flags: { id: string; report_id: string; reason: string; created_at: string }[];
+}> {
+  const supabase = client ?? getServiceClient();
+  const { data: revs, error } = await supabase
+    .from("publication_revisions")
+    .select("id, report_id, source_update_id, revision, created_at")
+    .eq("state", "pending_review")
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+
+  const items: ReviewQueueItem[] = (revs ?? []).map((r) => ({
+    publication_revision_id: r.id,
+    report_id: r.report_id,
+    content_kind: r.source_update_id ? "response" : "concern",
+    request_type: r.source_update_id ? "response" : r.revision > 1 ? "correction" : "report",
+    requested_at: r.created_at,
+  }));
+
+  const { data: flags, error: fErr } = await supabase
+    .from("content_flags")
+    .select("id, report_id, reason, created_at")
+    .eq("state", "open")
+    .order("created_at", { ascending: true });
+  if (fErr) throw fErr;
+
+  return { items, flags: flags ?? [] };
+}
+
+/** Reviewer detail: the exact frozen snapshot and its associated asset ids. */
+export async function getReviewDetail(
+  revisionId: string,
+  client?: SupabaseClient,
+): Promise<{
+  publication_revision_id: string;
+  report_id: string;
+  content_kind: "concern" | "response";
+  state: string;
+  revision: number;
+  reason: string | null;
+  payload: unknown;
+  asset_ids: string[];
+  created_at: string;
+}> {
+  const supabase = client ?? getServiceClient();
+  const { data: rev, error } = await supabase
+    .from("publication_revisions")
+    .select("id, report_id, source_update_id, state, revision, reason, payload, created_at")
+    .eq("id", revisionId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!rev) throw new ApiError("NOT_FOUND", "Review request not found.");
+
+  const { data: assets, error: aErr } = await supabase
+    .from("publication_assets")
+    .select("id")
+    .eq("revision_id", revisionId);
+  if (aErr) throw aErr;
+
+  return {
+    publication_revision_id: rev.id,
+    report_id: rev.report_id,
+    content_kind: rev.source_update_id ? "response" : "concern",
+    state: rev.state,
+    revision: rev.revision,
+    reason: rev.reason ?? null,
+    payload: rev.payload,
+    asset_ids: (assets ?? []).map((a) => a.id),
+    created_at: rev.created_at,
+  };
+}
+
+/**
+ * Guarded publication-asset bytes: any valid session while the parent is
+ * currently visible, or a reviewer while the revision is pending review. Never a
+ * public URL; withdrawal/removal takes effect for subsequent requests.
+ */
+export async function readPublicationAssetForMedia(
+  actor: { accessId: string; role: "user" | "reviewer" },
+  assetId: string,
+): Promise<{ bytes: Uint8Array; mimeType: string }> {
+  const supabase = getServiceClient();
+  const { data: asset, error } = await supabase
+    .from("publication_assets")
+    .select("object_path, revision_id")
+    .eq("id", assetId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!asset) throw new ApiError("NOT_FOUND", "Asset not found.");
+
+  const { data: rev, error: rErr } = await supabase
+    .from("publication_revisions")
+    .select("report_id, source_update_id, state")
+    .eq("id", asset.revision_id)
+    .single();
+  if (rErr) throw rErr;
+
+  let permitted = actor.role === "reviewer" && rev.state === "pending_review";
+  if (!permitted) {
+    const { data: pub, error: pErr } = await supabase
+      .from("publications")
+      .select("approved_revision_id, visible")
+      .eq("report_id", rev.report_id)
+      .maybeSingle();
+    if (pErr) throw pErr;
+    if (pub && pub.visible) {
+      permitted = rev.source_update_id
+        ? rev.state === "approved"
+        : pub.approved_revision_id === asset.revision_id;
+    }
+  }
+  if (!permitted) throw new ApiError("NOT_FOUND", "Asset not found.");
+
+  const bytes = await evidenceStorage.readBytes(asset.object_path as string);
+  return { bytes, mimeType: sniffMime(bytes) ?? "application/octet-stream" };
 }
