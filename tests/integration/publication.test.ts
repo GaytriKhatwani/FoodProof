@@ -122,14 +122,23 @@ publicationSuite.run(publicationSuite.title, () => {
 
     // Reviewer sees the queued case and the exact frozen snapshot.
     const queue = await getReviewQueue();
-    expect(queue.items.some((i) => i.publication_revision_id === req.publication_revision_id)).toBe(true);
+    const queued = queue.items.find((i) => i.publication_revision_id === req.publication_revision_id);
+    expect(queued).toBeDefined();
+    expect(queued?.brand).toBe("Sample Pantry");
+    expect(queued?.product_name).toBe("Sample Pantry Crackers");
     const detail = await getReviewDetail(req.publication_revision_id);
     expect((detail.payload as { brand: string }).brand).toBe("Sample Pantry");
     expect(detail.asset_ids).toHaveLength(1);
+    expect(detail.version).toBe(0);
 
     // A tester cannot approve by direct service call (role enforced server-side).
     const forbidden = await expectApiError(
-      decideReview(owner, req.publication_revision_id, { expected_version: 0, action: "approve" }, randomUUID()),
+      decideReview(
+        owner,
+        req.publication_revision_id,
+        { expected_version: detail.version, action: "approve" },
+        randomUUID(),
+      ),
     );
     expect(forbidden.code).toBe("FORBIDDEN");
 
@@ -137,7 +146,7 @@ publicationSuite.run(publicationSuite.title, () => {
     const decided = await decideReview(
       reviewer,
       req.publication_revision_id,
-      { expected_version: 0, action: "approve" },
+      { expected_version: detail.version, action: "approve" },
       randomUUID(),
     );
     expect(decided.state).toBe("approved");
@@ -228,6 +237,16 @@ publicationSuite.run(publicationSuite.title, () => {
       randomUUID(),
     );
     expect(respReq.content_kind).toBe("response");
+
+    // A response revision's own snapshot carries no product identity, so the
+    // queue falls back to the owning report's brand/product_name.
+    const respQueue = await getReviewQueue();
+    const queuedResp = respQueue.items.find(
+      (i) => i.publication_revision_id === respReq.publication_revision_id,
+    );
+    expect(queuedResp?.brand).toBe("Sample Pantry");
+    expect(queuedResp?.product_name).toBe("Sample Pantry Crackers");
+
     await decideReview(reviewer, respReq.publication_revision_id, { expected_version: 0, action: "approve" }, randomUUID());
 
     const withResp = await getPublicReport(reportId);
