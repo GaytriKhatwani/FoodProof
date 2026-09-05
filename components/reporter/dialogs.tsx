@@ -586,12 +586,6 @@ export function ResponseShareDialog({
       setBlocked("Tick the consent box before requesting a review.");
       return;
     }
-    if (selected.length === 0) {
-      setBlocked(
-        "Select at least one image. The demo API requires a response review request to carry at least one image asset.",
-      );
-      return;
-    }
     setBlocked(null);
     setSaving(true);
     setFailure(null);
@@ -656,11 +650,15 @@ export function ResponseShareDialog({
         replace it before requesting a review.
       </p>
 
-      <h3 className={styles.subTitle}>Images to include</h3>
+      <h3 className={styles.subTitle}>Images to include (optional)</h3>
+      <p className={styles.small}>
+        You can propose the summary on its own. If you select nothing, the
+        reviewed version simply records that no attachment was provided.
+      </p>
       {shareableImages.length === 0 ? (
         <p className={styles.small}>
-          This report has no stored image, so a response review request cannot be
-          made yet.
+          This report has no stored image to offer, so only the summary above
+          would be reviewed.
         </p>
       ) : (
         <ul className={styles.evidenceGrid}>
@@ -698,8 +696,8 @@ export function ResponseShareDialog({
           onChange={(event) => setConsent(event.target.checked)}
         />
         <span>
-          I want this response summary and the selected images sent to the owner
-          for review.
+          I want this response summary, and any images I selected, sent to the
+          owner for review.
         </span>
       </label>
 
