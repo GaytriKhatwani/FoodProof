@@ -273,7 +273,7 @@ export function TimelineScreen({ reportId }: { reportId: string }) {
             {submissions.length === 0 ? (
               <p className={styles.small}>
                 No submission recorded. That means you have not recorded one here —
-                it does not say anything about what a {channel === "brand" ? "brand" : "authority"} has
+                it does not say anything about what {channel === "brand" ? "a brand" : "an authority"} has
                 or has not done.
               </p>
             ) : (

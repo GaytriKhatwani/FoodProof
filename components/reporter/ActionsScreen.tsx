@@ -191,7 +191,7 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
 
       <DemoDataNote />
 
-      <p className={styles.alert} role="note">
+      <p className={styles.alert}>
         This is a fictional pilot exercise. Do not send these practice messages to
         a real brand or a real authority.
       </p>
