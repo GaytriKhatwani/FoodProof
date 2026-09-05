@@ -157,6 +157,24 @@ export function FailureNotice({
           </p>
         </>
       ) : null}
+      {failure.kind === "locked" ? (
+        <>
+          <p>This file is part of a review request waiting with the owner.</p>
+          <p>
+            Reloading will not help. Withdraw that request on the community
+            sharing screen, then change or remove the file.
+          </p>
+        </>
+      ) : null}
+      {failure.kind === "already_pending" ? (
+        <>
+          <p>A review request is already waiting with the owner.</p>
+          <p>
+            Reloading will not help. Withdraw the pending request first if you
+            want to propose a different version.
+          </p>
+        </>
+      ) : null}
       {failure.kind === "not_found" ? (
         <>
           <p>This record is not available.</p>

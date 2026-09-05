@@ -201,7 +201,9 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  margin: var(--space-sm) 0;
+  /* Vertical padding lifts the label's hit area to ~44 px around a 20 px box. */
+  padding: 11px 0;
+  margin: 4px 0;
   max-width: 62ch;
 }
 
@@ -235,6 +237,13 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 44px;
+  padding: 4px 0;
+}
+
+.roleOption input {
+  width: 20px;
+  height: 20px;
 }
 
 /* -------------------------------------------------------------- containers */

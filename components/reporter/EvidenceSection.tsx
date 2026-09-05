@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useId, useMemo, useRef, useState } from "react";
 import type { EvidenceMeta, EvidenceRole, ReportDetail } from "@/lib/contracts";
 import { api, evidenceMediaUrl } from "@/lib/client/api";
@@ -43,6 +44,11 @@ export function readyLabelEvidence(report: ReportDetail): EvidenceMeta[] {
   );
 }
 
+/** The last per-file action, so a failure notice can retry that exact call. */
+type RowAction =
+  | { type: "roles"; evidence: EvidenceMeta; role: EvidenceRole; checked: boolean }
+  | { type: "remove"; evidence: EvidenceMeta };
+
 function kilobytes(bytes: number): string {
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
@@ -65,6 +71,8 @@ export function EvidenceSection({
   const [localError, setLocalError] = useState<string | null>(null);
   const [busyEvidenceId, setBusyEvidenceId] = useState<string | null>(null);
   const [rowFailure, setRowFailure] = useState<Failure | null>(null);
+  /** The last per-file action, so its failure notice can retry that same call. */
+  const [lastRowAction, setLastRowAction] = useState<RowAction | null>(null);
   const [announcement, setAnnouncement] = useState("");
 
   const pendingReview = report.community_visibility === "pending_review";
@@ -138,6 +146,7 @@ export function EvidenceSection({
 
   const toggleRole = useCallback(
     async (evidence: EvidenceMeta, role: EvidenceRole, checked: boolean) => {
+      setLastRowAction({ type: "roles", evidence, role, checked });
       const next = checked
         ? Array.from(new Set([...evidence.roles, role]))
         : evidence.roles.filter((item) => item !== role);
@@ -157,18 +166,22 @@ export function EvidenceSection({
         setAnnouncement("Evidence roles updated.");
         await onChanged();
       } catch (error) {
-        const failure = toFailure(error);
+        // A pending review is the blocker the server reports as CONFLICT here;
+        // an expected_version mismatch is the other one. The screen knows which
+        // situation it is in, so it says — it never reads the message text.
+        const failure = toFailure(error, { conflictAs: pendingReview ? "locked" : "stale" });
         setRowFailure(failure);
         trackFlowError("save", failure);
       } finally {
         setBusyEvidenceId(null);
       }
     },
-    [keyFor, onChanged, report.version, settled],
+    [keyFor, onChanged, pendingReview, report.version, settled],
   );
 
   const remove = useCallback(
     async (evidence: EvidenceMeta) => {
+      setLastRowAction({ type: "remove", evidence });
       const confirmed = window.confirm(
         "Remove this file from the report? The private original is deleted. Anything already approved for the community keeps its own reviewed copy.",
       );
@@ -182,15 +195,24 @@ export function EvidenceSection({
         setAnnouncement("File removed.");
         await onChanged();
       } catch (error) {
-        const failure = toFailure(error);
+        const failure = toFailure(error, { conflictAs: pendingReview ? "locked" : "stale" });
         setRowFailure(failure);
         trackFlowError("save", failure);
       } finally {
         setBusyEvidenceId(null);
       }
     },
-    [keyFor, onChanged, settled],
+    [keyFor, onChanged, pendingReview, settled],
   );
+
+  const retryLastRowAction = useCallback(() => {
+    if (!lastRowAction) return;
+    if (lastRowAction.type === "roles") {
+      void toggleRole(lastRowAction.evidence, lastRowAction.role, lastRowAction.checked);
+      return;
+    }
+    void remove(lastRowAction.evidence);
+  }, [lastRowAction, remove, toggleRole]);
 
   return (
     <div>
@@ -202,8 +224,13 @@ export function EvidenceSection({
 
       {pendingReview ? (
         <p className={styles.inset}>
-          A review request is waiting with the owner. Evidence used in that
-          request is locked until you withdraw it from the sharing screen.
+          A review request is waiting with the owner, so the roles and the remove
+          button are locked on every stored file — the owner is reviewing exactly
+          these images. You can still add new files.{" "}
+          <Link href={`/pilot/reports/${report.report_id}/share`}>
+            Withdraw the request on the community sharing screen
+          </Link>{" "}
+          to change them.
         </p>
       ) : null}
 
@@ -306,7 +333,16 @@ export function EvidenceSection({
       </div>
 
       <h3 className={styles.subTitle}>Label photos ({labelEvidence.length})</h3>
-      {rowFailure ? <FailureNotice failure={rowFailure} /> : null}
+      {rowFailure ? (
+        <FailureNotice
+          failure={rowFailure}
+          onRetry={
+            rowFailure.kind === "locked" || !lastRowAction ? undefined : retryLastRowAction
+          }
+          onReload={rowFailure.kind === "stale" ? () => void onChanged() : undefined}
+          retryLabel="Try that change again"
+        />
+      ) : null}
       {labelEvidence.length === 0 ? (
         <p className={styles.small}>No label photo has been uploaded yet.</p>
       ) : (
@@ -335,7 +371,7 @@ export function EvidenceSection({
                       <input
                         type="checkbox"
                         checked={item.roles.includes(role)}
-                        disabled={busyEvidenceId === item.id}
+                        disabled={busyEvidenceId === item.id || pendingReview}
                         onChange={(event) =>
                           void toggleRole(item, role, event.target.checked)
                         }
@@ -348,11 +384,16 @@ export function EvidenceSection({
               <button
                 type="button"
                 className={styles.btnDanger}
-                disabled={busyEvidenceId === item.id}
+                disabled={busyEvidenceId === item.id || pendingReview}
                 onClick={() => void remove(item)}
               >
                 Remove file
               </button>
+              {pendingReview ? (
+                <p className={styles.small}>
+                  Locked while the owner reviews this request.
+                </p>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -378,7 +419,7 @@ export function EvidenceSection({
                 <button
                   type="button"
                   className={styles.btnDanger}
-                  disabled={busyEvidenceId === item.id}
+                  disabled={busyEvidenceId === item.id || pendingReview}
                   onClick={() => void remove(item)}
                 >
                   Remove file

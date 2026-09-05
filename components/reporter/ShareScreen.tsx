@@ -71,6 +71,9 @@ export function ShareScreen({ reportId }: { reportId: string }) {
       selected_evidence_ids: ids,
     };
     const key = keyFor("publication.concern", body);
+    // A CONFLICT here is "one is already waiting with the owner", not a stale
+    // version, whenever this screen already knows a request is pending.
+    const alreadyPending = detail.community_visibility === "pending_review";
     try {
       await api.publicationRequests.create(detail.report_id, body, key);
       settled("publication.concern");
@@ -78,7 +81,7 @@ export function ShareScreen({ reportId }: { reportId: string }) {
       setConsent(false);
       await reload();
     } catch (error) {
-      const next = toFailure(error);
+      const next = toFailure(error, alreadyPending ? { conflictAs: "already_pending" } : {});
       setRequestFailure(next);
       trackFlowError("publish", next);
     } finally {
@@ -346,7 +349,11 @@ export function ShareScreen({ reportId }: { reportId: string }) {
         {requestFailure ? (
           <FailureNotice
             failure={requestFailure}
-            onRetry={requestFailure.kind === "stale" ? undefined : () => void request()}
+            onRetry={
+              requestFailure.kind === "stale" || requestFailure.kind === "already_pending"
+                ? undefined
+                : () => void request()
+            }
             onReload={requestFailure.kind === "stale" ? () => void reload() : undefined}
           />
         ) : null}

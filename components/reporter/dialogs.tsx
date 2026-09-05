@@ -175,7 +175,11 @@ export function SubmissionDialog({
           className={styles.input}
           type="file"
           accept="image/jpeg,image/png,image/webp,application/pdf"
-          aria-describedby="submission-attachment-hint"
+          aria-invalid={errors.file ? true : undefined}
+          aria-describedby={cx(
+            "submission-attachment-hint",
+            errors.file && "submission-attachment-error",
+          )}
           onChange={(event) => {
             setFile(event.target.files?.[0] ?? null);
             setUploadedId(null);
@@ -361,7 +365,11 @@ export function ResponseDialog({
           className={styles.input}
           type="file"
           accept="image/jpeg,image/png,image/webp,application/pdf"
-          aria-describedby="response-attachment-hint"
+          aria-invalid={errors.file ? true : undefined}
+          aria-describedby={cx(
+            "response-attachment-hint",
+            errors.file && "response-attachment-error",
+          )}
           onChange={(event) => {
             setFile(event.target.files?.[0] ?? null);
             setUploadedId(null);
@@ -371,7 +379,11 @@ export function ResponseDialog({
           Up to 3 MB, kept private. Only an image can later be proposed for
           community review.
         </span>
-        {errors.file ? <span className={styles.fieldError}>{errors.file}</span> : null}
+        {errors.file ? (
+          <span className={styles.fieldError} id="response-attachment-error">
+            {errors.file}
+          </span>
+        ) : null}
       </div>
       <p className={styles.inset}>
         This response stays private unless you separately request sharing and the
@@ -596,13 +608,18 @@ export function ResponseShareDialog({
       source_update_id: update.id,
     };
     const key = keyFor("publication.response", body);
+    // As on the sharing screen: a CONFLICT means "already waiting with the
+    // owner" when this report already has a response request pending.
+    const alreadyPending = report.review_requests.some(
+      (request) => request.content_kind === "response" && request.state === "pending_review",
+    );
     try {
       await api.publicationRequests.create(report.report_id, body, key);
       settled("publication.response");
       await onSaved();
       onClose();
     } catch (error) {
-      const next = toFailure(error);
+      const next = toFailure(error, alreadyPending ? { conflictAs: "already_pending" } : {});
       setFailure(next);
       trackFlowError("publish", next);
     } finally {
@@ -613,6 +630,7 @@ export function ResponseShareDialog({
     keyFor,
     onClose,
     onSaved,
+    report.review_requests,
     report.report_id,
     report.version,
     selected,

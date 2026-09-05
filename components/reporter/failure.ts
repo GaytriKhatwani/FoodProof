@@ -23,10 +23,29 @@ export type FailureKind =
   | "unavailable"
   | "session_lost"
   | "stale"
+  | "locked"
+  | "already_pending"
   | "validation"
   | "not_found"
   | "rate_limited"
   | "unknown";
+
+/**
+ * The server answers several different situations with CONFLICT, and only ONE
+ * of them is fixed by reloading:
+ *
+ * - `stale` — an `expected_version` mismatch (lib/server/reports.ts, and
+ *   `refreshReportState` in lib/server/evidence.ts). Reload, then save again.
+ * - `locked` — evidence frozen into a review request waiting with the owner
+ *   (`isLockedByPendingReview`). Withdraw that request first.
+ * - `already_pending` — a review request for this concern or response already
+ *   exists (lib/server/publication.ts). Withdraw it before proposing another.
+ *
+ * The HTTP status cannot tell them apart, so the CALLER states which its own
+ * state makes true: it knows whether a review is pending and which call it
+ * made. Message text is never parsed to decide this.
+ */
+export type ConflictKind = Extract<FailureKind, "stale" | "locked" | "already_pending">;
 
 export interface Failure {
   kind: FailureKind;
@@ -35,7 +54,10 @@ export interface Failure {
   retryAfterSeconds: number | null;
 }
 
-export function toFailure(error: unknown): Failure {
+export function toFailure(
+  error: unknown,
+  options: { conflictAs?: ConflictKind } = {},
+): Failure {
   if (error instanceof ClientApiError) {
     const base = {
       message: error.message,
@@ -48,7 +70,7 @@ export function toFailure(error: unknown): Failure {
       case "UNAUTHENTICATED":
         return { ...base, kind: "session_lost" };
       case "CONFLICT":
-        return { ...base, kind: "stale" };
+        return { ...base, kind: options.conflictAs ?? "stale" };
       case "VALIDATION_FAILED":
         return { ...base, kind: "validation" };
       case "NOT_FOUND":
@@ -81,9 +103,11 @@ function errorCodeFor(failure: Failure): "network" | "validation" | "unavailable
       return "unavailable";
     case "validation":
     case "stale":
+    case "locked":
+    case "already_pending":
       return "validation";
-    case "session_lost":
-      return "network";
+    // The allowlist has no auth value, and an expired demo session is not a
+    // network problem — it must not pollute that bucket.
     default:
       return "unknown";
   }

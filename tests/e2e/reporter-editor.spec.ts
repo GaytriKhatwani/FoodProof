@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createInvitation, deleteInvitations, enterPilot, type CreatedInvitation } from "./helpers";
+import { E2E_ORIGIN } from "./origin";
 
 /**
  * Guided editor specs — docs/FOODPROOF_SCREENS.md §5.
@@ -165,5 +166,48 @@ test("a stale save shows the reload prompt and keeps the reporter's text", async
   await expect(page.getByLabel("Batch number (optional)")).toHaveValue("BATCH-THIS-TAB");
   await page.getByRole("button", { name: "Save private draft" }).click();
   await expect(page.getByText("Saved to the demo service.")).toBeVisible();
+  await expect(page.getByText("This record changed since you loaded it.")).toHaveCount(0);
+});
+
+test("evidence is locked while a review request waits, and the screen names the lock", async ({
+  page,
+}) => {
+  test.skip(!reportId, "depends on the ready report above");
+  await signIn(page);
+
+  // Put a concern revision in front of the owner, so the server freezes the
+  // selected evidence (lib/server/evidence.ts isLockedByPendingReview).
+  const loaded = await page.request.get(`/api/reports/${reportId}`);
+  const detail = (await loaded.json()).data;
+  const labelIds = (detail.evidence as { id: string; kind: string; upload_state: string }[])
+    .filter((item) => item.kind === "label" && item.upload_state === "ready")
+    .map((item) => item.id);
+  const requested = await page.request.post(`/api/reports/${reportId}/publication-requests`, {
+    headers: { Origin: E2E_ORIGIN, "Idempotency-Key": crypto.randomUUID() },
+    data: { expected_version: detail.version, consent: true, selected_evidence_ids: labelIds },
+  });
+  expect(requested.ok()).toBeTruthy();
+
+  await page.goto(`/pilot/reports/${reportId}/edit`);
+  await page.getByRole("button", { name: "2 Evidence" }).click();
+
+  const roles = page.getByRole("group", { name: "Roles for this photo" });
+  const ingredients = roles.getByRole("checkbox", { name: "Ingredient list" });
+  await expect(ingredients).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Remove file" }).first()).toBeDisabled();
+  await expect(
+    page.getByRole("link", { name: /Withdraw the request on the community sharing screen/ }),
+  ).toBeVisible();
+
+  // Force the change past the disabled control: the server refuses it, and the
+  // screen must name the real blocker instead of telling the reporter to reload.
+  await ingredients.evaluate((element) => {
+    (element as HTMLInputElement).disabled = false;
+  });
+  await ingredients.click();
+
+  await expect(
+    page.getByText("This file is part of a review request waiting with the owner."),
+  ).toBeVisible();
   await expect(page.getByText("This record changed since you loaded it.")).toHaveCount(0);
 });
