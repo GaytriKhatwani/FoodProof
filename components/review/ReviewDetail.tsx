@@ -5,6 +5,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { api, publicationAssetUrl, type ReviewDetailResponse } from "@/lib/client/api";
 import type { DecisionAction, PublicReport } from "@/lib/contracts";
 import { failureKind, loadFailureCopy } from "@/components/shell/errors";
+import { trackFlowError } from "@/components/shell/flow-error";
 import { formatDateOr, productTitle } from "@/components/shell/format";
 import { InlineNote, LoadingBlock, StateBlock } from "@/components/shell/states";
 import { useActionKey } from "@/components/shell/useActionKey";
@@ -112,6 +113,7 @@ export function ReviewDetail({ revisionId }: { revisionId: string }) {
     } catch (err) {
       setError(err);
       setStatus("error");
+      trackFlowError("load", err);
     }
   }, [revisionId]);
 
@@ -146,6 +148,7 @@ export function ReviewDetail({ revisionId }: { revisionId: string }) {
       resetKey();
       setDecided({ action, state: result.state });
     } catch (err) {
+      trackFlowError("moderate", err);
       if (failureKind(err) === "conflict") {
         setStale(
           "This request changed since you loaded it. It may already have been decided, or the reporter may have withdrawn or revised it. Reload before reviewing.",

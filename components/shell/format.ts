@@ -74,9 +74,14 @@ export const CHANNEL_LABEL: Record<"brand" | "government", string> = {
   government: "Official channel",
 };
 
-/** "Product · variant" when a variant exists, otherwise just the product. */
-export function productTitle(productName: string, variant: string | null): string {
-  return variant ? `${productName} · ${variant}` : productName;
+/**
+ * "Product · variant" when a variant exists, otherwise just the product. A
+ * snapshot with an empty product name falls back to a placeholder so a feed
+ * card's heading link always has an accessible name.
+ */
+export function productTitle(productName: string | null | undefined, variant: string | null): string {
+  const name = productName?.trim() ? productName : "Unnamed product";
+  return variant?.trim() ? `${name} · ${variant}` : name;
 }
 
 /** Short, non-identifying reference for a record whose identity is not public. */

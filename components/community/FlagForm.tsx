@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { api } from "@/lib/client/api";
 import { failureKind } from "@/components/shell/errors";
+import { trackFlowError } from "@/components/shell/flow-error";
 import { InlineNote, StateBlock } from "@/components/shell/states";
 import { useActionKey } from "@/components/shell/useActionKey";
 import styles from "./FlagForm.module.css";
@@ -57,6 +58,7 @@ export function FlagForm({ reportId }: { reportId: string }) {
       setReason("");
       setDetail("");
     } catch (error) {
+      trackFlowError("save", error);
       switch (failureKind(error)) {
         case "not_found":
           setSubmitError(

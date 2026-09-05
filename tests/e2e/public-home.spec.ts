@@ -45,6 +45,29 @@ test.describe("public home", () => {
     await expect(footer.getByRole("link")).toHaveCount(0);
   });
 
+  test("shows the fictional label photograph with its illustrative caption", async ({
+    page,
+  }) => {
+    await page.goto("/");
+
+    const figure = page.getByRole("figure");
+    const image = figure.getByRole("img");
+    await expect(image).toHaveAttribute("src", "/illustrative-label.jpg");
+    // Intrinsic size is declared, so the photograph reserves its box and does
+    // not shift the page as it arrives.
+    await expect(image).toHaveAttribute("width", "1100");
+    await expect(image).toHaveAttribute("height", "825");
+    await image.scrollIntoViewIfNeeded();
+    await expect
+      .poll(() => image.evaluate((node: HTMLImageElement) => node.naturalWidth))
+      .toBeGreaterThan(0);
+
+    // The illustration always travels with its caption and its provenance.
+    await expect(figure).toContainText("Illustrative example");
+    await expect(figure).toContainText("A fictional label made for this project");
+    await expect(figure).toContainText("not an allegation about any real brand");
+  });
+
   test("is keyboard reachable and offers no login", async ({ page }) => {
     await page.goto("/");
 

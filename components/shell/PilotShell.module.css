@@ -122,9 +122,12 @@
 }
 
 .linkButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   background: none;
   border: 0;
-  padding: 0;
+  padding: 4px 0;
   font: inherit;
   font-weight: 600;
   color: var(--color-primary);

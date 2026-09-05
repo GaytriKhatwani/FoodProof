@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SkipLink } from "@/components/shell/SkipLink";
+import styles from "@/components/shell/HomePage.module.css";
 
 /**
  * Public home — `/` (docs/FOODPROOF_SCREENS.md §1).
@@ -41,6 +42,27 @@ export default function HomePage() {
               How it works ↓
             </a>
           </div>
+        </section>
+
+        <section className="container" aria-label="What a label concern looks like">
+          <figure className={styles.figure}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- static local asset, explicit intrinsic size, no loader needed */}
+            <img
+              className={styles.image}
+              src="/illustrative-label.jpg"
+              width={1100}
+              height={825}
+              loading="lazy"
+              decoding="async"
+              alt="A kraft pouch whose paper label reads SAMPLE PANTRY, GLUTEN-FREE. A magnifying glass rests over the ingredient list below it, where wheat flour is highlighted."
+            />
+            <figcaption className={styles.caption}>
+              <span className={styles.captionTag}>Illustrative example</span>A fictional label
+              made for this project, not a photograph of a real product. It shows the kind of
+              contradiction a reporter might document; it is not an allegation about any real
+              brand.
+            </figcaption>
+          </figure>
         </section>
 
         <section className="section container" aria-label="What FoodProof does">

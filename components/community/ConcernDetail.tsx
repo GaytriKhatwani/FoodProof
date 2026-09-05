@@ -7,6 +7,7 @@ import { api, publicationAssetUrl } from "@/lib/client/api";
 import { clientAnalytics } from "@/lib/analytics";
 import type { PublicReport } from "@/lib/contracts";
 import { failureKind, loadFailureCopy } from "@/components/shell/errors";
+import { trackFlowError } from "@/components/shell/flow-error";
 import {
   CHANNEL_LABEL,
   externalStatusLabel,
@@ -71,6 +72,7 @@ export function ConcernDetail({ reportId }: { reportId: string }) {
     } catch (err) {
       setError(err);
       setStatus("error");
+      trackFlowError("load", err);
     }
   }, [reportId, source]);
 

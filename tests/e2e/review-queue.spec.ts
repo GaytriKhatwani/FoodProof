@@ -49,11 +49,24 @@ test.describe("reviewer role separation", () => {
     const nav = page.getByRole("navigation", { name: "Pilot" });
     await expect(nav.getByRole("link", { name: "Review" })).toHaveCount(0);
 
+    // A blocking failure is reported to analytics with the two allowlisted
+    // enums and nothing else — no message, id, or other free text.
+    const flowErrors: { event_name: string; properties: Record<string, unknown> }[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/api/analytics") && request.method() === "POST") {
+        const body = JSON.parse(request.postData() ?? "{}");
+        if (body.event_name === "flow_error_shown") flowErrors.push(body);
+      }
+    });
+
     // The route is not hidden behind the missing link: the API refuses it.
     await page.goto("/pilot/review");
     await expect(
       page.getByRole("heading", { name: "This area needs a reviewer invitation" }),
     ).toBeVisible();
+
+    await expect.poll(() => flowErrors.length).toBeGreaterThan(0);
+    expect(flowErrors[0]?.properties).toEqual({ operation: "load", error_code: "unknown" });
     await expect(page.getByText(/Roles are set by the invitation/)).toBeVisible();
     await expect(page.getByRole("link", { name: "Go to the community feed" })).toBeVisible();
   });

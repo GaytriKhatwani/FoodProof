@@ -6,6 +6,7 @@ import { api } from "@/lib/client/api";
 import { clientAnalytics } from "@/lib/analytics";
 import type { PublicFeedItem } from "@/lib/contracts";
 import { loadFailureCopy } from "@/components/shell/errors";
+import { trackFlowError } from "@/components/shell/flow-error";
 import { externalStatusLabel, formatDate, productTitle } from "@/components/shell/format";
 import { LoadingBlock, StateBlock } from "@/components/shell/states";
 import styles from "./FeedView.module.css";
@@ -63,6 +64,7 @@ export function FeedView() {
     } catch (err) {
       setError(err);
       setStatus("error");
+      trackFlowError("load", err);
     }
   }, []);
 
@@ -82,6 +84,7 @@ export function FeedView() {
       setNextCursor(page.next_cursor);
     } catch (err) {
       setMoreError(err);
+      trackFlowError("load", err);
     } finally {
       setLoadingMore(false);
     }

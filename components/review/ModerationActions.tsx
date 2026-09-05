@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { api, type ProductMatch } from "@/lib/client/api";
 import { failureKind } from "@/components/shell/errors";
+import { trackFlowError } from "@/components/shell/flow-error";
 import { InlineNote } from "@/components/shell/states";
 import { useActionKey } from "@/components/shell/useActionKey";
 import styles from "./ReviewDetail.module.css";
@@ -71,6 +72,7 @@ export function ModerationActions({ reportId }: { reportId: string }) {
       resetRemoveKey();
       setRemoved(true);
     } catch (error) {
+      trackFlowError("moderate", error);
       setRemoveError(describe(error, "That removal could not be recorded. Try again."));
     } finally {
       setRemoveBusy(false);
@@ -95,6 +97,7 @@ export function ModerationActions({ reportId }: { reportId: string }) {
       });
       setMatches(result.matches);
     } catch (error) {
+      trackFlowError("load", error);
       setRelinkError(describe(error, "That search could not be completed. Try again."));
     } finally {
       setSearching(false);
@@ -122,6 +125,7 @@ export function ModerationActions({ reportId }: { reportId: string }) {
       resetRelinkKey();
       setRelinked(true);
     } catch (error) {
+      trackFlowError("moderate", error);
       setRelinkError(describe(error, "That relink could not be recorded. Try again."));
     } finally {
       setRelinkBusy(false);
@@ -134,8 +138,10 @@ export function ModerationActions({ reportId }: { reportId: string }) {
         Moderate this report
       </h2>
       <p className={styles.footnote}>
-        These act on the report itself rather than on this request. Both record a reason, and
-        neither deletes the reporter&rsquo;s private record, evidence or history.
+        These act on the report itself rather than on this request, so they apply to whatever
+        version of it is currently published, if any &mdash; not to the snapshot above. Both
+        record a reason, and neither deletes the reporter&rsquo;s private record, evidence or
+        history.
       </p>
 
       <button

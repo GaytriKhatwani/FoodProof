@@ -6,6 +6,7 @@ import { api } from "@/lib/client/api";
 import type { ReviewQueueFlag } from "@/lib/client/api";
 import type { ReviewQueueItem } from "@/lib/contracts";
 import { failureKind, loadFailureCopy } from "@/components/shell/errors";
+import { trackFlowError } from "@/components/shell/flow-error";
 import { formatDateOr, productTitle } from "@/components/shell/format";
 import { LoadingBlock, StateBlock } from "@/components/shell/states";
 import { FlagRow } from "./FlagRow";
@@ -55,6 +56,7 @@ export function ReviewQueue() {
     } catch (err) {
       setError(err);
       setStatus("error");
+      trackFlowError("load", err);
     }
   }, []);
 

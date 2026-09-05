@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useId, useState } from "react";
 import { api, type ReviewQueueFlag } from "@/lib/client/api";
 import { failureKind } from "@/components/shell/errors";
+import { trackFlowError } from "@/components/shell/flow-error";
 import { formatDateOr } from "@/components/shell/format";
 import { InlineNote } from "@/components/shell/states";
 import { useActionKey } from "@/components/shell/useActionKey";
@@ -55,6 +56,7 @@ export function FlagRow({
       resetKey();
       onHandled(flag.id);
     } catch (error) {
+      trackFlowError("moderate", error);
       switch (failureKind(error)) {
         case "not_found":
           setSubmitError("This flag is no longer open. Refresh the queue.");

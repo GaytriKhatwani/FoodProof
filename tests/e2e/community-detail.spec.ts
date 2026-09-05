@@ -83,15 +83,19 @@ test.describe("community concern detail", () => {
     await expect(page.getByText("Wheat flour, millet flour, sugar, salt")).toBeVisible();
 
     // External status is the reporter's own record FROZEN at publication time.
-    // The seed records its submission after requesting publication, so the
-    // approved snapshot legitimately still reads "no submission recorded" even
-    // though a later response was published — that is the contract, not a bug.
+    // Both channels are asserted against the reviewed vocabulary rather than
+    // one seeded value: which value is frozen depends on what the reporter had
+    // recorded when publication was requested, and the operator seed may change
+    // that without this screen being wrong.
+    const REVIEWED_STATUS =
+      "(No external submission recorded|Submission recorded by the reporter|" +
+      "Acknowledgement attached by the reporter|Response recorded by the reporter)";
     const actions = page.getByRole("region", { name: "Recorded actions and reviewed updates" });
     await expect(actions.getByRole("listitem").first()).toHaveText(
-      "Brand: No external submission recorded",
+      new RegExp(`^Brand: ${REVIEWED_STATUS}$`),
     );
     await expect(actions.getByRole("listitem").nth(1)).toHaveText(
-      "Official channel: No external submission recorded",
+      new RegExp(`^Official channel: ${REVIEWED_STATUS}$`),
     );
     await expect(page.getByText(/It is not a government status/)).toBeVisible();
     await expect(page.getByText(/does not mean anyone ignored the reporter/)).toBeVisible();

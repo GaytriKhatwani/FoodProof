@@ -31,7 +31,6 @@ const LABELS: Record<string, string> = {
   occurred_at: "Response date",
   has_attachment: "Attachment selected",
   provenance: "Provenance",
-  brand_status: "Brand",
   government: "Official channel",
   as_recorded_at: "Recorded at",
 };
