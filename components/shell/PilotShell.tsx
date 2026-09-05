@@ -78,15 +78,6 @@ export function PilotShell({ children }: { children: ReactNode }) {
   const [exitError, setExitError] = useState<string | null>(null);
   const [consentBusy, setConsentBusy] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
-  /**
-   * The value the consent request last confirmed. A 200 from
-   * `PUT /api/me/analytics-consent` is authoritative, and it is preferred over
-   * `me.analytics_consent` because that read currently lags behind the write —
-   * see the stale-read defect reported to the integration owner (every Supabase
-   * read inside a route handler is stored in the Next Data Cache). Once that is
-   * fixed the two agree and this override is simply redundant.
-   */
-  const [confirmedConsent, setConfirmedConsent] = useState<boolean | null>(null);
   const [retrying, setRetrying] = useState(false);
 
   const reviewer = me?.role === "reviewer";
@@ -109,8 +100,9 @@ export function PilotShell({ children }: { children: ReactNode }) {
     setConsentError(null);
     setConsentBusy(true);
     try {
+      // `setAnalyticsConsent` writes the choice and refreshes `me`, so the
+      // control below re-renders from the server's own value.
       await setAnalyticsConsent(next);
-      setConfirmedConsent(next);
     } catch {
       setConsentError("Couldn't save that preference. Your previous choice still applies.");
     } finally {
@@ -220,7 +212,7 @@ export function PilotShell({ children }: { children: ReactNode }) {
                 </span>
 
                 <AnalyticsPreference
-                  allowed={confirmedConsent ?? me.analytics_consent}
+                  allowed={me.analytics_consent}
                   busy={consentBusy}
                   onChange={handleConsent}
                 />
