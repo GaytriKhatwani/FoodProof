@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { E2E_ORIGIN, E2E_PORT } from "./tests/e2e/origin";
 
 /**
  * Browser-test harness (Playwright). Runs against a real `next dev` server so
@@ -13,7 +14,7 @@ export default defineConfig({
   retries: 0,
   globalSetup: "./tests/e2e/global-setup.ts",
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: E2E_ORIGIN,
     trace: "retain-on-failure",
   },
   projects: [
@@ -27,8 +28,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run dev",
-    url: "http://localhost:3000",
+    command: `npm run dev -- -p ${E2E_PORT}`,
+    url: E2E_ORIGIN,
     reuseExistingServer: true,
     timeout: 120_000,
   },

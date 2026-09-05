@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createHash, randomBytes } from "node:crypto";
 import { test, type Page } from "@playwright/test";
+import { E2E_ORIGIN } from "./origin";
 
 /**
  * Invitation helpers for browser specs against the live demo Supabase
@@ -124,7 +125,7 @@ export async function deleteInvitations(ids: string[]): Promise<void> {
  */
 export async function enterPilot(page: Page, code: string): Promise<void> {
   const res = await page.request.post("/api/demo/session", {
-    headers: { Origin: "http://localhost:3000" },
+    headers: { Origin: E2E_ORIGIN },
     data: { invitation_code: code },
   });
   if (!res.ok()) {
