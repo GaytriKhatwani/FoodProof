@@ -1,0 +1,194 @@
+/*
+ * Pilot shell chrome. Flat surfaces and thin rules (docs/DESIGN.md): the header
+ * is a single ruled band, navigation is text with an underline for the current
+ * view, and nothing here competes with evidence photography below it.
+ */
+
+.shell {
+  position: relative;
+  min-height: 100vh;
+}
+
+.header {
+  border-bottom: 1px solid var(--color-rule);
+  background: var(--color-surface);
+}
+
+.headerInner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+  padding-top: var(--space-sm);
+  padding-bottom: var(--space-sm);
+  min-height: 76px;
+}
+
+.brandRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.demoTag {
+  font-size: 12px;
+  color: var(--color-status-ink);
+  background: var(--color-tint);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-control);
+  padding: 2px 8px;
+  align-self: flex-start;
+}
+
+.nav {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.navList {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-lg);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 600;
+  color: var(--color-ink);
+  border-bottom: 2px solid transparent;
+}
+
+.navLink:hover {
+  color: var(--color-primary);
+  text-decoration: none;
+  border-bottom-color: var(--color-rule);
+}
+
+.navLinkCurrent {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.navPlaceholder,
+.sessionPlaceholder {
+  display: block;
+  height: 44px;
+}
+
+.navPlaceholder {
+  width: 220px;
+}
+
+.sessionPlaceholder {
+  width: 260px;
+}
+
+.session {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+  font-size: 13px;
+}
+
+.identity {
+  display: flex;
+  flex-direction: column;
+}
+
+.identityLabel {
+  font-weight: 600;
+}
+
+.identityMarker {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.consent {
+  display: flex;
+  flex-direction: column;
+}
+
+.consentState {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.linkButton {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.linkButton:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.linkButton:disabled {
+  color: var(--color-muted);
+  cursor: default;
+}
+
+.exitButton {
+  min-height: 44px;
+  padding: 8px 16px;
+  background: var(--color-surface);
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-control);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.exitButton:hover:not(:disabled) {
+  background: var(--color-tint);
+}
+
+.exitButton:disabled {
+  color: var(--color-muted);
+  border-color: var(--color-rule);
+  cursor: default;
+}
+
+.headerNotice {
+  padding-bottom: var(--space-sm);
+  color: var(--color-error);
+  font-size: 14px;
+}
+
+.main {
+  padding-top: var(--space-lg);
+  padding-bottom: calc(var(--space-lg) * 2);
+}
+
+@media (max-width: 900px) {
+  .headerInner {
+    align-items: flex-start;
+  }
+
+  .nav {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .navList {
+    gap: var(--space-md);
+  }
+
+  .session {
+    gap: var(--space-sm) var(--space-md);
+  }
+}

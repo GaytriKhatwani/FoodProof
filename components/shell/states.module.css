@@ -1,0 +1,101 @@
+/* Shared state blocks. Flat surfaces, thin rules, words before colour. */
+
+.block {
+  border: 1px solid var(--color-rule);
+  border-left-width: 4px;
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  padding: var(--space-md);
+  margin: var(--space-md) 0;
+  max-width: 68ch;
+}
+
+.neutral {
+  border-left-color: var(--color-rule);
+}
+
+.warning {
+  border-left-color: var(--color-status-ink);
+  background: var(--color-tint);
+  color: var(--color-status-ink);
+}
+
+.error {
+  border-left-color: var(--color-error);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.error .title {
+  color: var(--color-error);
+}
+
+.body {
+  margin-top: 8px;
+}
+
+.body > p {
+  margin: 0 0 8px;
+}
+
+.body > p:last-child {
+  margin-bottom: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+  margin-top: var(--space-md);
+}
+
+.loading {
+  padding: var(--space-md) 0;
+  min-height: 160px;
+}
+
+.loadingLabel {
+  margin: 0 0 var(--space-sm);
+  color: var(--color-muted);
+}
+
+.loadingLine {
+  display: block;
+  height: 14px;
+  margin-bottom: 12px;
+  background: var(--color-tint);
+  border-radius: var(--radius-control);
+}
+
+.loadingLine:nth-child(2n) {
+  width: 78%;
+}
+
+.loadingLine:nth-child(3n) {
+  width: 62%;
+}
+
+.inline {
+  margin: var(--space-sm) 0 0;
+  font-size: 15px;
+}
+
+.inline.error {
+  color: var(--color-error);
+  border: 0;
+  padding: 0;
+  background: none;
+}
+
+.inline.warning {
+  color: var(--color-status-ink);
+  border: 0;
+  padding: 0;
+  background: none;
+}

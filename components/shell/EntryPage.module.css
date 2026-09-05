@@ -1,0 +1,33 @@
+.main {
+  padding-bottom: calc(var(--space-lg) * 2);
+}
+
+.intro {
+  padding: var(--space-lg) 0;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(36px, 5vw, 52px);
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  margin: 0 0 var(--space-md);
+}
+
+.lede {
+  max-width: 56ch;
+  margin: 0 0 var(--space-lg);
+}
+
+.identities {
+  max-width: 560px;
+}
+
+.identities p {
+  margin: 0;
+}
+
+.footnote {
+  max-width: 56ch;
+}
