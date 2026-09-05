@@ -52,7 +52,10 @@ Against a **dedicated demo** Supabase project (never production):
 4. Generate invitation codes (shown once; distribute privately, never commit):
    `node --env-file=.env.local scripts/create-invitations.mjs --users 2`.
 5. Seed the fictional pilot example (run `npm run dev` first; it drives the real
-   API): `node --env-file=.env.local scripts/seed.mjs`.
+   API): `node --env-file=.env.local scripts/seed.mjs`. To replace the seeded
+   example, e.g. after this image fix, add `--reset`: it removes only the rows
+   and Storage objects owned by the seed's own two invitations before
+   re-seeding, and never touches any other invitation.
 6. Integration tests self-skip without live credentials; with `.env.local` present
    they run against the demo project and clean up after themselves. Set the
    test-only `SUPABASE_PUBLISHABLE_KEY` (the project's `sb_publishable_...` key,

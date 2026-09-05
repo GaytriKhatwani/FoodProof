@@ -3,6 +3,13 @@ import { createHash, randomBytes } from "node:crypto";
 import { describe } from "vitest";
 
 /**
+ * Re-exported so existing suites (`import { samplePng } from "../helpers/live"`)
+ * keep working unmodified; the generator itself lives in a vitest-free module
+ * (`./sample-image`) so it can also be imported from Playwright specs.
+ */
+export { samplePng } from "./sample-image";
+
+/**
  * Live integration-test helpers. Suites that need the demo Supabase project use
  * `liveDescribe`, which self-skips when SUPABASE_URL / SUPABASE_SECRET_KEY
  * are absent (fresh clone, CI) so `npm run test` still passes without secrets.
@@ -98,24 +105,6 @@ export const sha256Hex = (v: string) =>
   createHash("sha256").update(v).digest("hex");
 export const newCode = () => randomBytes(24).toString("base64url");
 export const randomAddressHmac = () => randomBytes(16).toString("hex");
-
-/** A minimal, valid-enough PNG (correct signature + chunk framing) for uploads. */
-export function samplePng(): Uint8Array {
-  const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-  const chunk = (type: string, data: number[]) => {
-    const len = data.length;
-    const b = [(len >>> 24) & 0xff, (len >>> 16) & 0xff, (len >>> 8) & 0xff, len & 0xff];
-    for (const c of type) b.push(c.charCodeAt(0));
-    b.push(...data, 0, 0, 0, 0);
-    return b;
-  };
-  return Uint8Array.from([
-    ...sig,
-    ...chunk("IHDR", [0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]),
-    ...chunk("IDAT", [0x78, 0x9c, 0x62, 0, 0, 0, 2, 0, 1]),
-    ...chunk("IEND", []),
-  ]);
-}
 
 /** Remove any storage objects created under a set of report id prefixes. */
 export async function cleanupStorage(client: SupabaseClient, reportIds: string[]) {
