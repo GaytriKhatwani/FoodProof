@@ -156,7 +156,7 @@ Official action default is Food Safety Connect. Candidate URL: `https://foscos.f
 
 ## 9. Environment and project layout
 
-Server-only: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `AI_PROVIDER`, provider key, `MIXPANEL_TOKEN`, regional `MIXPANEL_API_HOST`, `APP_ORIGIN`, `RATE_LIMIT_HMAC_KEY` (keys the invitation-attempt limiter hash), `DEMO_MODE=true`. Runtime validates required config; `/` still renders if demo dependencies are unavailable. Never prefix secret keys with `NEXT_PUBLIC_`.
+Server-only: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `AI_PROVIDER`, provider key, `MIXPANEL_TOKEN`, regional `MIXPANEL_API_HOST`, `APP_ORIGIN`, `RATE_LIMIT_HMAC_KEY` (keys the invitation-attempt limiter hash), `DEMO_MODE=true`. Runtime validates required config; `/` still renders if demo dependencies are unavailable. Never prefix secret keys with `NEXT_PUBLIC_`.
 
 Use a server `POST /api/analytics` proxy with an event/property allowlist, consent checks, and rate limiting, rather than accepting arbitrary events. Authoritative mutation events should originate from the server after commit, not both client and server. Measurement doc governs identity/event IDs. No general HTTP proxy.
 

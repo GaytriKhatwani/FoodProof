@@ -16,7 +16,7 @@ const optionalSecret = z.preprocess(
 
 const ServerEnvSchema = z.object({
   SUPABASE_URL: z.string().url(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  SUPABASE_SECRET_KEY: z.string().min(1),
   MIXPANEL_TOKEN: z.string().min(1),
   MIXPANEL_API_HOST: z.string().url(),
   APP_ORIGIN: z.string().url(),
@@ -53,7 +53,7 @@ export function getServerEnv(): ServerEnv {
 export function serverEnvStatus() {
   const p = process.env;
   return {
-    supabase: Boolean(p.SUPABASE_URL && p.SUPABASE_SERVICE_ROLE_KEY),
+    supabase: Boolean(p.SUPABASE_URL && p.SUPABASE_SECRET_KEY),
     mixpanel: Boolean(p.MIXPANEL_TOKEN && p.MIXPANEL_API_HOST),
     app_origin: Boolean(p.APP_ORIGIN),
     rate_limit_key: Boolean(p.RATE_LIMIT_HMAC_KEY),

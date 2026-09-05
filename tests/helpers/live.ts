@@ -4,32 +4,94 @@ import { describe } from "vitest";
 
 /**
  * Live integration-test helpers. Suites that need the demo Supabase project use
- * `liveDescribe`, which self-skips when SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
+ * `liveDescribe`, which self-skips when SUPABASE_URL / SUPABASE_SECRET_KEY
  * are absent (fresh clone, CI) so `npm run test` still passes without secrets.
+ *
+ * Suites whose services call the migration-0003 functions use `liveSuite(...,
+ * { requiresSchema3: true })` instead: without 0003 they report BLOCKED (skipped
+ * with the reason in the suite name) rather than failing confusingly. A skipped
+ * or blocked suite is never evidence that its assertions held.
  */
 
 export const hasLiveSupabase = Boolean(
-  process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
+  process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY,
 );
 
 export const liveDescribe = hasLiveSupabase ? describe : describe.skip;
 
-/** Optional anon key enables the real direct-client (RLS) denial assertion. */
-export const anonKey = process.env.SUPABASE_ANON_KEY ?? "";
+/**
+ * TEST-ONLY publishable key (`sb_publishable_...`) — the key a browser would
+ * hold. The application never reads it. Its presence enables the real
+ * direct-client denial suite; its absence SKIPS that suite with a stated reason.
+ */
+export const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? "";
 
 export function testClient(): SupabaseClient {
   return createClient(
     process.env.SUPABASE_URL as string,
-    process.env.SUPABASE_SERVICE_ROLE_KEY as string,
+    process.env.SUPABASE_SECRET_KEY as string,
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
 }
 
-export function anonClient(): SupabaseClient | null {
-  if (!anonKey) return null;
-  return createClient(process.env.SUPABASE_URL as string, anonKey, {
+/** A real direct client holding only the publishable key (no session). */
+export function publishableClient(): SupabaseClient | null {
+  if (!publishableKey) return null;
+  return createClient(process.env.SUPABASE_URL as string, publishableKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
+
+/**
+ * Cheap probe for `supabase/migrations/0003_transactional_operations.sql`:
+ * `fp_schema_version()` returns 3 once it is applied. There is no CLI/psql on
+ * the build machine, so 0003 is applied by the project owner in the Supabase SQL
+ * Editor; until then the suites that depend on it must report BLOCKED.
+ */
+export async function schemaVersion(): Promise<number> {
+  if (!hasLiveSupabase) return 0;
+  const { data, error } = await testClient().rpc("fp_schema_version");
+  if (error) return 0;
+  return typeof data === "number" ? data : 0;
+}
+
+export interface SuiteGate {
+  /** `describe` when the suite can run, `describe.skip` when it cannot. */
+  run: (name: string, fn: () => void) => void;
+  /** Suite name, carrying the skip/blocked reason when it does not run. */
+  title: string;
+  /** True only when the suite actually runs. */
+  enabled: boolean;
+}
+
+/**
+ * Resolve a live suite's gate. A gate that does not run states WHY in the suite
+ * name (visible in the vitest summary) and warns once on stderr.
+ */
+export async function liveSuite(
+  name: string,
+  opts?: { requiresSchema3?: boolean },
+): Promise<SuiteGate> {
+  if (!hasLiveSupabase) {
+    return {
+      run: describe.skip,
+      title: `${name} — SKIPPED: SUPABASE_URL / SUPABASE_SECRET_KEY not set`,
+      enabled: false,
+    };
+  }
+  if (opts?.requiresSchema3 && (await schemaVersion()) < 3) {
+    console.warn(
+      `[foodproof tests] BLOCKED: "${name}" needs supabase/migrations/0003_transactional_operations.sql, ` +
+        "which is not applied to the demo project (fp_schema_version() is absent). " +
+        "Apply 0003 in the Supabase SQL Editor and re-run.",
+    );
+    return {
+      run: describe.skip,
+      title: `${name} — BLOCKED: migration 0003_transactional_operations.sql not applied to the demo project`,
+      enabled: false,
+    };
+  }
+  return { run: describe, title: name, enabled: true };
 }
 
 export const sha256Hex = (v: string) =>

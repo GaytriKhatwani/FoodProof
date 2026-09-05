@@ -5,7 +5,7 @@
 // private distribution; they are never written to a file, committed, or logged
 // elsewhere. Do not paste raw codes into chat, Git, analytics, or query strings.
 //
-// Usage (loads the gitignored .env.local for SUPABASE_URL + service role key):
+// Usage (loads the gitignored .env.local for SUPABASE_URL + the secret key):
 //   node --env-file=.env.local scripts/create-invitations.mjs
 //   node --env-file=.env.local scripts/create-invitations.mjs --users 3 --days 7
 //   node --env-file=.env.local scripts/create-invitations.mjs --no-reviewer
@@ -22,9 +22,9 @@ function arg(name, fallback) {
 const hasFlag = (name) => process.argv.includes(`--${name}`);
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SERVICE_KEY = process.env.SUPABASE_SECRET_KEY;
 if (!SUPABASE_URL || !SERVICE_KEY) {
-  console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. Run with --env-file=.env.local.");
+  console.error("Missing SUPABASE_URL or SUPABASE_SECRET_KEY. Run with --env-file=.env.local.");
   process.exit(1);
 }
 

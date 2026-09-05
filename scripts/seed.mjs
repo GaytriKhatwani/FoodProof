@@ -20,9 +20,9 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 const APP_ORIGIN = process.env.APP_ORIGIN;
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SERVICE_KEY = process.env.SUPABASE_SECRET_KEY;
 if (!APP_ORIGIN || !SUPABASE_URL || !SERVICE_KEY) {
-  console.error("Missing APP_ORIGIN / SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY. Run with --env-file=.env.local.");
+  console.error("Missing APP_ORIGIN / SUPABASE_URL / SUPABASE_SECRET_KEY. Run with --env-file=.env.local.");
   process.exit(1);
 }
 
