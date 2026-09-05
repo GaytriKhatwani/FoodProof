@@ -317,7 +317,69 @@ publicationSuite.run(publicationSuite.title, () => {
         randomUUID(),
       ),
     );
-    // Empty selected_evidence_ids fails validation, or the missing parent conflicts.
-    expect(["VALIDATION_FAILED", "CONFLICT"]).toContain(err.code);
+    // A response revision may select no images; the missing published parent
+    // is what conflicts here.
+    expect(err.code).toBe("CONFLICT");
+  });
+
+  it("requests and approves a response revision with no attachment", async () => {
+    const owner = await newUser();
+    const reviewer = await newReviewer();
+    const { reportId, evidenceId, version } = await readyReport(owner);
+
+    const concern = await requestPublication(
+      owner,
+      reportId,
+      { expected_version: version, consent: true, selected_evidence_ids: [evidenceId] },
+      randomUUID(),
+    );
+    await decideReview(reviewer, concern.publication_revision_id, { expected_version: 0, action: "approve" }, randomUUID());
+
+    const submission = await recordSubmission(
+      owner,
+      reportId,
+      { channel: "government", recipient: "Food Safety Connect", submitted_at: "2026-09-01" },
+      randomUUID(),
+    );
+    const response = await recordUpdate(
+      owner,
+      reportId,
+      { submission_id: submission.id, kind: "response", sender: "FSC", occurred_at: "2026-09-02", summary: "The agency logged the complaint." },
+      randomUUID(),
+    );
+
+    const v = (await getOwnReport(owner, reportId)).version;
+    const respReq = await requestPublication(
+      owner,
+      reportId,
+      { expected_version: v, consent: true, selected_evidence_ids: [], source_update_id: response.id },
+      randomUUID(),
+    );
+    expect(respReq.content_kind).toBe("response");
+
+    const detail = await getReviewDetail(respReq.publication_revision_id);
+    expect(detail.asset_ids).toHaveLength(0);
+
+    await decideReview(reviewer, respReq.publication_revision_id, { expected_version: 0, action: "approve" }, randomUUID());
+
+    const pub = await getPublicReport(reportId);
+    const resp = pub.responses.find((r) => r.publication_revision_id === respReq.publication_revision_id);
+    expect(resp).toBeDefined();
+    expect(resp?.has_attachment).toBe(false);
+    expect(pub.approved_asset_ids).toHaveLength(1); // only the concern's own label image
+  });
+
+  it("rejects a concern revision with no selected images", async () => {
+    const owner = await newUser();
+    const { reportId, version } = await readyReport(owner);
+    const err = await expectApiError(
+      requestPublication(
+        owner,
+        reportId,
+        { expected_version: version, consent: true, selected_evidence_ids: [] },
+        randomUUID(),
+      ),
+    );
+    expect(err.code).toBe("VALIDATION_FAILED");
   });
 });
