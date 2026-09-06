@@ -1,6 +1,6 @@
 # FoodProof — Start here
 
-Status: T0 foundation (pushed to `origin/main`) plus **T1 data/persistence** delivered, 5 September 2026. User approved Clear Signal. T1 replaces the `lib/server/` stubs with real demo-Supabase implementations and the full data API under `app/api/**`, verified live end-to-end (42 tests). T1 commits are on branch `t1-data` and are **not yet pushed**. See IMPLEMENTATION_STATUS.md at the repository root for build progress, live-verified acceptance, honest limitations, and the exact next step. Live Mixpanel ingestion and AI (T4) and deployment (T5) are not delivered; T2/T3 UI have not started.
+Status (6 September 2026): **T0–T4** (foundation, data/persistence, reporter UI, community/moderation UI, live AI assistance + spend ledger + consented Mixpanel + server-owned events) **plus a post-T4 pilot-integrity hardening pass (migration `0005`)** are all merged to `origin/main` and live-verified — head `6f92b40`, `fp_schema_version()` = 5, working tree clean. `IMPLEMENTATION_STATUS.md` at the repository root is the canonical build-progress record (live-verified acceptance, honest limitations, the hardening pass, and the exact next step). Not started: the **deployed invited-demo check (T5)**. The only production dependency advisory (Next.js, at latest 14.2.x) needs a compatibility-reviewed **major upgrade** before public launch — do not blind-bump.
 
 ## Build target
 
