@@ -1,5 +1,6 @@
 import {
   isApiError,
+  type ApiErrorBody,
   type ApiResult,
   type ErrorCode,
   type Me,
@@ -82,10 +83,55 @@ export class ClientApiError extends Error {
 }
 
 function retryAfterFromHeaders(headers: Headers): number | null {
-  const raw = headers.get("Retry-After");
+  return parseRetryAfter(headers.get("Retry-After"));
+}
+
+function parseRetryAfter(raw: string | null): number | null {
   if (raw == null) return null;
   const n = Number(raw);
   return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * The three failure shapes every transport must produce identically, so an XHR
+ * upload and a `fetch` call are indistinguishable to the screens that catch them.
+ */
+function networkFailure(): ClientApiError {
+  // Network failure: offline, DNS, connection refused, aborted, etc.
+  return new ClientApiError({
+    code: "DEPENDENCY_UNAVAILABLE",
+    message: "The service is unavailable right now. Check your connection and try again.",
+    requestId: null,
+    status: 0,
+    retryAfterSeconds: null,
+  });
+}
+
+function unreadableResponse(status: number): ClientApiError {
+  // Non-JSON response (proxy error page, empty body, etc.) — never surface an
+  // unparsed body to the UI.
+  return new ClientApiError({
+    code: "DEPENDENCY_UNAVAILABLE",
+    message: "The service returned an unexpected response. Please try again.",
+    requestId: null,
+    status,
+    retryAfterSeconds: null,
+  });
+}
+
+function envelopeFailure(
+  result: ApiErrorBody,
+  status: number,
+  retryAfterSeconds: number | null,
+): ClientApiError {
+  return new ClientApiError({
+    code: result.error.code,
+    message: result.error.message,
+    fields: result.error.fields,
+    requestId: result.request_id,
+    status,
+    retryAfterSeconds,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -112,43 +158,94 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   try {
     res = await fetch(path, { ...init, credentials: "same-origin", headers });
   } catch {
-    // Network failure: offline, DNS, connection refused, aborted, etc.
-    throw new ClientApiError({
-      code: "DEPENDENCY_UNAVAILABLE",
-      message: "The service is unavailable right now. Check your connection and try again.",
-      requestId: null,
-      status: 0,
-      retryAfterSeconds: null,
-    });
+    throw networkFailure();
   }
 
   let body: unknown;
   try {
     body = await res.json();
   } catch {
-    // Non-JSON response (proxy error page, empty body, etc.) — never surface
-    // an unparsed body to the UI.
-    throw new ClientApiError({
-      code: "DEPENDENCY_UNAVAILABLE",
-      message: "The service returned an unexpected response. Please try again.",
-      requestId: null,
-      status: res.status,
-      retryAfterSeconds: null,
-    });
+    throw unreadableResponse(res.status);
   }
 
   const result = body as ApiResult<T>;
   if (isApiError(result)) {
-    throw new ClientApiError({
-      code: result.error.code,
-      message: result.error.message,
-      fields: result.error.fields,
-      requestId: result.request_id,
-      status: res.status,
-      retryAfterSeconds: retryAfterFromHeaders(res.headers),
-    });
+    throw envelopeFailure(result, res.status, retryAfterFromHeaders(res.headers));
   }
   return result.data;
+}
+
+// ---------------------------------------------------------------------------
+// Multipart upload with progress
+// ---------------------------------------------------------------------------
+
+/** Bytes of the request body sent so far, as reported by the browser. */
+export interface UploadProgress {
+  loaded: number;
+  total: number;
+  /** 0…1, clamped; only emitted when the browser knows the total. */
+  fraction: number;
+}
+
+/**
+ * POST a multipart body through `XMLHttpRequest` so the browser reports upload
+ * progress — `fetch` cannot. The HTTP contract is exactly the one `apiFetch`
+ * speaks (same headers, same same-origin cookies, same envelope, same
+ * `ClientApiError` shapes), so the only difference a screen sees is the
+ * `onProgress` callback.
+ *
+ * `onProgress` reports the request BODY leaving the browser; it reaching 100 %
+ * does not mean the server accepted or stored anything. Only the resolved
+ * promise means that.
+ */
+function uploadWithProgress<T>(
+  path: string,
+  form: FormData,
+  key: string,
+  onProgress: (progress: UploadProgress) => void,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", path, true);
+    xhr.setRequestHeader("Accept", "application/json");
+    xhr.setRequestHeader("Idempotency-Key", key);
+    // Content-Type is deliberately left to the browser: it must carry the
+    // multipart boundary, exactly as with a `fetch` FormData body.
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable || event.total === 0) return;
+      onProgress({
+        loaded: event.loaded,
+        total: event.total,
+        fraction: Math.min(1, event.loaded / event.total),
+      });
+    };
+    xhr.onerror = () => reject(networkFailure());
+    xhr.onabort = () => reject(networkFailure());
+    xhr.ontimeout = () => reject(networkFailure());
+    xhr.onload = () => {
+      let body: unknown;
+      try {
+        body = JSON.parse(xhr.responseText) as unknown;
+      } catch {
+        reject(unreadableResponse(xhr.status));
+        return;
+      }
+      const result = body as ApiResult<T>;
+      if (isApiError(result)) {
+        reject(
+          envelopeFailure(
+            result,
+            xhr.status,
+            parseRetryAfter(xhr.getResponseHeader("Retry-After")),
+          ),
+        );
+        return;
+      }
+      resolve(result.data);
+    };
+    xhr.send(form);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -339,6 +436,16 @@ export interface EvidenceUploadInput {
   roles?: EvidenceRole[];
 }
 
+/** Options for an evidence upload. The request itself is unchanged either way. */
+export interface EvidenceUploadOptions {
+  /**
+   * Called while the file is sent, when the browser can report progress. Its
+   * presence switches the transport to `XMLHttpRequest`; without it the upload
+   * goes through `apiFetch` exactly as before.
+   */
+  onProgress?: (progress: UploadProgress) => void;
+}
+
 // ---------------------------------------------------------------------------
 // Typed API surface, grouped by resource. One function per route.
 // ---------------------------------------------------------------------------
@@ -467,15 +574,21 @@ export const api = {
 
   evidence: {
     /** POST /api/reports/:id/evidence — multipart, requires Idempotency-Key. */
-    upload(reportId: string, input: EvidenceUploadInput, key: string): Promise<EvidenceMeta> {
+    upload(
+      reportId: string,
+      input: EvidenceUploadInput,
+      key: string,
+      opts: EvidenceUploadOptions = {},
+    ): Promise<EvidenceMeta> {
       const form = new FormData();
       form.set("file", input.file);
       form.set("kind", input.kind);
       if (input.roles && input.roles.length > 0) form.set("roles", JSON.stringify(input.roles));
-      return apiFetch<EvidenceMeta>(
-        `/api/reports/${reportId}/evidence`,
-        withIdempotencyKey({ method: "POST", body: form }, key),
-      );
+      const path = `/api/reports/${reportId}/evidence`;
+      if (opts.onProgress && typeof XMLHttpRequest !== "undefined") {
+        return uploadWithProgress<EvidenceMeta>(path, form, key, opts.onProgress);
+      }
+      return apiFetch<EvidenceMeta>(path, withIdempotencyKey({ method: "POST", body: form }, key));
     },
     /** PATCH /api/evidence/:id — requires Idempotency-Key. */
     patchRoles(evidenceId: string, body: EvidenceRolesPatch, key: string): Promise<EvidenceMeta> {

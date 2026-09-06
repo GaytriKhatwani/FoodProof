@@ -97,9 +97,26 @@ test("uploads a label photo, assigns roles, and the server readiness follows", a
   await uploadRoles.getByRole("checkbox", { name: "Product identity" }).check();
   await uploadRoles.getByRole("checkbox", { name: "Gluten-free claim" }).check();
   await uploadRoles.getByRole("checkbox", { name: "Ingredient list" }).check();
+
+  // A failed attempt must report the failure, keep the file and the ticked
+  // roles, and never claim the file was stored.
+  await page.route("**/api/reports/*/evidence", (route) => route.abort("failed"));
   await page.getByRole("button", { name: "Upload file" }).click();
+  await expect(page.getByText("Demo backend unavailable.")).toBeVisible();
+  const progress = page.getByRole("progressbar", { name: "Upload progress" });
+  await expect(progress).toHaveAttribute("aria-valuetext", /Upload failed at \d+%/);
+  await expect(uploadRoles.getByRole("checkbox", { name: "Product identity" })).toBeChecked();
+  await expect(page.getByText(/^Selected: sample-label\.png/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Label photos (0)" })).toBeVisible();
+
+  // The same attempt retried: the progress indicator reaches 100 % and says the
+  // service confirmed the file.
+  await page.unroute("**/api/reports/*/evidence");
+  await page.getByRole("button", { name: "Retry this upload" }).click();
 
   await expect(page.getByRole("heading", { name: "Label photos (1)" })).toBeVisible();
+  await expect(progress).toHaveAttribute("aria-valuenow", "100");
+  await expect(progress).toHaveAttribute("aria-valuetext", /Upload complete/);
   const savedRoles = page.getByRole("group", { name: "Roles for this photo" });
   await expect(savedRoles.getByRole("checkbox", { name: "Product identity" })).toBeChecked();
 
