@@ -10,7 +10,7 @@ started (owner instruction: hand off here).**
 ## Repository state
 
 - Remote `origin` = https://github.com/GaytriKhatwani/FoodProof.git
-- **Pushed**: `main` == `origin/main` at `d81ebeb`, working tree clean.
+- **Pushed**: `main` == `origin/main` at the commit carrying this document (`git log -1`), working tree clean. T3 was fast-forwarded to `d81ebeb`; the handoff docs follow it.
 - Merged into `main` on 6 September 2026, in order (each verified before merge):
   1. `fix/t1-closure` — secret-key rename, test-only publishable key, real direct-client
      denial test, transactional functions (migration 0003).
@@ -32,8 +32,9 @@ started (owner instruction: hand off here).**
      and repair.
   10. `feat/t3-community-review-ui` (fast-forward to d81ebeb) — public home, entry, shell,
       feed, concern detail, reviewer UI, after independent review and repair.
-- Branches for merged work still exist locally; the only remaining worktree is
-  `../FoodProof-worktrees/t3-community` (merged; safe to remove). Worktrees live under
+- Branches for merged work still exist locally; no worktrees remain (a `feat/t4-integration`
+  worktree was created and removed with nothing committed — T4 has NOT started, per the
+  owner's instruction to finish through T3 and hand off). Worktrees live under
   `../FoodProof-worktrees/<name>` with their own `npm ci` and a copied `.env.local` whose
   `APP_ORIGIN` sets that worktree's dev port (the same-origin check compares against it).
 
@@ -104,7 +105,7 @@ started (owner instruction: hand off here).**
 | Lint | `npm run lint` | PASS (orchestrator run on `main`) |
 | Build | `npm run build` | PASS (orchestrator run on `main`) |
 | Tests | `npm run test` | PASS — 51 passed (51), 8 files, 0 skipped, 0 blocked (orchestrator run on `main`) |
-| Browser tests | `npm run test:e2e` | PASS — 114 passed (desktop + 360 px) on the T3 branch at the identical tree, run by the T3 agent; the orchestrator's own full run on `main` was interrupted by a tooling failure and must be re-run at the start of the next session (see Exact next action) |
+| Browser tests | `npm run test:e2e` | 114 passed (desktop + 360 px) on the T3 branch at the tree that became `main` `d81ebeb`, run by the T3 agent. The orchestrator's own full run on `main` was still in progress when this session was saved (a first attempt was interrupted by a tooling failure); treat it as UNCONFIRMED on `main` until re-run at the start of the next session (see Exact next action) |
 
 Live acceptance covered by the suites: everything in the T1 record plus direct-client
 denial with a real publishable-key client (tables, writes, RPCs, both buckets), read-your-
