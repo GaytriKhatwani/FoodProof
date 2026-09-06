@@ -53,6 +53,18 @@ test.describe("community feed", () => {
     await expect(item).toContainText("Anonymous contributor");
     await expect(item).toContainText("Illustrative example");
     await expect(item.getByRole("link", { name: "View concern" })).toBeVisible();
+
+    // The card shows the reviewed identity photo of the approved revision,
+    // streamed by the guarded media route — never a private original.
+    const thumbnail = item.getByRole("img", {
+      name: /Reviewed photo of the product identity for/,
+    });
+    await expect(thumbnail).toBeVisible();
+    await expect(thumbnail).toHaveAttribute("src", /^\/api\/publication-assets\/[0-9a-f-]{36}$/);
+    // It decoded: a card whose image fails to load falls back to the placeholder.
+    await expect
+      .poll(() => thumbnail.evaluate((img) => (img as HTMLImageElement).naturalWidth))
+      .toBeGreaterThan(0);
   });
 
   test("search finds the seeded brand and reports a result count", async ({ page }) => {

@@ -271,6 +271,87 @@ publicationSuite.run(publicationSuite.title, () => {
     expect(resurrect.code).toBe("CONFLICT");
   });
 
+  it("puts the reviewed identity photo on the feed card and stops serving it on withdrawal", async () => {
+    const owner = await newUser();
+    const reviewer = await newReviewer();
+
+    // Two label photos, so the projection has to pick by ROLE rather than by
+    // whichever asset row happens to come back first.
+    const report = await createReport(owner, baseReport(), randomUUID());
+    createdReports.push(report.report_id);
+    await confirmFacts(
+      owner,
+      report.report_id,
+      { expected_version: 0, claim_text: "Gluten-free", ingredients_text: "Wheat flour", method: "manual" },
+      randomUUID(),
+    );
+    const claimShot = await addEvidence(
+      owner,
+      report.report_id,
+      { kind: "label", roles: ["claim", "ingredients"] },
+      { bytes: samplePng() },
+      randomUUID(),
+    );
+    const identityShot = await addEvidence(
+      owner,
+      report.report_id,
+      { kind: "label", roles: ["identity"] },
+      { bytes: samplePng() },
+      randomUUID(),
+    );
+    const version = (await getOwnReport(owner, report.report_id)).version;
+
+    const req = await requestPublication(
+      owner,
+      report.report_id,
+      {
+        expected_version: version,
+        consent: true,
+        selected_evidence_ids: [claimShot.id, identityShot.id],
+      },
+      randomUUID(),
+    );
+    await decideReview(
+      reviewer,
+      req.publication_revision_id,
+      { expected_version: 0, action: "approve" },
+      randomUUID(),
+    );
+
+    // The frozen copy made from the identity photo, read from the table itself.
+    const { data: assets, error } = await client
+      .from("publication_assets")
+      .select("id, source_evidence_id")
+      .eq("revision_id", req.publication_revision_id);
+    if (error) throw error;
+    const identityAsset = (assets ?? []).find((a) => a.source_evidence_id === identityShot.id);
+    expect(identityAsset).toBeDefined();
+
+    const card = (await getFeed({})).items.find((i) => i.report_id === report.report_id);
+    expect(card?.thumbnail_asset_id).toBe(identityAsset?.id);
+    // A guarded media id only: no storage path or bucket name reaches the card.
+    expect(JSON.stringify(card)).not.toContain("demo-reviewed");
+    expect(JSON.stringify(card)).not.toContain("demo-originals");
+
+    const pub = await getPublicReport(report.report_id);
+    expect(pub.thumbnail_asset_id).toBe(identityAsset?.id);
+    expect(pub.approved_assets).toHaveLength(2);
+    expect(pub.approved_assets?.map((a) => a.id)).toEqual(pub.approved_asset_ids);
+    expect(pub.approved_assets?.find((a) => a.id === identityAsset?.id)?.roles).toEqual([
+      "identity",
+    ]);
+
+    // Withdrawal removes the card, and the thumbnail bytes stop being served —
+    // a stale card in an already-open browser cannot keep fetching them.
+    await withdrawPublication(owner, report.report_id, randomUUID());
+    const afterFeed = await getFeed({});
+    expect(afterFeed.items.find((i) => i.report_id === report.report_id)).toBeUndefined();
+    const blocked = await expectApiError(
+      readPublicationAssetForMedia({ accessId: owner, role: "user" }, identityAsset?.id as string),
+    );
+    expect(blocked.code).toBe("NOT_FOUND");
+  });
+
   it("handles flags and reviewer removal", async () => {
     const owner = await newUser();
     const reviewer = await newReviewer();
