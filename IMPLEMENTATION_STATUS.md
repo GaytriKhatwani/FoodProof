@@ -434,6 +434,14 @@ tester codes with `scripts/create-invitations.mjs` and distribute privately.
    mobile sign-in) replaces it.
 5. **Next.js 14 → 16 major upgrade — not required at this stage** (remains a pre-public-
    launch follow-up).
+6. **A.2 Mixpanel read-back — DONE.** `scripts/analytics-journey.mjs` was re-run against a
+   local server at 13:58 UTC on 6 September 2026 (ingestion `status:1` for all seven events,
+   no delivery warnings) and the owner confirmed the events in the Mixpanel UI (project
+   "FoodProof", id 4061064): the six consented events in order, the withdrawn session's
+   single pre-withdrawal `report_saved`, nothing from the declined session. The Mixpanel
+   plan does not allow Query/Export API calls, so the UI remains the read-back path; the
+   temporary service account the owner created for this should be deleted.
+7. **Phase two C.1 (real sign-in) starts in the NEXT session** by the owner's instruction.
 
 ## Session end (6 September 2026, T4)
 
