@@ -6,6 +6,7 @@ import {
   EventProperties,
   HTTP_STATUS_FOR_CODE,
   PublicationRequest,
+  PublicFeedItem,
   PublicReport,
   ReportWriteRequest,
   SessionCreateRequest,
@@ -96,6 +97,85 @@ describe("public projection allowlist", () => {
     });
     expect(parsed).not.toHaveProperty("owner_access_id");
     expect(parsed).not.toHaveProperty("object_path");
+  });
+
+  it("carries an optional thumbnail media id on a feed card, never a path", () => {
+    const card = {
+      report_id: "11111111-0000-4000-8000-000000000001",
+      publication_revision_id: "22222222-0000-4000-8000-000000000001",
+      product_id: null,
+      product_name: "Sample Pantry Crackers",
+      brand: "Sample Pantry",
+      variant: null,
+      concern_summary: "Claim and ingredients appear to disagree.",
+      observation_date: null,
+      published_at: "2026-09-05T00:00:00.000Z",
+      author_label: "Anonymous contributor",
+      external_status: {
+        brand: "no_submission_recorded",
+        government: "no_submission_recorded",
+        as_recorded_at: null,
+      },
+    };
+
+    // Additive: a projection built before the field existed still parses,
+    // and so do an explicit id and an explicit "this revision has none".
+    expect(PublicFeedItem.safeParse(card).success).toBe(true);
+    expect(
+      PublicFeedItem.parse({ ...card, thumbnail_asset_id: null }).thumbnail_asset_id,
+    ).toBeNull();
+    const withThumb = PublicFeedItem.parse({
+      ...card,
+      thumbnail_asset_id: "33333333-0000-4000-8000-000000000001",
+    });
+    expect(withThumb.thumbnail_asset_id).toBe("33333333-0000-4000-8000-000000000001");
+
+    // A storage path can never take the place of a guarded media id.
+    expect(
+      PublicFeedItem.safeParse({
+        ...card,
+        thumbnail_asset_id: "demo-reviewed/leak.jpg",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("describes approved assets with their label roles, keeping the id list intact", () => {
+    const parsed = PublicReport.parse({
+      report_id: "11111111-0000-4000-8000-000000000001",
+      publication_revision_id: "22222222-0000-4000-8000-000000000001",
+      product_id: null,
+      product_name: "Sample Pantry Crackers",
+      brand: "Sample Pantry",
+      variant: null,
+      concern_summary: "Claim and ingredients appear to disagree.",
+      observation_date: null,
+      published_at: "2026-09-05T00:00:00.000Z",
+      author_label: "Anonymous contributor",
+      external_status: {
+        brand: "no_submission_recorded",
+        government: "no_submission_recorded",
+        as_recorded_at: null,
+      },
+      confirmed_claim_text: null,
+      confirmed_ingredients_text: null,
+      approved_asset_ids: ["33333333-0000-4000-8000-000000000001"],
+      approved_assets: [
+        { id: "33333333-0000-4000-8000-000000000001", roles: ["identity", "claim"] },
+      ],
+      responses: [],
+    });
+    expect(parsed.approved_asset_ids).toEqual(["33333333-0000-4000-8000-000000000001"]);
+    expect(parsed.approved_assets?.[0]?.roles).toEqual(["identity", "claim"]);
+
+    // Roles are the frozen label vocabulary, not free text.
+    expect(
+      PublicReport.safeParse({
+        ...parsed,
+        approved_assets: [
+          { id: "33333333-0000-4000-8000-000000000001", roles: ["front_of_pack"] },
+        ],
+      }).success,
+    ).toBe(false);
   });
 });
 

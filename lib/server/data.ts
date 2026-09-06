@@ -4,6 +4,8 @@ import type {
   CommunityVisibility,
   ComplaintDraft,
   EvidenceMeta,
+  EvidenceRole,
+  PublicApprovedAsset,
   PublicFeedItem,
   PublicReport,
   PublicResponseSummary,
@@ -315,10 +317,73 @@ interface StoredResponsePayload {
   provenance: "user_recorded";
 }
 
+/**
+ * The frozen assets of the given approved revisions, each with the label roles
+ * it shows, ordered stably by asset id.
+ *
+ * `publication_assets` stores only the reviewed copy's path and the evidence it
+ * was copied from, so the roles are read from the owned `evidence` rows — the
+ * same rows `fp_request_publication` checked under the report lock when it froze
+ * the revision. Nothing private leaves this function: only the guarded asset id
+ * and the three label role names. A reporter may re-label a photo after
+ * approval (the server allows it once no review is pending), which can change
+ * WHICH approved image is described as the identity one; the bytes served for
+ * the revision never change.
+ */
+async function approvedAssetsByRevision(
+  supabase: SupabaseClient,
+  revisionIds: string[],
+): Promise<Map<string, PublicApprovedAsset[]>> {
+  const byRevision = new Map<string, PublicApprovedAsset[]>();
+  if (revisionIds.length === 0) return byRevision;
+
+  const { data: assets, error } = await supabase
+    .from("publication_assets")
+    .select("id, revision_id, source_evidence_id")
+    .in("revision_id", revisionIds)
+    .order("id", { ascending: true });
+  if (error) throw error;
+
+  const sourceIds = Array.from(
+    new Set((assets ?? []).map((a) => a.source_evidence_id as string)),
+  );
+  const rolesBySource = new Map<string, EvidenceRole[]>();
+  if (sourceIds.length > 0) {
+    const { data: evidence, error: eErr } = await supabase
+      .from("evidence")
+      .select("id, roles")
+      .in("id", sourceIds);
+    if (eErr) throw eErr;
+    for (const e of evidence ?? []) {
+      rolesBySource.set(e.id as string, (e.roles as EvidenceRole[] | null) ?? []);
+    }
+  }
+
+  for (const a of assets ?? []) {
+    const list = byRevision.get(a.revision_id as string) ?? [];
+    list.push({
+      id: a.id as string,
+      roles: rolesBySource.get(a.source_evidence_id as string) ?? [],
+    });
+    byRevision.set(a.revision_id as string, list);
+  }
+  return byRevision;
+}
+
+/**
+ * The card thumbnail for an approved revision: its reviewed identity photo, or
+ * null when it has none. Never falls back to another role — a card must not
+ * present an ingredients close-up as the product.
+ */
+function thumbnailAssetId(assets: PublicApprovedAsset[] | undefined): string | null {
+  return assets?.find((a) => a.roles.includes("identity"))?.id ?? null;
+}
+
 function feedItemFrom(
   payload: StoredConcernPayload,
   approvedRevisionId: string,
   publishedAt: string,
+  thumbnail: string | null,
 ): PublicFeedItem {
   return {
     report_id: payload.report_id,
@@ -332,6 +397,7 @@ function feedItemFrom(
     published_at: publishedAt,
     author_label: "Anonymous contributor",
     external_status: payload.external_status,
+    thumbnail_asset_id: thumbnail,
   };
 }
 
@@ -364,7 +430,8 @@ export async function getFeed(
   for (const p of pubs ?? []) {
     const payload = payloads.get(p.approved_revision_id);
     if (!payload) continue;
-    items.push(feedItemFrom(payload, p.approved_revision_id, p.approved_at));
+    // Thumbnails are resolved below, for the returned page only.
+    items.push(feedItemFrom(payload, p.approved_revision_id, p.approved_at, null));
   }
   if (q) {
     items = items.filter(
@@ -376,7 +443,23 @@ export async function getFeed(
   const offset = decodeCursor(query.cursor);
   const page = items.slice(offset, offset + PAGE_SIZE);
   const hasMore = items.length > offset + PAGE_SIZE;
-  return { items: page, nextCursor: hasMore ? encodeCursor(offset + PAGE_SIZE) : null };
+
+  // Only the page actually returned costs an asset lookup: every row here comes
+  // from a publication that is visible right now, and the media route re-checks
+  // that at fetch time, so a card can never point at hidden bytes.
+  const assets = await approvedAssetsByRevision(
+    supabase,
+    page.map((i) => i.publication_revision_id),
+  );
+  const withThumbnails = page.map((item) => ({
+    ...item,
+    thumbnail_asset_id: thumbnailAssetId(assets.get(item.publication_revision_id)),
+  }));
+
+  return {
+    items: withThumbnails,
+    nextCursor: hasMore ? encodeCursor(offset + PAGE_SIZE) : null,
+  };
 }
 
 interface ApprovedResponseRevision {
@@ -434,11 +517,10 @@ export async function getPublicReport(
   if (rErr) throw rErr;
   const payload = rev.payload as StoredConcernPayload;
 
-  const { data: assets, error: aErr } = await supabase
-    .from("publication_assets")
-    .select("id")
-    .eq("revision_id", pub.approved_revision_id);
-  if (aErr) throw aErr;
+  const assets =
+    (await approvedAssetsByRevision(supabase, [pub.approved_revision_id])).get(
+      pub.approved_revision_id,
+    ) ?? [];
 
   const respRevs = await effectiveResponseRevisions(supabase, reportId);
 
@@ -454,12 +536,18 @@ export async function getPublicReport(
     };
   });
 
-  const base = feedItemFrom(payload, pub.approved_revision_id, pub.approved_at);
+  const base = feedItemFrom(
+    payload,
+    pub.approved_revision_id,
+    pub.approved_at,
+    thumbnailAssetId(assets),
+  );
   return {
     ...base,
     confirmed_claim_text: payload.confirmed_claim_text,
     confirmed_ingredients_text: payload.confirmed_ingredients_text,
-    approved_asset_ids: (assets ?? []).map((a) => a.id),
+    approved_asset_ids: assets.map((a) => a.id),
+    approved_assets: assets,
     responses,
   };
 }
