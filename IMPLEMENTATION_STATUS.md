@@ -105,7 +105,7 @@ started (owner instruction: hand off here).**
 | Lint | `npm run lint` | PASS (orchestrator run on `main`) |
 | Build | `npm run build` | PASS (orchestrator run on `main`) |
 | Tests | `npm run test` | PASS — 51 passed (51), 8 files, 0 skipped, 0 blocked (orchestrator run on `main`) |
-| Browser tests | `npm run test:e2e` | 114 passed (desktop + 360 px) on the T3 branch at the tree that became `main` `d81ebeb`, run by the T3 agent. The orchestrator's own full run on `main` was still in progress when this session was saved (a first attempt was interrupted by a tooling failure); treat it as UNCONFIRMED on `main` until re-run at the start of the next session (see Exact next action) |
+| Browser tests | `npm run test:e2e` | PASS — 114 passed (7.5 min; desktop + 360 px), orchestrator run on `main` `d81ebeb` tree. One earlier attempt failed mid-run on a transient Supabase connectivity blip (API call timeout, "fetch failed" during cleanup, then fast-failing suites); the affected files passed 18/18 on immediate re-run and the leftover e2e rows were removed |
 
 Live acceptance covered by the suites: everything in the T1 record plus direct-client
 denial with a real publishable-key client (tables, writes, RPCs, both buckets), read-your-
@@ -220,10 +220,10 @@ codes with `scripts/create-invitations.mjs` and distribute privately.
 
 ## Exact next action (continuation prompt for the next session)
 
-1. Re-run the full browser suite on `main` (`npm run test:e2e`, port 3000 free,
-   `.next/cache/fetch-cache` cleared, dev server stopped) and record the result here; the
-   expected outcome is 114 passed on both viewports. Remove the merged worktree
-   `../FoodProof-worktrees/t3-community`.
+1. Nothing is pending for T2/T3: the full browser suite passed 114/114 on `main`. Before any
+   later suite run, check `demo_access` holds only the two seed rows (a run that loses
+   connectivity mid-way can leave `e2e …` rows; delete them child→parent as
+   `deleteInvitations` does).
 2. **T4** on a new worktree from `main`: add the provider's official SDK and provider code only
    through the frozen `AiAdapter` interface (`lib/server/ai.ts`) using the owner's chosen
    provider/model/effort (see `.env.local` comment; keep these documents neutral); map

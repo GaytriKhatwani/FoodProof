@@ -12,8 +12,8 @@
     },
     {
       "path": "IMPLEMENTATION_STATUS.md",
-      "bytes": 17206,
-      "sha256": "414ea143c5fc5e58ab8fa81f8ff7bc46be59fd96d974dc3e0ebbcd5d8c79edca"
+      "bytes": 17179,
+      "sha256": "54c858a448c12a53e44d075b746042f3c84786c6f98597ce648bd0def57d2bd3"
     },
     {
       "path": "README.md",
@@ -137,5 +137,5 @@
     }
   ],
   "local_markdown_links": "passed",
-  "application_tests": "typecheck/lint/build pass; vitest 51/51 live (direct-client denial, freshness, idempotency); playwright 114/114 on the T3 tree identical to main d81ebeb (orchestrator full run on main to be repeated next session); T2 + T3 merged"
+  "application_tests": "typecheck/lint/build pass; vitest 51/51 live; playwright 114/114 on main (desktop + 360 px); T0\u2013T3 merged; T4/T5 not started"
 }
