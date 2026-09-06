@@ -308,6 +308,23 @@ tester codes with `scripts/create-invitations.mjs` and distribute privately.
 - Official FSSAI destination browser-verification; contact/moderator route; 30-day
   retention confirmation (T5).
 
+## Session end (6 September 2026, T4)
+
+- Everything above is merged and pushed: `main` == `origin/main` at the commit carrying this
+  paragraph (T4 merge `9aa07c7` + this note). Working tree clean. The T4 worktrees were
+  removed; the merged branches `feat/t4-base`, `feat/t4-ai`, `feat/t4-analytics`,
+  `feat/t4-ui` still exist locally. `../FoodProof-worktrees/t2-reporter` is a stale directory
+  from an earlier session (not a registered worktree; safe to delete).
+- The deployment redeployed from `main` automatically; `GET /api/health` reports every group
+  present except `ai` (AI variables not yet set on Vercel), so the deployed app runs the
+  manual/template path only until the owner sets them.
+- Demo project: migrations 0001–0004 applied, `demo_access` = the two seed rows only,
+  `ai_spend_ledger` empty. Local `.env.local` carries `AI_PROVIDER`, `AI_PROVIDER_API_KEY`,
+  `AI_MODEL`, `ANALYTICS_AUDIENCE=qa`.
+- Owner steps before/at T5: Vercel AI variables; Mixpanel Live View check via
+  `scripts/analytics-journey.mjs` (procedure in `docs/FOODPROOF_SETUP_AND_OPERATIONS.md`).
+- Nothing is half-done. The next session starts at step 1 below.
+
 ## Exact next action (continuation prompt for the next session)
 
 1. **T5:** set the AI variables on Vercel; verify `GET /api/health` reports `ai: true` and
