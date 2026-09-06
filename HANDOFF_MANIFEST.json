@@ -126,6 +126,11 @@
       "sha256": "11a41bf35f573bbf5c8ce99904afba2ef2ff41ec47b12091a13794b86afebc2c"
     },
     {
+      "path": "docs/FOODPROOF_UI_AUDIT.md",
+      "bytes": 25856,
+      "sha256": "cf7ff789c34367c9f0ffb1e9bf5c28493781266b213bde0cc65c6254afe23afe"
+    },
+    {
       "path": "docs/FOODPROOF_WORKFLOWS.md",
       "bytes": 10563,
       "sha256": "86f31b39ee79dfef5954c3163095ae0e4db69db9a5763c14a6b8b5533c313b80"
