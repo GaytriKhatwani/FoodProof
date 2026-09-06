@@ -12,8 +12,8 @@
     },
     {
       "path": "IMPLEMENTATION_STATUS.md",
-      "bytes": 36144,
-      "sha256": "38494320281b3241e9c5ef09c6e6020abb5042d8b26862eb5a29c5824512368f"
+      "bytes": 42823,
+      "sha256": "d4335eec4b65757454db8bf07dbc0e0ade8b75a7a33b64ea02eeaf0928e2edb2"
     },
     {
       "path": "README.md",
@@ -67,8 +67,8 @@
     },
     {
       "path": "docs/FOODPROOF_API_DETAILS.md",
-      "bytes": 7903,
-      "sha256": "543fa9baa0bfd020a693099028d78de89c2b18401be79a55c96cbddbe6872046"
+      "bytes": 8923,
+      "sha256": "a4fa1759b7bb673b3ae975e7da4d951aea781f376684b4782c8878245784c93a"
     },
     {
       "path": "docs/FOODPROOF_BUILD_HANDOFF.md",

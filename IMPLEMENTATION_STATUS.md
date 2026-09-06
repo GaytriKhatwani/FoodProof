@@ -377,10 +377,13 @@ tester codes with `scripts/create-invitations.mjs` and distribute privately.
 
 ## Handoff notes (known gaps recorded, not fixed)
 
-- Phase-2 notes still apply: `PublicFeedItem` carries no asset ids; `GET /api/feed/:id`
-  answers one 404 for never-published / withdrawn / removed; `ReviewRequestState` has no
-  `source_update_id`; reviewer detail shows only frozen copies; no upload percentage; the
-  official destination stays a labelled placeholder until T5 verification.
+- Phase-2 notes still apply: `GET /api/feed/:id` answers one 404 for never-published /
+  withdrawn / removed (kept deliberately); reviewer detail shows only frozen copies.
+  Superseded since this note was written: `PublicFeedItem` now carries
+  `thumbnail_asset_id` and `PublicReport` carries `approved_assets` with roles (`052cd90`);
+  the evidence step shows an upload percentage (`88dc31a`); `ReviewRequestState` carries
+  `source_update_id` (hardening pass, `6f92b40`); the official destination is verified and
+  wired (`c7ecbd6`, awaiting the owner's `OFFICIAL_PORTAL_KEY` on Vercel).
 - `report_saved` is emitted only when the `X-Flow-Id` header is a UUID; the editor is the
   only caller today, so nothing is lost, but a future save path must send it deliberately.
 - `moderation_decided` with `decision: "removed"` reports `content_kind: "concern"` (the
@@ -510,19 +513,43 @@ No new feature work; verification and configuration on the deployed URL:
 
 ### B. Known gaps worth closing before or during T5 (small; from "Handoff notes")
 
-- Feed-card thumbnails (`PublicFeedItem` carries no asset ids; `PublicReport` asset ids
-  carry no roles) — additive contract change.
-- `ReviewRequestState.source_update_id` so response review requests can be placed under
-  their response on the timeline — additive.
+Closed (branch `feat/t5-b-items`, 6 September 2026):
+
+- **Feed-card thumbnails — DONE (`052cd90`).** Additive contract only:
+  `PublicFeedItem.thumbnail_asset_id` (optional, nullable) is the guarded media id of the
+  reviewed IDENTITY image of the approved revision, and `PublicReport.approved_assets`
+  (optional) repeats `approved_asset_ids` in the same order with each asset's label roles.
+  `approved_asset_ids` is unchanged. The projection reads the frozen `publication_assets`
+  rows and joins the label roles of the owned source evidence (the asset row stores only
+  the reviewed copy); the image is served by the existing guarded
+  `/api/publication-assets/:id` route, so a hidden, withdrawn, removed or superseded
+  revision serves nothing and the card falls back to a placeholder. Feed cards show it at
+  desktop and 360 px with an alt text naming the product. Tests: 3 contract cases, one live
+  integration case (two label photos; the identity one is chosen, and stops serving after
+  withdrawal) and a Playwright assertion in the community-feed spec.
+- **Upload progress — DONE (`88dc31a`).** The evidence step shows a `role="progressbar"`
+  with `aria-valuenow`/`aria-valuetext`, distinguishing "file sent" from "the service
+  confirmed it was stored", and keeps the chosen file, type and ticked roles on a failure
+  (retry reuses the same idempotency key). An evidence upload uses `XMLHttpRequest` only to
+  obtain progress; the HTTP contract is unchanged. E2E covers the forced failure, the
+  preserved selection and the successful retry.
+- **`ReviewRequestState.source_update_id` — DONE in the hardening pass** (merge `6f92b40`,
+  work `7927e90`): response review requests carry their source update, so the timeline can
+  place them under their response.
+- **The three-role publication check — DONE in the hardening pass** (migration
+  `0005_pilot_integrity_hardening.sql`, merge `6f92b40`): `fp_request_publication` now
+  rejects a concern revision whose selected, ready label evidence does not collectively
+  cover identity, claim AND ingredients, and `lib/server/publication.ts` fails early with
+  the same message. Response revisions are unchanged.
+
+Still open:
+
 - `report_saved` depends on the `X-Flow-Id` header (editor is the only caller today).
 - Removal events always report `content_kind: "concern"`.
-- The concern-revision transaction requires ≥ 1 label image but not that the selected
-  subset covers identity/claim/ingredients (the share screen enforces it; the API
-  supplement says the revision should) — server-side check in `fp_request_publication`
-  would be a migration 0005 plus a test update.
-- `stableEventId` duplicated in `scripts/analytics-journey.mjs`; no sweeper for
-  `reserved_open` ledger rows (deliberate); no upload progress; one 404 for
-  never-published / withdrawn / removed.
+- `stableEventId` duplicated in `scripts/analytics-journey.mjs`; no automatic sweeper for
+  `reserved_open` ledger rows (deliberate — migration 0005 adds the operator-only
+  `fp_sweep_abandoned_ai_reservations`); one 404 for never-published / withdrawn / removed
+  (deliberate: naming which applies would leak a moderation outcome).
 
 ### C. Phase two — before unrestricted public launch (`docs/FOODPROOF_BUILD_TICKETS.md`
 "Phase two", technical spec §10, decisions D18/D32). Needs explicit owner assignment and
