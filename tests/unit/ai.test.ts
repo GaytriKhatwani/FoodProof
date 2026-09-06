@@ -278,6 +278,30 @@ describe("provider adapter", () => {
     expect(content[2]).toMatchObject({ type: "text", text: "Image 2:" });
   });
 
+  it("strips image metadata before the bytes leave for the provider", async () => {
+    // A minimal JPEG whose APP1 "Exif" segment stands in for location/device data.
+    const app1 = [0xff, 0xe1, 0x00, 0x08, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00];
+    const sos = [0xff, 0xda, 0x00, 0x03, 0x01, 0x11, 0x22, 0x33];
+    const jpegWithExif = Uint8Array.from([0xff, 0xd8, ...app1, ...sos, 0xff, 0xd9]);
+    const { client, requests } = fakeClient(() => okExtraction);
+    const adapter = createAnthropicAdapter({
+      client,
+      model: "test-model",
+      loadImage: async () => ({ bytes: jpegWithExif, mimeType: "image/jpeg" }),
+    });
+
+    await adapter.extractLabelMetered([EV[0]!]);
+
+    const content = (
+      requests[0]!.messages as [{ content: { type: string; source?: { data: string } }[] }]
+    )[0].content;
+    const sent = Buffer.from(content[1]!.source!.data, "base64");
+    expect(sent.includes(Buffer.from("Exif"))).toBe(false);
+    expect(sent.includes(Buffer.from([0xff, 0xe1]))).toBe(false);
+    expect(sent[0]).toBe(0xff); // still a JPEG: SOI first ...
+    expect(sent[sent.length - 1]).toBe(0xd9); // ... EOI last, pixels kept.
+  });
+
   it.each([
     ["refusal", { ...okExtraction, stop_reason: "refusal" }],
     ["max_tokens", { ...okExtraction, stop_reason: "max_tokens" }],
