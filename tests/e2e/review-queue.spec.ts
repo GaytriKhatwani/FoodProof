@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { createInvitation, deleteInvitations, enterPilot } from "./helpers";
+import {
+  createInvitation,
+  deleteInvitations,
+  enterPilot,
+  setAnalyticsConsent,
+} from "./helpers";
 
 /**
  * Reviewer queue — `/pilot/review` (docs/FOODPROOF_SCREENS.md §10).
@@ -44,6 +49,10 @@ test.describe("reviewer role separation", () => {
     const invitation = await createInvitation("user");
     createdAccessIds.push(invitation.accessId);
     await enterPilot(page, invitation.code);
+    // This spec asserts on a client-owned event, so the session needs the
+    // consent a participant gives at entry: without it the client emits
+    // nothing at all and the server would drop anything that did arrive.
+    await setAnalyticsConsent(page, true);
 
     await page.goto("/pilot/feed");
     const nav = page.getByRole("navigation", { name: "Pilot" });

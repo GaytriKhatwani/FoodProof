@@ -711,6 +711,10 @@ export function ResponseShareDialog({
         <input
           type="checkbox"
           checked={consent}
+          // The blocking message is about this box; name it here as well as
+          // announcing it.
+          aria-invalid={blocked ? true : undefined}
+          aria-describedby={blocked ? "response-share-blocked" : undefined}
           onChange={(event) => setConsent(event.target.checked)}
         />
         <span>
@@ -720,7 +724,7 @@ export function ResponseShareDialog({
       </label>
 
       {blocked ? (
-        <p className={styles.alert} role="alert">
+        <p id="response-share-blocked" className={styles.alert} role="alert">
           {blocked}
         </p>
       ) : null}

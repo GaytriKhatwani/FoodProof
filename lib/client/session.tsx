@@ -11,6 +11,7 @@ import {
 } from "react";
 import type { Me } from "@/lib/contracts";
 import { api, ClientApiError } from "@/lib/client/api";
+import { setClientAnalyticsConsent } from "@/lib/analytics";
 
 /**
  * Client-side session state (FOODPROOF_TECHNICAL_SPEC.md §2). Fetches
@@ -56,9 +57,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     try {
       const result = await api.me.get();
       setMe(result);
+      // The server's answer is the only source of the consent state the client
+      // analytics adapter gates on, and it is set here — before any child of
+      // this provider renders — so a withdrawal stops the next optional event
+      // instead of leaving the browser to send one the server would refuse.
+      setClientAnalyticsConsent(result.analytics_consent);
       setStatus("ready");
     } catch (err) {
       setMe(undefined);
+      setClientAnalyticsConsent(null);
       if (err instanceof ClientApiError && err.code === "UNAUTHENTICATED") {
         setStatus("anonymous");
         return;
@@ -86,6 +93,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const exit = useCallback(async () => {
     await api.session.destroy();
     setMe(undefined);
+    // The session that carried the consent is gone with it.
+    setClientAnalyticsConsent(null);
     setStatus("anonymous");
   }, []);
 

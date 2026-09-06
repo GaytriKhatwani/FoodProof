@@ -316,7 +316,12 @@ export function EvidenceSection({
           }}
         />
         {localError ? (
-          <span className={styles.fieldError} id={`${fileInputId}-error`}>
+          // A rejected file is decided on the client, after the file dialog has
+          // already closed and focus has returned to the input — nothing else
+          // on screen changes. Every other error surface in the pilot announces
+          // itself; without a role this one was silent unless the reporter
+          // happened to re-read the field. The text is unchanged.
+          <span className={styles.fieldError} id={`${fileInputId}-error`} role="alert">
             {localError}
           </span>
         ) : null}

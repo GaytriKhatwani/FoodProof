@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clientAnalytics } from "@/lib/analytics";
+import { clientAnalytics, setClientAnalyticsConsent } from "@/lib/analytics";
 import { api } from "@/lib/client/api";
 
 /**
@@ -14,13 +14,18 @@ const originalWindow = (globalThis as { window?: unknown }).window;
 
 afterEach(() => {
   vi.restoreAllMocks();
+  setClientAnalyticsConsent(null);
   if (originalWindow === undefined) delete (globalThis as { window?: unknown }).window;
   else (globalThis as { window?: unknown }).window = originalWindow;
 });
 
-/** The adapter is browser-only; give it a window so `track` reaches the API. */
+/**
+ * The adapter is browser-only AND consent-gated: give it a window and a
+ * recorded "allowed" answer so `track` reaches the API at all.
+ */
 function inBrowser() {
   (globalThis as { window?: unknown }).window = {};
+  setClientAnalyticsConsent(true);
 }
 
 describe("clientAnalytics", () => {
@@ -51,6 +56,30 @@ describe("clientAnalytics", () => {
 
   it("sends nothing at all outside a browser (SSR)", () => {
     delete (globalThis as { window?: unknown }).window;
+    setClientAnalyticsConsent(true);
+    const send = vi.spyOn(api.analytics, "send");
+    clientAnalytics.track("feed_viewed", { result_count: 0 });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  /*
+   * A14: a session whose consent is withdrawn emits no optional event. The
+   * server refuses such an event anyway, but the browser must not attempt the
+   * request — "refused after it was sent" is not what the participant agreed
+   * to. Unknown consent is treated exactly like withdrawn.
+   */
+  it("sends nothing once consent is withdrawn", () => {
+    inBrowser();
+    setClientAnalyticsConsent(false);
+    const send = vi.spyOn(api.analytics, "send");
+    clientAnalytics.track("feed_viewed", { result_count: 3 });
+    clientAnalytics.track("brand_email_opened", { report_id: "r" });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing before the consent answer is known", () => {
+    (globalThis as { window?: unknown }).window = {};
+    setClientAnalyticsConsent(null);
     const send = vi.spyOn(api.analytics, "send");
     clientAnalytics.track("feed_viewed", { result_count: 0 });
     expect(send).not.toHaveBeenCalled();

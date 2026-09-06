@@ -87,6 +87,9 @@ export function FlagForm({ reportId }: { reportId: string }) {
         title="Request recorded for review"
         headingLevel="h3"
         role="status"
+        // This block replaces the submit button that was focused, so without
+        // this focus falls to the body and the confirmation is never reached.
+        focusOnMount
         actions={
           <button
             type="button"

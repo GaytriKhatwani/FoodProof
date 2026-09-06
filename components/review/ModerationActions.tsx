@@ -24,6 +24,9 @@ export function ModerationActions({ reportId }: { reportId: string }) {
   const brandId = useId();
   const nameId = useId();
   const variantId = useId();
+  const regionId = useId();
+  const removeErrorId = useId();
+  const relinkErrorId = useId();
 
   const [open, setOpen] = useState(false);
   const [removeReason, setRemoveReason] = useState("");
@@ -148,12 +151,13 @@ export function ModerationActions({ reportId }: { reportId: string }) {
         type="button"
         className={styles.linkButton}
         aria-expanded={open}
+        aria-controls={regionId}
         onClick={() => setOpen((current) => !current)}
       >
         {open ? "Hide moderation actions" : "Show moderation actions"}
       </button>
 
-      <div hidden={!open}>
+      <div id={regionId} hidden={!open}>
         <div className={styles.moderationBlock}>
           <h3 className={styles.moderationTitle}>Remove from the community</h3>
           {removed ? (
@@ -174,6 +178,9 @@ export function ModerationActions({ reportId }: { reportId: string }) {
                 value={removeReason}
                 onChange={(event) => setRemoveReason(event.target.value)}
                 aria-invalid={removeError ? true : undefined}
+                // `aria-invalid` alone marks the field wrong without saying
+                // why; the message below is what a reader needs.
+                aria-describedby={removeError ? removeErrorId : undefined}
               />
               <div className={styles.decisionActions}>
                 <button
@@ -186,7 +193,7 @@ export function ModerationActions({ reportId }: { reportId: string }) {
                 </button>
               </div>
               {removeError ? (
-                <InlineNote tone="error" role="alert">
+                <InlineNote id={removeErrorId} tone="error" role="alert">
                   {removeError}
                 </InlineNote>
               ) : null}
@@ -282,6 +289,7 @@ export function ModerationActions({ reportId }: { reportId: string }) {
                 value={relinkReason}
                 onChange={(event) => setRelinkReason(event.target.value)}
                 aria-invalid={relinkError ? true : undefined}
+                aria-describedby={relinkError ? relinkErrorId : undefined}
               />
               <div className={styles.decisionActions}>
                 <button
@@ -294,7 +302,7 @@ export function ModerationActions({ reportId }: { reportId: string }) {
                 </button>
               </div>
               {relinkError ? (
-                <InlineNote tone="error" role="alert">
+                <InlineNote id={relinkErrorId} tone="error" role="alert">
                   {relinkError}
                 </InlineNote>
               ) : null}

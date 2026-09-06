@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { EXTERNAL_STATUS_LABEL, formatDateOr } from "@/components/shell/format";
 import styles from "./SnapshotView.module.css";
 
@@ -100,6 +100,7 @@ function renderValue(key: string, value: unknown): React.ReactNode {
 
 export function SnapshotView({ payload }: { payload: unknown }) {
   const [showRaw, setShowRaw] = useState(false);
+  const rawId = useId();
 
   if (!isRecord(payload)) {
     return (
@@ -122,11 +123,16 @@ export function SnapshotView({ payload }: { payload: unknown }) {
         type="button"
         className={styles.rawToggle}
         aria-expanded={showRaw}
+        aria-controls={rawId}
         onClick={() => setShowRaw((current) => !current)}
       >
         {showRaw ? "Hide the exact stored snapshot" : "Show the exact stored snapshot"}
       </button>
-      {showRaw ? <pre className={styles.raw}>{JSON.stringify(payload, null, 2)}</pre> : null}
+      {showRaw ? (
+        <pre id={rawId} className={styles.raw}>
+          {JSON.stringify(payload, null, 2)}
+        </pre>
+      ) : null}
     </div>
   );
 }

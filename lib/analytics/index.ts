@@ -31,6 +31,30 @@ export interface ClientAnalytics {
   track(event_name: EventName, properties?: Record<string, unknown>): void;
 }
 
+/**
+ * The consent answer this browser has, as the server last reported it:
+ * `true` allowed, `false` declined or withdrawn, `null` not yet known.
+ *
+ * Every optional client event is gated on it. The server already refuses an
+ * event from a session without consent, but "refused after it was sent" is not
+ * the promise the participant was given: withdrawing consent must stop this
+ * browser ATTEMPTING to report anything, not merely stop it being stored
+ * (FOODPROOF_MEASUREMENT_AND_PILOT.md, acceptance A14). An unknown answer is
+ * treated exactly like a declined one — an unknown permission is never assumed
+ * to have been granted.
+ */
+let consentAnswer: boolean | null = null;
+
+/**
+ * Record the consent answer for this browser. `SessionProvider` calls it on
+ * every read of `/api/me`, so a withdrawal takes effect on the same render that
+ * updates the header; the entry form calls it too, because it learns the answer
+ * before any session provider exists.
+ */
+export function setClientAnalyticsConsent(consent: boolean | null): void {
+  consentAnswer = consent;
+}
+
 function safeRandomId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -60,6 +84,9 @@ export const noopClientAnalytics: ClientAnalytics = {
 export const clientAnalytics: ClientAnalytics = {
   emit(event) {
     if (typeof window === "undefined") return;
+    // Withdrawn, declined, or not yet answered: emit nothing. No request is
+    // made at all, so there is nothing for the server to refuse.
+    if (consentAnswer !== true) return;
     try {
       void api.analytics.send(event, { keepalive: true }).catch(() => {
         /* best-effort; never block or fail the user action */

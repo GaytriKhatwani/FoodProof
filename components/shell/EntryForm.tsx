@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { api, ClientApiError } from "@/lib/client/api";
-import { clientAnalytics } from "@/lib/analytics";
+import { clientAnalytics, setClientAnalyticsConsent } from "@/lib/analytics";
 import type { DemoRole } from "@/lib/contracts";
 import { failureKind, formatWait, retryAfterSeconds } from "./errors";
 import { InlineNote, StateBlock } from "./states";
@@ -49,6 +49,7 @@ export function EntryForm() {
   const searchParams = useSearchParams();
   const codeFieldId = useId();
   const codeErrorId = useId();
+  const codeInputRef = useRef<HTMLInputElement | null>(null);
 
   const [phase, setPhase] = useState<Phase>("code");
   const [code, setCode] = useState("");
@@ -99,6 +100,8 @@ export function EntryForm() {
     const value = code.trim();
     if (!value) {
       setFieldError("Enter the invitation code you were sent.");
+      // Put the caret back on the one thing that has to change.
+      codeInputRef.current?.focus();
       return;
     }
 
@@ -111,10 +114,15 @@ export function EntryForm() {
       setRole(session.role);
       setPhase("consent");
     } catch (error) {
-      setFailure(describeFailure(error));
+      const described = describeFailure(error);
+      setFailure(described);
       if (error instanceof ClientApiError && error.code === "VALIDATION_FAILED") {
         setFieldError("Enter the invitation code you were sent.");
       }
+      // A refused code is corrected in the field, so focus goes back to it. An
+      // unreachable backend replaces this form with its own state block, and
+      // must not have focus pulled out from under it.
+      if (described.kind !== "unavailable") codeInputRef.current?.focus();
     } finally {
       setBusy(false);
     }
@@ -126,6 +134,10 @@ export function EntryForm() {
     setBusy(true);
     try {
       await api.me.setAnalyticsConsent(allowed);
+      // This screen sits outside the session provider, so it is the one place
+      // that has to tell the analytics adapter the answer itself. Recorded
+      // whichever way it went: declining must gate the adapter too.
+      setClientAnalyticsConsent(allowed);
       if (allowed) {
         // Only emitted for a consented session, and only with the one
         // allowlisted property for this event.
@@ -213,7 +225,10 @@ export function EntryForm() {
         <div className={styles.codeRow}>
           <input
             id={codeFieldId}
-            className={styles.input}
+            className={
+              fieldError || failure ? `${styles.input} ${styles.inputInvalid}` : styles.input
+            }
+            ref={codeInputRef}
             type={revealCode ? "text" : "password"}
             value={code}
             onChange={(event) => setCode(event.target.value)}
@@ -222,7 +237,7 @@ export function EntryForm() {
             autoCapitalize="off"
             spellCheck={false}
             required
-            aria-invalid={fieldError ? true : undefined}
+            aria-invalid={fieldError || failure ? true : undefined}
             aria-describedby={fieldError || failure ? codeErrorId : undefined}
           />
           <button
