@@ -174,10 +174,13 @@ returns 5.
   key from its own environment lookup. With either variable absent `getAiAdapter()` returns
   null, `/api/me` reports `ai_available: false`, no AI control renders, and the two `/ai`
   routes answer `DEPENDENCY_UNAVAILABLE`.
-- **Provider data handling (official docs, 6 September 2026):** API inputs and outputs are
-  not retained by default and are never used for model training under the Commercial Terms;
-  uploaded images are not stored beyond the request and no image metadata is read;
-  `claude-sonnet-5` is not a "Covered Model" (those require 30-day retention). Vision accepts
+- **Provider data handling (official docs, 6 September 2026; corrected by the hardening
+  pass, item 3):** API inputs and outputs are not used for model training under the
+  Commercial Terms but may be retained up to 30 days (no zero-data-retention arrangement is
+  in effect). Since `fix/ai-strip-image-metadata` every image is metadata-stripped
+  (`stripImageMetadata`) inside the adapter before it is base64-encoded, so EXIF/XMP
+  (location, device, time) never leaves FoodProof — previously the private original's bytes
+  were sent as stored. Vision accepts
   JPEG/PNG/GIF/WebP up to 10 MB per image; images are downscaled to at most 2576 px on the
   long edge (≈ 4784 visual tokens). Structured outputs require `additionalProperties:false`
   and all fields listed as required. List prices: USD 2 / 10 per million input / output
