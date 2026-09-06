@@ -7,8 +7,10 @@ scope lives in `docs/` (start at `docs/FOODPROOF_BUILD_HANDOFF.md`); this file
 tracks build progress only. **Stop point: T4 (live AI assistance, spend ledger, live
 consent-controlled analytics, server-owned success events) is implemented and verified
 as recorded below; a post-T4 pilot-integrity hardening pass (migration 0005) is merged
-(see "Pilot integrity hardening" below); T5 (deployed guarded-pilot check) has not
-started.**
+(see "Pilot integrity hardening" below). T5 (deployed guarded-pilot check) is IN
+PROGRESS: the AI provider is now configured on Vercel and the official FSSAI destination
+is verified, wired and deployed (A.1 + A.3 done); the rest of T5 is gated on owner
+inputs (see "Session end (T5 in progress)" and "Exact next action").**
 
 ## Repository state
 
@@ -426,6 +428,43 @@ tester codes with `scripts/create-invitations.mjs` and distribute privately.
   `scripts/analytics-journey.mjs` (procedure in `docs/FOODPROOF_SETUP_AND_OPERATIONS.md`).
 - Nothing is half-done. The next session starts at step 1 below.
 
+## Session end (6 September 2026, T5 in progress)
+
+Continues from the T4 note above; only the deltas are recorded here.
+
+- **A.1 done (owner + verify).** The AI provider variables were set on Vercel; the deployed
+  `GET https://food-proof.vercel.app/api/health` now reports `ai: true` with every other
+  config group present. The manual/template path is unchanged.
+- **A.3 done (code + browser-verified + deployed).** `feat/t5-official-portal` (`c7ecbd6`) is
+  merged and pushed to `main` and has redeployed. `https://foscos.fssai.gov.in/consumergrievance/`
+  was browser-verified as the genuine FSSAI "Food Safety Connect" consumer grievance portal;
+  the verified URL is committed to a server-owned allowlist (`lib/server/official.ts`, key
+  `fssai_foscos_grievance`) and the "Open official portal" action is enabled only when
+  `Me.official_portal` is non-null. **Owner still to set** `OFFICIAL_PORTAL_KEY=fssai_foscos_grievance`
+  on Vercel to switch the action on (see A.3). The enabled state has NOT yet been confirmed on
+  the deployment (needs a live session; it will be checked during the A.5 acceptance run).
+- **A.2 ran locally; owner read-back pending.** `scripts/analytics-journey.mjs` was run against
+  the local app and sent the consented / declined / withdrawn journeys to the demo Mixpanel
+  project. The owner must confirm them in Live View (event order, `$insert_id`s, no PII,
+  declined = nothing, withdrawn = pre-withdrawal only). The temporary invitations/reports the
+  script created were auto-deleted; `demo_access` is back to the two seed rows.
+- **Gated on owner (no code):** the 30-day retention confirmation (until then, synthetic data
+  only — no tester invitations), the private contact/moderator channel decision, and the
+  observed pilot sessions (A.6). Once retention is confirmed, `scripts/create-invitations.mjs`
+  mints a code and the A.5 deployed acceptance run (A01–A16) can be driven in the browser.
+- **Migrations unchanged:** demo project still at 0001–0005 (`fp_schema_version()` = 5); no new
+  migration this session. `.env.example` documents the optional `OFFICIAL_PORTAL_KEY`.
+- **Real authentication (OTP) — NOT integrated; deliberately set aside.** A `codex/otp-sign-in`
+  branch (`6477adc`, opt-in email/phone OTP behind an `AUTH_MODE` flag) exists on `origin` and in
+  a worktree at `/private/tmp/foodproof-otp`. The owner chose to disregard it for now. **Do not
+  merge it blind:** it branched from `a33aa62` (before the hardening pass AND before A.3), so it
+  lacks both; and it ships its own `supabase/migrations/0005_verified_accounts.sql`, which
+  COLLIDES with the applied `0005_pilot_integrity_hardening.sql`. Integrating it later means
+  rebasing onto current `main`, renumbering that migration to `0006` (+ an `fp_schema_version()`
+  bump to 6), and merging the `lib/server/env.ts` / `.env.example` / `IMPLEMENTATION_STATUS.md`
+  conflicts keeping both sides. Real authentication is Phase-two item C.1.
+- Working tree clean; `main` == `origin/main` at the commit carrying this note.
+
 ## Remaining work per the planning documents (recorded 6 September 2026)
 
 Every P0 requirement (R01–R15, `docs/FOODPROOF_PRD.md`) has an implementation on `main`.
@@ -508,8 +547,14 @@ decisions; not started:
 
 ## Exact next action (continuation prompt for the next session)
 
-1. Start with **A.1–A.2** (owner-side; nothing to code) and then **A.3–A.6** (T5). Record
-   evidence per `docs/FOODPROOF_ACCEPTANCE_CHECKLIST.md`. No public launch, no tester
+1. **A.1 and A.3 are done** (AI live on Vercel; FSSAI destination verified, wired, deployed).
+   The next actions are: the owner's Mixpanel Live View read-back (A.2, sheet in the T5-in-progress
+   session note), the owner's **30-day retention confirmation** (gates everything below), and the
+   private contact channel decision. Once retention is confirmed, mint a code with
+   `scripts/create-invitations.mjs` and drive the **A.5** deployed acceptance run (A01–A16) in the
+   browser — that run also confirms the official-portal button is enabled (set
+   `OFFICIAL_PORTAL_KEY=fssai_foscos_grievance` on Vercel first). Then **A.6** observed sessions.
+   Record evidence per `docs/FOODPROOF_ACCEPTANCE_CHECKLIST.md`. No public launch, no tester
    contact, no code distribution without explicit authorization.
 2. Close **B** items the owner selects, each on its own branch from `main` with tests, the
    same verify-then-merge discipline (typecheck, lint, build, `npx vitest run`,
