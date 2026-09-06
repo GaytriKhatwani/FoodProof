@@ -5,6 +5,8 @@ import { assertSameOrigin, requireSession } from "@/lib/server/context";
 import { requireIdempotencyKey } from "@/lib/server/idempotency";
 import { getOwnReport } from "@/lib/server/data";
 import { patchReport } from "@/lib/server/reports";
+import { emitServerEvents } from "@/lib/server/analytics";
+import { parseFlowId, reportSavedEvent } from "@/lib/server/analytics-events";
 
 /**
  * `GET /api/reports/:id` — owner-only aggregate for the private timeline/resume.
@@ -29,6 +31,9 @@ export function PATCH(req: NextRequest, { params }: { params: { id: string } }) 
     const key = requireIdempotencyKey(req);
     const body = await parseJson(req, ReportWriteRequest);
     const detail = await patchReport(ctx.actor.accessId, params.id, body, key);
+    await emitServerEvents(ctx, key, [
+      reportSavedEvent(detail, parseFlowId(req.headers), false),
+    ]);
     return jsonOk(detail, requestId);
   });
 }

@@ -120,6 +120,16 @@ export function ReportEditorScreen({
   const [confirmFailure, setConfirmFailure] = useState<Failure | null>(null);
   const startedRef = useRef(false);
 
+  /**
+   * One analytics flow id per editor mount. It correlates `report_started`
+   * (client) with the server-owned `report_saved` for the same attempt
+   * (FOODPROOF_MEASUREMENT_AND_PILOT.md §4/§5 first-save completion), so it must
+   * be generated ONCE, not per save. A resumed draft gets a fresh id too — it
+   * still never emits `report_started`, so its saves simply join no started
+   * flow — and the id is analytics-only: it is never stored on the report.
+   */
+  const flowIdRef = useRef<string>(crypto.randomUUID());
+
   const initialisedRef = useRef(false);
 
   /**
@@ -225,7 +235,7 @@ export function ReportEditorScreen({
     if (fromConcernId && !prefillNote) return;
     startedRef.current = true;
     clientAnalytics.track("report_started", {
-      flow_id: crypto.randomUUID(),
+      flow_id: flowIdRef.current,
       source,
       linked_product: Boolean(fromConcernId),
     });
@@ -279,6 +289,8 @@ export function ReportEditorScreen({
           message:
             "A product name and brand are needed before this private draft can be saved. Everything else can stay incomplete.",
           retryAfterSeconds: null,
+          // Locally decided, never sent: this failure is not reported to analytics.
+          error_code: "validation",
         });
         setStep(0);
         return;
@@ -290,8 +302,8 @@ export function ReportEditorScreen({
       const key = keyFor("report.save", body);
       try {
         const saved = detail
-          ? await api.reports.patch(detail.report_id, body, key)
-          : await api.reports.create(body, key);
+          ? await api.reports.patch(detail.report_id, body, key, { flowId: flowIdRef.current })
+          : await api.reports.create(body, key, { flowId: flowIdRef.current });
         settled("report.save");
         const isFirstSave = !detail;
         idRef.current = saved.report_id;
@@ -689,6 +701,8 @@ function ProductStep({
         kind: "validation",
         message: "Enter a brand and product name before looking for an existing product.",
         retryAfterSeconds: null,
+        // Locally decided, never sent: this failure is not reported to analytics.
+        error_code: "validation",
       });
       return;
     }

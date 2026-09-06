@@ -60,9 +60,15 @@ export const noopClientAnalytics: ClientAnalytics = {
 export const clientAnalytics: ClientAnalytics = {
   emit(event) {
     if (typeof window === "undefined") return;
-    void api.analytics.send(event, { keepalive: true }).catch(() => {
-      /* best-effort; never block or fail the user action */
-    });
+    try {
+      void api.analytics.send(event, { keepalive: true }).catch(() => {
+        /* best-effort; never block or fail the user action */
+      });
+    } catch {
+      // `.catch` only covers a REJECTED promise. Anything thrown before one
+      // exists (a body that cannot be serialised, say) would otherwise escape
+      // into the caller's click handler, which this adapter must never do.
+    }
   },
   track(event_name, properties = {}) {
     clientAnalytics.emit({

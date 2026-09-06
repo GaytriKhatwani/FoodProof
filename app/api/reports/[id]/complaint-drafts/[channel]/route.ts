@@ -4,6 +4,8 @@ import { jsonOk, parseJson, route } from "@/lib/server/http";
 import { assertSameOrigin, requireSession } from "@/lib/server/context";
 import { requireIdempotencyKey } from "@/lib/server/idempotency";
 import { saveComplaintDraft } from "@/lib/server/drafts";
+import { emitServerEvents } from "@/lib/server/analytics";
+import { complaintDraftSavedEvent } from "@/lib/server/analytics-events";
 
 /**
  * `PUT /api/reports/:id/complaint-drafts/:channel` — owner saves subject/body/
@@ -24,6 +26,7 @@ export function PUT(
     const channel = Channel.parse(params.channel);
     const body = await parseJson(req, ComplaintDraftWriteRequest);
     const draft = await saveComplaintDraft(ctx.actor.accessId, params.id, channel, body, key);
+    await emitServerEvents(ctx, key, [complaintDraftSavedEvent(params.id, draft)]);
     return jsonOk(draft, requestId);
   });
 }
