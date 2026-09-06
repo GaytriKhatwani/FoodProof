@@ -99,10 +99,15 @@ as recorded below; T5 (deployed guarded-pilot check) has not started.**
   the frequency limit are parameters checked under one advisory lock, then the row is
   inserted), `fp_settle_ai_spend`, `fp_release_ai_spend`, `fp_ai_spend_totals()`. Columns are
   money, tokens, model, operation, channel and timestamps only — never prompts, images,
-  extracted text or drafts. A failed call releases its reservation so a retry is charged
-  once; if settlement itself fails the reservation stays open and counts at the estimate
-  (safe direction). Migration 0004 is idempotent and was applied by the owner on
-  6 September 2026 (`select fp_schema_version()` returns 4).
+  extracted text or drafts. Disposition of a reservation on failure follows what the
+  provider could have charged: an answered-but-unusable call (refusal, truncation,
+  off-schema output) is SETTLED at its real usage; an unprocessed call (4xx/5xx,
+  connection refused) is RELEASED so a retry is charged once; a timeout is left OPEN and
+  counts at its worst-case estimate; if the ledger update itself fails the reservation
+  also stays open. `AI_MODEL` must have a price row in `PRICED_MODELS`
+  (`lib/server/ai/limits.ts`) or AI stays off with a logged reason. Migration 0004 is
+  idempotent and was applied by the owner on 6 September 2026 (`select
+  fp_schema_version()` returns 4).
 - **`assisted` is earned:** `confirmFacts(method: "assisted")` requires a settled `extract`
   row for (invitation, report); `saveComplaintDraft(method: "assisted")` requires a settled
   `draft` row for (invitation, report, channel); otherwise 422. Template output stays
@@ -143,6 +148,10 @@ as recorded below; T5 (deployed guarded-pilot check) has not started.**
   withdrawal clears both ids on the session and stops every later event. Declining never
   reduces access. `ANALYTICS_AUDIENCE` (`qa` | `invited_pilot`, default `invited_pilot`)
   separates developer/QA traffic; local env files use `qa`.
+- **One emission owner per event:** `POST /api/analytics` accepts only the nine
+  client-owned events (`CLIENT_OWNED_EVENTS` in `lib/contracts/analytics.ts`) and refuses
+  every server-owned one with 422, so a browser can never claim a save, publication or
+  decision.
 - **`flow_error_shown`:** one mapping in `lib/analytics/flow-error.ts` used by both the
   reporter and community screens (status-0 `DEPENDENCY_UNAVAILABLE` → `network`; 503 →
   `unavailable`; 422/409 → `validation`; everything else → `unknown`).
@@ -151,6 +160,24 @@ as recorded below; T5 (deployed guarded-pilot check) has not started.**
   the public API of a running server and prints only event names, `$insert_id`s and the
   session's `analytics_actor_id` for comparison in Mixpanel Live View (no service account
   exists, so read-back is the owner's step; see `docs/FOODPROOF_SETUP_AND_OPERATIONS.md`).
+
+### Independent review (T4 server slices, 6 September 2026)
+
+A read-only review of the merged server work (publication integrity, AI adapter and
+service, analytics, boundary and scope, test honesty) found **no blockers**, three
+should-fixes and six nits. Fixed before merge: orphan cleanup now checks the lookup
+`error` (supabase-js returns `{ data: null, error }` rather than throwing, so a lost reply
+after a committed request could previously have deleted referenced copies; unit-tested in
+`tests/unit/publication-orphans.test.ts`); billed-but-unusable provider answers are
+settled rather than released and timeouts are kept open (see the ledger disposition
+rules above); the client analytics route refuses server-owned events; the SDK client is
+pinned to the provider's base URL with the auth-token fallback and request logging off;
+an unpriced `AI_MODEL` switches AI off; `removeContent` validates the 0004 return shape;
+the Mixpanel payload writes the envelope and delivery keys last. Recorded, not changed:
+`stableEventId` is duplicated in `scripts/analytics-journey.mjs` (kept in step by hand);
+the concern-revision transaction requires at least one label image but not that the
+selected subset covers all three roles (report-level readiness guarantees the roles
+exist; the share screen selects them — pre-existing, unchanged since T1).
 
 ## Checks (T4, 6 September 2026, live demo Supabase project, real provider, real Mixpanel)
 
@@ -231,9 +258,12 @@ tester codes with `scripts/create-invitations.mjs` and distribute privately.
   only caller today, so nothing is lost, but a future save path must send it deliberately.
 - `moderation_decided` with `decision: "removed"` reports `content_kind: "concern"` (the
   hidden pointer is always the concern); a response-specific removal path does not exist.
-- A crash between `fp_reserve_ai_spend` and settle/release leaves a `reserved` row that
-  counts at its estimate forever; `fp_ai_spend_totals()` shows `reserved_open` so an operator
-  can see it. No sweeper exists (deliberate: over-counting is the safe direction).
+- A crash or a provider timeout between `fp_reserve_ai_spend` and settle/release leaves a
+  `reserved` row that counts at its estimate forever; `fp_ai_spend_totals()` shows
+  `reserved_open` so an operator can see it. No sweeper exists (deliberate: over-counting
+  is the safe direction).
+- The SDK still retries once (`maxRetries: 1`) inside one reservation; a retried attempt
+  that succeeds is settled once at its real usage, so the cap is never under-counted.
 - The extraction prompt asks for verbatim transcription; model behaviour assertions (blank →
   all unreadable, injection → clean) held on every run but are live-model assertions, not
   deterministic guarantees.
