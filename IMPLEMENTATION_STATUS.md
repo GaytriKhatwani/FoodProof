@@ -7,10 +7,10 @@ scope lives in `docs/` (start at `docs/FOODPROOF_BUILD_HANDOFF.md`); this file
 tracks build progress only. **Stop point: T4 (live AI assistance, spend ledger, live
 consent-controlled analytics, server-owned success events) is implemented and verified
 as recorded below; a post-T4 pilot-integrity hardening pass (migration 0005) is merged
-(see "Pilot integrity hardening" below). T5 (deployed guarded-pilot check) is IN
-PROGRESS: the AI provider is now configured on Vercel and the official FSSAI destination
-is verified, wired and deployed (A.1 + A.3 done); the rest of T5 is gated on owner
-inputs (see "Session end (T5 in progress)" and "Exact next action").**
+(see "Pilot integrity hardening" below). T5 (deployed guarded-pilot check) is COMPLETE:
+A.1–A.5 done and the deployed acceptance run passed 16/16 (see "Session end (6 September
+2026, T5 COMPLETE)"); A.6 observed sessions were dropped by the owner. Phase one is at its
+stop point; Phase two (C.1 real sign-in) starts in the next session.**
 
 ## Repository state
 
@@ -302,6 +302,21 @@ the concern-revision transaction requires at least one label image but not that 
 selected subset covers all three roles (report-level readiness guarantees the roles
 exist; the share screen selects them — pre-existing, unchanged since T1).
 
+## Checks (final, 6 September 2026 — phase-one stop point)
+
+Run on the complete merged tree (`3fe2a1f` + the docs commit carrying this table), live demo
+Supabase project, real provider, real Mixpanel, integration owner's machine, live suites
+serialized under the lock:
+
+| Check | Command | Result |
+|---|---|---|
+| Typecheck | `npm run typecheck` | PASS |
+| Lint | `npm run lint` | PASS — no warnings or errors |
+| Build | `npm run build` | PASS — AI routes present as dynamic routes |
+| Unit + integration | `npx vitest run` | PASS — 239 passed (239), 19 files |
+| Browser | `npm run test:e2e` | PASS — 128 passed (128), desktop + 360 px, 8.2 min |
+| Deployed acceptance | A01–A16 on https://food-proof.vercel.app | PASS — 16/16 (`docs/evidence/A17-deployed-acceptance-2026-09-06.md`) |
+
 ## Checks (T4, 6 September 2026, live demo Supabase project, real provider, real Mixpanel)
 
 Final run on the complete T4 tree (`1e8fde4`, the last code commit before the docs
@@ -406,7 +421,7 @@ tester codes with `scripts/create-invitations.mjs` and distribute privately.
 
 ## Not started
 
-- **T5** deployed guarded-pilot check (see "Exact next action").
+- Phase two (C.1 real sign-in onward) — next session by the owner's instruction.
 
 ## Open configuration
 
@@ -499,6 +514,35 @@ Continues from the T4 note above; only the deltas are recorded here.
   bump to 6), and merging the `lib/server/env.ts` / `.env.example` / `IMPLEMENTATION_STATUS.md`
   conflicts keeping both sides. Real authentication is Phase-two item C.1.
 - Working tree clean; `main` == `origin/main` at the commit carrying this note.
+
+## Session end (6 September 2026, T5 COMPLETE — phase-one wrap-up)
+
+Orchestrated session (three parallel agents in worktrees, each verified before merging);
+only deltas from the T5-in-progress note above:
+
+- **A.5 / A17 deployed acceptance: 16/16 pass** on https://food-proof.vercel.app with real
+  services (run against `6444fe3`, re-checked against `a316525`). Record:
+  `docs/evidence/A17-deployed-acceptance-2026-09-06.md` and the checklist doc. Two
+  low-severity defects found (D1 client analytics after withdrawal, D2 upload error live
+  region) and fixed the same day.
+- **Privacy fix** (`2baea45`): label photos are metadata-stripped inside the AI adapter
+  before they leave for the provider; unit-tested.
+- **B items closed** (`feat/t5-b-items`, merged `a316525`): feed-card identity thumbnails
+  (additive `PublicFeedItem.thumbnail_asset_id`, `PublicReport.approved_assets`), accessible
+  upload progress with failure/retry, gaps list reconciled.
+- **UI hardening** (`polish/ui-impeccable`, merged `3fe2a1f`): `docs/FOODPROOF_UI_AUDIT.md`
+  — 16 fixes (control-border contrast to 3.7:1, named errors, `aria-controls`, focus
+  handling after validation, header order at ≤900 px, feed live region, viewer clipping at
+  360 px, silent "Show older reports" failure, …); 5 deferred with reasons in the audit.
+- **Owner decisions** recorded in "Owner decisions (6 September 2026)" (retention, contact
+  route, A.6 dropped, Next 16 deferred, A.2 confirmed, C.1 next session).
+- Final checks on the merged tree are in "Checks (final, 6 September 2026)" below.
+- Open owner questions carried forward (not blocking): pre-0005 concerns without an
+  identity-role image show the "No approved photo" placeholder (recommended: accept);
+  `docs/DESIGN.md` motion spec (route reveal, headline underline) is not built — record
+  "ships without motion" or ticket it; the three `window.confirm` dialogs; the
+  `.subTitle` scale of the blocking "Confirm your label facts first" panel.
+- **Phase-one stop point.** Nothing half-done. Next session: Phase two C.1.
 
 ## Remaining work per the planning documents (recorded 6 September 2026)
 
@@ -606,19 +650,19 @@ decisions; not started:
 
 ## Exact next action (continuation prompt for the next session)
 
-1. **A.1 and A.3 are done** (AI live on Vercel; FSSAI destination verified, wired, deployed).
-   The next actions are: the owner's Mixpanel Live View read-back (A.2, sheet in the T5-in-progress
-   session note), the owner's **30-day retention confirmation** (gates everything below), and the
-   private contact channel decision. Once retention is confirmed, mint a code with
-   `scripts/create-invitations.mjs` and drive the **A.5** deployed acceptance run (A01–A16) in the
-   browser — that run also confirms the official-portal button is enabled (set
-   `OFFICIAL_PORTAL_KEY=fssai_foscos_grievance` on Vercel first). Then **A.6** observed sessions.
-   Record evidence per `docs/FOODPROOF_ACCEPTANCE_CHECKLIST.md`. No public launch, no tester
-   contact, no code distribution without explicit authorization.
-2. Close **B** items the owner selects, each on its own branch from `main` with tests, the
-   same verify-then-merge discipline (typecheck, lint, build, `npx vitest run`,
-   `npm run test:e2e`), and this document updated.
-3. Begin **C** only with explicit owner assignment and the owner's authentication decisions
-   (D18); it is a new ticket set, not a continuation of T0–T5.
+1. **Phase one is complete** (T0–T5; deployed acceptance 16/16). Do not re-open T5 items or
+   re-ask the decisions in "Owner decisions (6 September 2026)".
+2. **Start Phase two C.1 — real sign-in** (`docs/FOODPROOF_BUILD_TICKETS.md` "Phase two",
+   decision D18) as a NEW ticket set on its own branch from `main`. First get from the owner:
+   which providers (email OTP / phone OTP / Google), account-linking rules, and how demo
+   records map to verified owners (never auto-claim). The `codex/otp-sign-in` branch
+   (`6477adc`, worktree `/private/tmp/foodproof-otp`) is a reference only — it predates the
+   hardening pass and A.3 and its `0005_verified_accounts.sql` collides with the applied
+   `0005`; any reuse means rebasing onto `main` and renumbering to `0006` (+ `fp_schema_version()`
+   → 6). Every migration is pasted by the owner into the SQL Editor.
+3. Carry-forward owner questions (non-blocking, from the session-end note): thumbnail
+   placeholder for pre-0005 concerns; DESIGN.md motion spec; `window.confirm` dialogs;
+   blocking-panel heading scale. Next.js 14 → 16 remains a pre-public-launch follow-up.
 4. Before any suite run, check `demo_access` holds only the two seed rows and
-   `fp_ai_spend_totals()` shows no `reserved_open` rows.
+   `fp_ai_spend_totals()` shows no `reserved_open` rows. Live suites share one demo project:
+   never run two concurrently (the agents in this session serialized them through a lock).

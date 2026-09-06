@@ -44,4 +44,26 @@ Environment: `main` after the T4 merge (commit ids in `IMPLEMENTATION_STATUS.md`
 | A13 | pass | unchanged direct-client denial suite; migration 0004 functions revoked from `public`/`anon`/`authenticated`; `ai_spend_ledger` RLS-enabled with anon/authenticated revoked |
 | A14 | pass (ingestion) / owner (read-back) | `tests/integration/analytics.test.ts`: real `feed_viewed` accepted (`{"status":1}`), duplicate accepted, stale event rejected, declined and withdrawn sessions emit nothing; `tests/unit/analytics-pii.test.ts` whitelists the payload keys; Live View inspection of a `scripts/analytics-journey.mjs` run is the owner's step (no service account) |
 | A15 | pass | stable `$insert_id` from the Idempotency-Key + persisted `occurred_at` (`tests/unit/analytics-events.test.ts`, `tests/integration/analytics.test.ts`); reporter/reviewer separated by `actor_role`; `report_published` joined by `report_id` |
-| A17 | not run | T5 |
+| A17 | pass — see below | T5 deployed run, 6 September 2026 |
+
+## Evidence record — A17 / T5 (6 September 2026, deployed URL, real services)
+
+Environment: https://food-proof.vercel.app deploying `main` (run 1 against `6444fe3`; re-check
+against `a316525`), the demo Supabase project (migrations 0001–0005), the real AI provider,
+the demo Mixpanel project, `OFFICIAL_PORTAL_KEY` set. Driven by an automated tester
+(headless Chromium + curl/node) with fictional content only; two test invitations minted and
+deleted afterwards by the owner; three metered AI calls in total.
+
+**Result: A01–A16 all pass on the deployed URL (16/16; 0 fail, 0 blocked, 0 not run).**
+A14/A15 ingestion proven from the browser (HTTP 200, `accepted:true`, clean payload keys,
+declined session emits nothing); Mixpanel read-back confirmed by the owner in the UI on the
+same day. Two low-severity defects were found and fixed the same day on `main`:
+D1 (the client still *attempted* one optional event after consent withdrawal — the server
+refused it; now gated in the client adapter, `tests/e2e/entry-session.spec.ts`) and
+D2 (upload validation errors not in a live region — now `role="alert"`). The re-check on
+`a316525` confirmed extraction still works after the image-metadata strip, and verified
+the feed thumbnails and upload progress on the deployment at 1280 px and 360 px.
+
+Full per-item observations, defect repro and the cleanup list:
+`docs/evidence/A17-deployed-acceptance-2026-09-06.md` (screenshots and re-runnable specs
+stayed in the tester's scratch directory and are not committed).

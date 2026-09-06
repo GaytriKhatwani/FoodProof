@@ -11,16 +11,6 @@
       "sha256": "44f516ba36519d3599bac296db1e1242d5250a7452c2cab7db6337cbff9cf0c8"
     },
     {
-      "path": "IMPLEMENTATION_STATUS.md",
-      "bytes": 45307,
-      "sha256": "7ee867d46cacfee560b4961e79c04f40419f6512fd789e2b5c0a229c3be75207"
-    },
-    {
-      "path": "README.md",
-      "bytes": 7984,
-      "sha256": "d0d2bc45d7fbe794f7fb51e082f0283e2d15b6af349a1699f0179c048c8fd918"
-    },
-    {
       "path": "design/assets/clear-signal-label-preview.jpg",
       "bytes": 247109,
       "sha256": "751d86d199af99d9e7d07e2255cd2cfcb8761a0f8c65c91fc757f931aaf4b94b"
@@ -56,9 +46,14 @@
       "sha256": "f31ab77f9b7caeb6d61618138934b6712000024f901f65339d7b74f277452c49"
     },
     {
+      "path": "docs/evidence/A17-deployed-acceptance-2026-09-06.md",
+      "bytes": 31292,
+      "sha256": "0a1e894af7b12b5e907655b304fd8fde81d7f5fb8f1971cc116ad4db96be179f"
+    },
+    {
       "path": "docs/FOODPROOF_ACCEPTANCE_CHECKLIST.md",
-      "bytes": 6703,
-      "sha256": "2e31a1d615da0bf53ac8529d0bb4d4053388fa15d9f2fdfd16f2460e92e4a8a2"
+      "bytes": 8266,
+      "sha256": "099e2adb9d7d94073bb1654a4fa9e1db442ca6500da680c4d2025f1d0a76a2f9"
     },
     {
       "path": "docs/FOODPROOF_AGENT_PROMPTS.md",
@@ -139,6 +134,16 @@
       "path": "docs/PRODUCT.md",
       "bytes": 3572,
       "sha256": "47a04ff50dd573b28b42ce2c6639404e716464bcb6fa67515cc8db39003fe53c"
+    },
+    {
+      "path": "IMPLEMENTATION_STATUS.md",
+      "bytes": 48279,
+      "sha256": "52a99d17b742597ed2d2b45eb91b8c4f6fb250aae6bd160d75eb60ff4edcd6d7"
+    },
+    {
+      "path": "README.md",
+      "bytes": 7984,
+      "sha256": "d0d2bc45d7fbe794f7fb51e082f0283e2d15b6af349a1699f0179c048c8fd918"
     }
   ],
   "local_markdown_links": "passed",
