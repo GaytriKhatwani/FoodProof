@@ -10,6 +10,7 @@ import { getOwnReport, loadOwnedReport } from "./data";
 import { computePreparation, loadLabelRoles } from "./preparation";
 import { recordEvent } from "./audit";
 import { withReceipt } from "./idempotency";
+import { aiSpend } from "./ai/spend";
 
 /**
  * Report write services (FOODPROOF_TECHNICAL_SPEC.md §4/§6,
@@ -163,6 +164,20 @@ export async function confirmFacts(
       const supabase = getServiceClient();
       const current = await loadOwnedReport(accessId, reportId, supabase);
       if (body.expected_version !== current.version) throw STALE();
+
+      // `assisted` is a claim about provenance, so it must be true: only a real,
+      // settled extraction for this report can have produced those suggestions
+      // (FOODPROOF_TECHNICAL_SPEC.md §8 — no live AI claim from a template or a
+      // fixture). The manual path is unaffected and works with AI switched off.
+      if (body.method === "assisted") {
+        const assisted = await aiSpend.hasSettledCall(accessId, reportId, "extract");
+        if (!assisted) {
+          throw new ApiError(
+            "VALIDATION_FAILED",
+            "No assisted extraction exists for this report.",
+          );
+        }
+      }
 
       const nowIso = new Date().toISOString();
       const labelRoles = await loadLabelRoles(reportId, supabase);
