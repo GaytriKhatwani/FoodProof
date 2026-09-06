@@ -38,7 +38,12 @@ function requireLive(): void {
   }
 }
 
-function liveClient(): SupabaseClient {
+/**
+ * Service-key Supabase client for specs that must read what the app actually
+ * persisted (e.g. the recorded `method` of a confirmation). Call it only after
+ * `createInvitation`, which skips the test when credentials are absent.
+ */
+export function liveClient(): SupabaseClient {
   return createClient(process.env.SUPABASE_URL as string, secretKey() as string, {
     auth: { persistSession: false, autoRefreshToken: false },
   });

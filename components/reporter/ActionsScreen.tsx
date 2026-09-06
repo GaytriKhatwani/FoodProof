@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Channel, ReportDetail } from "@/lib/contracts";
+import type { Channel, DraftMethod, ReportDetail } from "@/lib/contracts";
 import { api } from "@/lib/client/api";
 import { clientAnalytics } from "@/lib/analytics";
+import { useSession } from "@/lib/client/session";
+import { formatWait } from "@/components/shell/errors";
 import { SubmissionDialog } from "./dialogs";
 import { toFailure, trackFlowError, useIdempotencyKeys, type Failure } from "./failure";
 import { useReportDetail } from "./useReportDetail";
@@ -27,7 +29,12 @@ import styles from "./reporter.module.css";
  * facts; nothing here invents a fact, a legal citation or a safety conclusion.
  * Copying is not sending. Opening an email app is not sending. Recording a
  * submission is the reporter's own note that they sent something elsewhere.
- * Assisted rewriting is not part of this build and no control offers it.
+ *
+ * Where the backend is configured (`Me.ai_available`), the reporter may ask for
+ * an assisted draft of the same confirmed facts. It arrives as editable text
+ * like the template, is saved only by the explicit save, and is recorded as
+ * `assisted` ONLY when it really came from an assisted call — a template stays
+ * `template` (FOODPROOF_MEASUREMENT_AND_PILOT.md §4).
  */
 
 const CHANNEL_LABEL: Record<Channel, string> = {
@@ -43,10 +50,25 @@ interface DraftText {
 export function ActionsScreen({ reportId }: { reportId: string }) {
   const { detail, status, refreshing, failure, reload } = useReportDetail(reportId);
   const { keyFor, settled } = useIdempotencyKeys();
+  const { aiAvailable } = useSession();
   const [channel, setChannel] = useState<Channel>("brand");
   const [texts, setTexts] = useState<Partial<Record<Channel, DraftText>>>({});
+  /**
+   * Where the text on screen came from, per channel. It is what `save()` claims
+   * to the server, so it is only ever `assisted` after a real assisted draft for
+   * that channel; the deterministic template stays `template`.
+   */
+  const [methods, setMethods] = useState<Partial<Record<Channel, DraftMethod>>>({});
+  /**
+   * The unedited text a channel was last seeded with. Only needed while no
+   * draft is saved yet — once one exists it is the baseline itself.
+   */
+  const [baselines, setBaselines] = useState<Partial<Record<Channel, DraftText>>>({});
   const [preparing, setPreparing] = useState(false);
   const [prepareFailure, setPrepareFailure] = useState<Failure | null>(null);
+  const [drafting, setDrafting] = useState(false);
+  const [draftFailure, setDraftFailure] = useState<Failure | null>(null);
+  const draftingRef = useRef(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const [saveFailure, setSaveFailure] = useState<Failure | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "blocked">("idle");
@@ -57,6 +79,17 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
 
   const savedDraft = detail?.complaint_drafts.find((draft) => draft.channel === channel);
   const current = texts[channel];
+  const draftMethod = methods[channel] ?? "template";
+  /**
+   * What replacing the text on screen would discard: the saved draft once one
+   * exists, otherwise the text this channel was seeded with.
+   */
+  const baseline = savedDraft ?? baselines[channel];
+  const unsavedChanges = Boolean(
+    current &&
+      baseline &&
+      (current.subject !== baseline.subject || current.body !== baseline.body),
+  );
 
   const prepare = useCallback(
     async (report: ReportDetail, target: Channel) => {
@@ -64,10 +97,10 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
       setPrepareFailure(null);
       try {
         const template = await api.reports.prepare(report.report_id, { channel: target });
-        setTexts((entries) => ({
-          ...entries,
-          [target]: { subject: template.subject, body: template.body },
-        }));
+        const text = { subject: template.subject, body: template.body };
+        setTexts((entries) => ({ ...entries, [target]: text }));
+        setBaselines((entries) => ({ ...entries, [target]: text }));
+        setMethods((entries) => ({ ...entries, [target]: "template" }));
       } catch (error) {
         const next = toFailure(error);
         setPrepareFailure(next);
@@ -88,6 +121,9 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
         ...entries,
         [channel]: { subject: savedDraft.subject, body: savedDraft.body },
       }));
+      // A saved draft carries its own recorded method; re-saving it unchanged
+      // must not relabel assisted text as a template, or the other way round.
+      setMethods((entries) => ({ ...entries, [channel]: savedDraft.method }));
       return;
     }
     if (!detail.facts_confirmed_at) return;
@@ -101,7 +137,7 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
     const body = {
       subject: current.subject,
       body: current.body,
-      method: "template" as const,
+      method: methods[channel] ?? ("template" as const),
       expected_version: savedDraft?.version ?? null,
     };
     const key = keyFor(`draft.save:${channel}`, body);
@@ -116,7 +152,44 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
       setSaveFailure(next);
       trackFlowError("save", next);
     }
-  }, [channel, current, detail, keyFor, reload, savedDraft?.version, settled]);
+  }, [channel, current, detail, keyFor, methods, reload, savedDraft?.version, settled]);
+
+  /**
+   * Ask the provider to draft this channel's message from the facts the
+   * reporter already confirmed. It replaces only the editable text on screen:
+   * nothing is saved, nothing is sent, and a failure leaves the current
+   * template or draft exactly as it is.
+   */
+  const draftWithAssistance = useCallback(async () => {
+    if (!detail || draftingRef.current) return;
+    if (
+      unsavedChanges &&
+      !window.confirm(
+        "Replace what is on screen with a draft written with AI assistance from your confirmed facts? Your saved draft is not changed until you save again.",
+      )
+    ) {
+      return;
+    }
+    draftingRef.current = true;
+    setDrafting(true);
+    setDraftFailure(null);
+    try {
+      const result = await api.ai.draft(detail.report_id, { channel });
+      const text = { subject: result.subject, body: result.body };
+      setTexts((entries) => ({ ...entries, [channel]: text }));
+      setBaselines((entries) => ({ ...entries, [channel]: text }));
+      setMethods((entries) => ({ ...entries, [channel]: "assisted" }));
+      setSaveState("idle");
+      setCopyState("idle");
+    } catch (error) {
+      // Not reported as `flow_error_shown`: its `operation` enum has no
+      // assisted value, and the template path is untouched by this failure.
+      setDraftFailure(toFailure(error));
+    } finally {
+      draftingRef.current = false;
+      setDrafting(false);
+    }
+  }, [channel, detail, unsavedChanges]);
 
   const copy = useCallback(async () => {
     if (!detail || !current) return;
@@ -210,6 +283,7 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
               setCopyState("idle");
               setHandoffNote(null);
               setPrepareFailure(null);
+              setDraftFailure(null);
             }}
           >
             {CHANNEL_LABEL[option]}
@@ -357,7 +431,47 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
                   Start again from the template
                 </button>
               ) : null}
+              {aiAvailable && factsConfirmed ? (
+                <button
+                  type="button"
+                  className={styles.btnSecondary}
+                  onClick={() => void draftWithAssistance()}
+                  disabled={drafting}
+                >
+                  Draft with AI assistance
+                </button>
+              ) : null}
             </div>
+            {drafting ? (
+              <p className={styles.saveState} role="status" aria-live="polite">
+                Drafting…
+              </p>
+            ) : null}
+            {draftFailure ? (
+              <div className={styles.alert} role="status">
+                <p>AI assistance unavailable—continue manually.</p>
+                {draftFailure.retryAfterSeconds != null ? (
+                  <p>{formatWait(draftFailure.retryAfterSeconds)}</p>
+                ) : null}
+                <div className={styles.actions}>
+                  <button
+                    type="button"
+                    className={styles.btnSecondary}
+                    onClick={() => void draftWithAssistance()}
+                    disabled={drafting}
+                  >
+                    Try again
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            {draftMethod === "assisted" ? (
+              <p className={styles.inset} role="status">
+                This draft was written with AI assistance from the facts you
+                confirmed. It is a suggestion — check every line, edit it, and
+                save it yourself. Nothing has been sent.
+              </p>
+            ) : null}
             <SaveState state={saveState} />
             {refreshing ? (
               <p className={styles.saveState} role="status" aria-live="polite">
@@ -366,8 +480,8 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
             ) : null}
             {savedDraft ? (
               <p className={styles.small}>
-                A draft for this channel is saved (version {savedDraft.version}).
-                Saving a draft does not send it.
+                A draft for this channel is saved ({savedDraft.method}, version{" "}
+                {savedDraft.version}). Saving a draft does not send it.
               </p>
             ) : null}
             {saveFailure ? (
@@ -393,9 +507,11 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
         ) : null}
 
         <p className={styles.small}>
-          Assisted rewriting is not part of this build, so there is no such
-          control here. The template is deterministic and built only from the
-          facts you confirmed.
+          The template is deterministic and built only from the facts you
+          confirmed.
+          {aiAvailable
+            ? " An assisted draft rewrites those same facts: it cannot add a fact you did not confirm, you edit it, and you save it yourself."
+            : ""}
         </p>
       </section>
 

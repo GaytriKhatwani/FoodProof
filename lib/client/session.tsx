@@ -24,6 +24,13 @@ export type SessionStatus = "loading" | "ready" | "anonymous" | "unavailable";
 export interface SessionContextValue {
   status: SessionStatus;
   me?: Me;
+  /**
+   * Whether this deployment has an AI provider configured (`Me.ai_available`).
+   * Screens render an assisted control ONLY when it is true, and it is false
+   * until `/api/me` has answered — an unknown capability is never treated as
+   * available (FOODPROOF_SCREENS.md §5).
+   */
+  aiAvailable: boolean;
   /** Re-fetch `/api/me` and update status/me accordingly. */
   refresh(): Promise<void>;
   /** PUT the analytics-consent choice, then refresh `me`. */
@@ -76,7 +83,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<SessionContextValue>(
-    () => ({ status, me, refresh, setAnalyticsConsent, exit }),
+    () => ({
+      status,
+      me,
+      aiAvailable: me?.ai_available === true,
+      refresh,
+      setAnalyticsConsent,
+      exit,
+    }),
     [status, me, refresh, setAnalyticsConsent, exit],
   );
 

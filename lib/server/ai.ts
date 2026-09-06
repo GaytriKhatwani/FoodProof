@@ -98,6 +98,20 @@ export const DEFAULT_AI_MODEL = "claude-sonnet-5";
  * has already proved ownership and validated the files, hands images to the
  * provider. The drafting path never loads images, so it needs no loader.
  */
+/**
+ * Whether `getAiAdapter()` would return an adapter, decided by exactly the same
+ * condition and WITHOUT constructing a provider client. `GET /api/me` reports it
+ * as `ai_available` so the reporter screens can hide every assisted control on a
+ * deployment with no provider. It answers a capability question only: it never
+ * returns, logs or implies the key itself, and a `true` here never promises that
+ * a given call will succeed — budget, rate and provider failures still answer
+ * DEPENDENCY_UNAVAILABLE.
+ */
+export function isAiConfigured(): boolean {
+  const env = getServerEnv();
+  return env.AI_PROVIDER === "anthropic" && Boolean(env.AI_PROVIDER_API_KEY);
+}
+
 export function getAiAdapter(deps?: {
   loadImage?: LoadImage;
   limits?: AiLimits;
