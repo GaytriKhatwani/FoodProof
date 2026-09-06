@@ -44,6 +44,10 @@ const ServerEnvSchema = z.object({
   AI_PROVIDER_API_KEY: optionalSecret,
   // Optional pinned model id; the adapter's documented default applies when unset.
   AI_MODEL: optionalSecret,
+  // Names one allowlisted government destination key (lib/server/official.ts).
+  // Optional until T5 owner configuration; NOT a URL — an unknown or empty value
+  // leaves the "Open official portal" action disabled rather than opening it.
+  OFFICIAL_PORTAL_KEY: optionalSecret,
 });
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;

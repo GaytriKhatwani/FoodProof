@@ -403,7 +403,8 @@ tester codes with `scripts/create-invitations.mjs` and distribute privately.
 ## Open configuration
 
 - Vercel: `AI_PROVIDER`, `AI_PROVIDER_API_KEY` (and optional `AI_MODEL`); `ANALYTICS_AUDIENCE`
-  unset. Owner sets these; there is no Vercel CLI/token on the build machine.
+  unset; `OFFICIAL_PORTAL_KEY=fssai_foscos_grievance` to enable the official-portal action
+  (see A.3). Owner sets these; there is no Vercel CLI/token on the build machine.
 - Mixpanel Live View verification by the owner (steps in the operations doc).
 - Official FSSAI destination browser-verification; contact/moderator route; 30-day
   retention confirmation (T5).
@@ -442,10 +443,19 @@ No new feature work; verification and configuration on the deployed URL:
    `$insert_id`s, that the declined and withdrawn sections produced nothing afterwards, that
    no property carries content/PII, and review Mixpanel's own added metadata (measurement
    doc §2/§7; procedure in `docs/FOODPROOF_SETUP_AND_OPERATIONS.md` "T4 operations").
-3. **Official destination.** Verify `https://foscos.fssai.gov.in/consumergrievance/` manually
-   in a browser (technical spec §8); only then enable the disabled "Open official portal"
-   action in `components/reporter/ActionsScreen.tsx` with the verified URL as an allowlisted
-   configuration key, so `official_channel_opened` (`destination_key`) can be emitted.
+3. **Official destination — code done 6 September 2026; owner still flips it on.**
+   `https://foscos.fssai.gov.in/consumergrievance/` was browser-verified over HTTPS as the
+   genuine FSSAI "Food Safety Connect" consumer grievance portal (Government of India /
+   Ministry of Health and Family Welfare). The verified URL is now committed to a
+   server-owned allowlist (`lib/server/official.ts`, key `fssai_foscos_grievance`); the
+   "Open official portal" action in `components/reporter/ActionsScreen.tsx` is enabled ONLY
+   when `Me.official_portal` is non-null (surfaced from `/api/me`), opens the URL in a new
+   tab with `noopener,noreferrer` (files nothing), and emits `official_channel_opened`
+   (`destination_key`). Deployment configuration names a KEY, not a URL: env
+   `OFFICIAL_PORTAL_KEY` must equal an allowlisted key or the action stays disabled — a
+   typo/unknown key never opens an unvetted address (unit test `tests/unit/official.test.ts`,
+   5 cases). **Owner step remaining:** set `OFFICIAL_PORTAL_KEY=fssai_foscos_grievance` on
+   Vercel (re-verify the destination first).
 4. **Operational inputs from the owner** (`docs/FOODPROOF_SETUP_AND_OPERATIONS.md`): the
    private contact/moderator route (never invent an address), the 30-day retention
    confirmation, and privately distributed tester invitations

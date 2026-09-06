@@ -30,6 +30,16 @@ export const Me = z.object({
    * backend is configured").
    */
   ai_available: z.boolean(),
+  /**
+   * The configured official (government) complaint destination, or null when
+   * none is set. A capability value, never a secret: the URL is a public,
+   * hand-verified, server-allowlisted government address and `key` is the stable
+   * identifier emitted as `official_channel_opened.destination_key`. Null keeps
+   * the "Open official portal" action disabled (FOODPROOF_SCREENS.md §7).
+   */
+  official_portal: z
+    .object({ key: z.string().min(1), url: z.string().url() })
+    .nullable(),
 });
 export type Me = z.infer<typeof Me>;
 

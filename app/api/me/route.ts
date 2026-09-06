@@ -3,6 +3,7 @@ import type { Me } from "@/lib/contracts";
 import { jsonOk, route } from "@/lib/server/http";
 import { requireSession } from "@/lib/server/context";
 import { isAiConfigured } from "@/lib/server/ai";
+import { getOfficialDestination } from "@/lib/server/official";
 
 /**
  * `GET /api/me` returns the current actor's label, demo role, analytics consent
@@ -21,6 +22,7 @@ export function GET(req: NextRequest) {
       role: ctx.actor.role,
       analytics_consent: ctx.analytics.consent,
       ai_available: isAiConfigured(),
+      official_portal: getOfficialDestination(),
     };
     return jsonOk(me, requestId);
   });

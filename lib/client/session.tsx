@@ -31,6 +31,13 @@ export interface SessionContextValue {
    * available (FOODPROOF_SCREENS.md §5).
    */
   aiAvailable: boolean;
+  /**
+   * The configured official (government) destination, or null when none is set.
+   * The "Open official portal" action is enabled ONLY when this is non-null; it
+   * stays null until `/api/me` has answered, so an unknown capability is never
+   * treated as available (FOODPROOF_SCREENS.md §7).
+   */
+  officialPortal: Me["official_portal"];
   /** Re-fetch `/api/me` and update status/me accordingly. */
   refresh(): Promise<void>;
   /** PUT the analytics-consent choice, then refresh `me`. */
@@ -87,6 +94,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       status,
       me,
       aiAvailable: me?.ai_available === true,
+      officialPortal: me?.official_portal ?? null,
       refresh,
       setAnalyticsConsent,
       exit,

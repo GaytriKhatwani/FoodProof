@@ -51,7 +51,7 @@ interface DraftText {
 export function ActionsScreen({ reportId }: { reportId: string }) {
   const { detail, status, refreshing, failure, reload } = useReportDetail(reportId);
   const { keyFor, settled } = useIdempotencyKeys();
-  const { aiAvailable } = useSession();
+  const { aiAvailable, officialPortal } = useSession();
   const aiDisclosure = useAiDisclosure();
   const [channel, setChannel] = useState<Channel>("brand");
   const [texts, setTexts] = useState<Partial<Record<Channel, DraftText>>>({});
@@ -221,6 +221,20 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
     clientAnalytics.track("brand_email_opened", { report_id: detail.report_id });
     window.location.href = href;
   }, [current, detail, recipient]);
+
+  const openOfficial = useCallback(() => {
+    if (!detail || !officialPortal) return;
+    setHandoffNote(
+      "The official portal was opened in a new tab. FoodProof sent nothing, filed no complaint, and attached no evidence — you complete and submit the form yourself on the government site.",
+    );
+    // Client-owned event: fired only when a configured, allowlisted destination
+    // was actually opened. The key identifies the destination without content.
+    clientAnalytics.track("official_channel_opened", {
+      report_id: detail.report_id,
+      destination_key: officialPortal.key,
+    });
+    window.open(officialPortal.url, "_blank", "noopener,noreferrer");
+  }, [detail, officialPortal]);
 
   if (status === "loading") {
     return (
@@ -560,16 +574,31 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
         ) : (
           <>
             <div className={styles.actions}>
-              <button type="button" className={styles.btnSecondary} disabled>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                onClick={openOfficial}
+                disabled={!current || !officialPortal}
+              >
                 Open official portal
               </button>
             </div>
-            <p className={styles.inset}>
-              Official destination not configured. The owner has to choose and
-              verify the real government destination before this button can work,
-              so it deliberately does nothing here and no government form is
-              opened. Use Copy message and go to the official portal yourself.
-            </p>
+            {officialPortal ? (
+              <p className={styles.small}>
+                This opens the official government portal in a new tab. FoodProof
+                files nothing and attaches nothing — you complete and submit the
+                complaint yourself there, attaching any evidence where the form
+                asks for it. Use Copy message first to paste your prepared text.
+              </p>
+            ) : (
+              <p className={styles.inset}>
+                Official destination not configured. The owner has to choose and
+                verify the real government destination before this button can
+                work, so it deliberately does nothing here and no government form
+                is opened. Use Copy message and go to the official portal
+                yourself.
+              </p>
+            )}
           </>
         )}
 
