@@ -410,9 +410,30 @@ tester codes with `scripts/create-invitations.mjs` and distribute privately.
 - Vercel: `AI_PROVIDER`, `AI_PROVIDER_API_KEY` (and optional `AI_MODEL`); `ANALYTICS_AUDIENCE`
   unset; `OFFICIAL_PORTAL_KEY=fssai_foscos_grievance` to enable the official-portal action
   (see A.3). Owner sets these; there is no Vercel CLI/token on the build machine.
-- Mixpanel Live View verification by the owner (steps in the operations doc).
-- Official FSSAI destination browser-verification; contact/moderator route; 30-day
-  retention confirmation (T5).
+- Mixpanel read-back (see "Owner decisions (6 September 2026)").
+- Official FSSAI destination: verified and enabled by the owner (`OFFICIAL_PORTAL_KEY` set
+  on Vercel, 6 September 2026). Contact/moderator route and provider retention: DECIDED —
+  see "Owner decisions (6 September 2026)". Not open questions any more.
+
+## Owner decisions (6 September 2026) — recorded, not to be re-asked
+
+1. **Anthropic API retention — ACCEPTED for synthetic-only testing.** The owner accepts the
+   standard commercial API arrangement (inputs/outputs retained up to 30 days, not used for
+   training; no zero-data-retention arrangement) and keeps AI **enabled**. Scope of the
+   approval: synthetic/fictional data only. It does **not** authorise sending real tester
+   data, personal details or real user photographs to the provider. Revisit only if real
+   user data is introduced (Phase two). What leaves FoodProof, exactly, is recorded in
+   `docs/FOODPROOF_SETUP_AND_OPERATIONS.md` ("Data handling"); label photographs are
+   metadata-stripped before they leave (`fix/ai-strip-image-metadata`, unit-tested).
+2. **FoodProof's own pilot-data deletion schedule is a SEPARATE decision** (demo Supabase
+   records, storage originals/reviewed copies, Mixpanel events) — still the owner's; the
+   ops doc's proposed 30-day review period remains a proposal.
+3. **Private contact / moderator route:** `gayatrikhatwani@gmail.com` (owner-provided).
+4. **Observed pilot sessions (A.6) — dropped.** No external testers on the invitation-code
+   flow: the owner judged it not in a condition to hand to users; Phase two (real email /
+   mobile sign-in) replaces it.
+5. **Next.js 14 → 16 major upgrade — not required at this stage** (remains a pre-public-
+   launch follow-up).
 
 ## Session end (6 September 2026, T4)
 
