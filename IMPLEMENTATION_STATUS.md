@@ -11,19 +11,25 @@ as recorded below; T5 (deployed guarded-pilot check) has not started.**
 ## Repository state
 
 - Remote `origin` = https://github.com/GaytriKhatwani/FoodProof.git
-- `main` carries T0–T4. Worktrees live under `../FoodProof-worktrees/<name>` with their own
-  `npm ci` and a copied `.env.local` whose `APP_ORIGIN` sets that worktree's dev port.
-- Merged into `main` on 6 September 2026 (each verified before merge; see "Checks"):
+- `main` carries T0–T4 (`main == origin/main` at the commit carrying this document; working
+  tree clean). Worktrees live under `../FoodProof-worktrees/<name>` with their own `npm ci`
+  and a copied `.env.local` whose `APP_ORIGIN` sets that worktree's dev port.
+- Merged into `main` on 6 September 2026 as one integration branch `feat/t4-base` (each
+  slice reviewed and verified before it joined the branch; see "Checks"):
   1. T0–T3 as recorded previously (foundation, data/persistence + closure, shared client and
      browser harness, reporter journey, community/moderation UI).
-  2. **T4 base** — migration 0004, atomic publication requests, latest-approved-response
-     projection, AI contracts and client adapter, pinned provider SDK.
-  3. **T4 AI server slice** — provider adapter, `/ai/extract` and `/ai/draft`, spend ledger,
-     assisted-method gating.
-  4. **T4 analytics slice** — live Mixpanel delivery, server-owned mutation events, single
-     `flow_error_shown` mapping, `ANALYTICS_AUDIENCE`, journey script.
-  5. **T4 UI slice** — assisted reading of label photos in the report editor and assisted
-     drafting on the actions screen, with the manual/template path unchanged.
+  2. **T4 base** (`f95ba1b`) — migration 0004, atomic publication requests,
+     latest-approved-response projection, AI contracts and client adapter, pinned provider
+     SDK.
+  3. **T4 AI server slice** (`feat/t4-ai`, `4b37f38`) — provider adapter, `/ai/extract` and
+     `/ai/draft`, spend ledger, assisted-method gating.
+  4. **T4 analytics slice** (`feat/t4-analytics`, `1bdf4a2`) — live Mixpanel delivery,
+     server-owned mutation events, single `flow_error_shown` mapping, `ANALYTICS_AUDIENCE`,
+     journey script.
+  5. **Independent review fixes** (`b7a3c86`) — see "Independent review".
+  6. **T4 UI slice** (`feat/t4-ui`, `e7feb44`, merged as `1e8fde4`) — assisted reading of
+     label photos in the report editor and assisted drafting on the actions screen, with the
+     manual/template path unchanged.
 
 ## Carry-over integrity risks fixed before T4 work started (migration 0004)
 
@@ -112,15 +118,27 @@ as recorded below; T5 (deployed guarded-pilot check) has not started.**
   row for (invitation, report); `saveComplaintDraft(method: "assisted")` requires a settled
   `draft` row for (invitation, report, channel); otherwise 422. Template output stays
   `template`; manual confirmation stays `manual`.
-- **UI:** report editor Concern step — "Suggest wording from my photos" (only when
-  `ai_available`, the report is saved and has a ready label image) → panel "Suggested text —
-  check against your photo" with per-field "Use this"; nothing is confirmed automatically;
-  the existing "I checked this wording against my photo" remains the only confirmation and
-  sends `assisted` only when a suggestion was applied. Actions screen — "Draft with AI
-  assistance" fills the editable draft (method `assisted`) with a persistent note that it is
-  a suggestion and nothing has been sent; "Save draft" remains the separate explicit save.
-  Any AI failure shows exactly “AI assistance unavailable—continue manually.” and preserves
-  every typed value.
+- **UI** (`components/reporter/ReportEditorScreen.tsx`, `ActionsScreen.tsx`,
+  `tests/e2e/reporter-ai.spec.ts`): the client learns whether AI is configured from
+  `Me.ai_available` (`GET /api/me`, via `isAiConfigured()`; false until answered). Report
+  editor, Concern step — “Suggest wording from my photos” appears only when `ai_available`,
+  the report is saved and it has a ready label image; it sends up to three label images
+  (claim, ingredients, identity first) and shows the panel **“Suggested text — check against
+  your photo”** with a per-field **“Use this”** (product name and brand land on step 1) and a
+  “Could not read from these photos:” list; nothing is saved or confirmed by the panel; the
+  existing “I checked this wording against my photo” remains the only confirmation and
+  sends `assisted` only when a suggestion was applied since the last confirmation
+  (otherwise `manual`); a 422 on an `assisted` claim offers “Confirm this wording myself”.
+  Actions screen — “Draft with AI assistance” (only when `ai_available` and facts are
+  confirmed) replaces the on-screen draft after the same replace-confirmation as “Start
+  again from the template”, marks the channel `assisted`, and shows the persistent note
+  “This draft was written with AI assistance from the facts you confirmed. It is a
+  suggestion — check every line, edit it, and save it yourself. Nothing has been sent.”;
+  “Save draft” remains the separate explicit save and the saved line states the method.
+  Any AI failure (503, 429 with the wait hint, network) shows exactly
+  “AI assistance unavailable—continue manually.” with “Try again”, preserves every typed
+  value, and emits no `flow_error_shown` (the operation enum has no AI value and the manual
+  path is not blocked). With `ai_available: false` no AI control exists anywhere.
 
 ### Analytics (live, consent-controlled)
 
@@ -181,15 +199,22 @@ exist; the share screen selects them — pre-existing, unchanged since T1).
 
 ## Checks (T4, 6 September 2026, live demo Supabase project, real provider, real Mixpanel)
 
+Final run on the complete T4 tree (`1e8fde4`, the last code commit before the docs
+commit that carries this table), 6 September 2026, integration owner's machine:
+
 | Check | Command | Result |
 |---|---|---|
-| Typecheck | `npm run typecheck` | PASS (merged base `6e3d523`) |
-| Lint | `npm run lint` | PASS |
-| Build | `npm run build` | PASS (AI and analytics slices, each before merge) |
-| Unit + integration | `npx vitest run` | PASS — 202 passed (202), 15 files, 0 skipped, 0 blocked, ~190 s on the merged base `6e3d523` |
-| Browser (base subset) | reporter-share, review-decisions, review-moderation, community-detail (desktop) | PASS — 15/15 on `f95ba1b` |
-| Browser (analytics subset) | reporter-editor, reporter-actions, entry-session (desktop) | PASS — 19/19 on `1bdf4a2` |
-| Browser (full suite) | `npm run test:e2e` | see the final-run row appended below after the UI merge |
+| Typecheck | `npm run typecheck` | PASS |
+| Lint | `npm run lint` | PASS — no warnings or errors |
+| Build | `npm run build` | PASS — `/api/reports/[id]/ai/extract` and `/ai/draft` present as dynamic routes |
+| Unit + integration | `npx vitest run` | PASS — 212 passed (212), 16 files, 0 skipped, 0 blocked, ~196 s (live Supabase, real provider, real Mixpanel) |
+| Browser | `npm run test:e2e` | PASS — 126 passed (126), desktop + 360 px, 8.7 min (includes `tests/e2e/reporter-ai.spec.ts`: two real provider calls per project) |
+
+Earlier verified points on the way: base `f95ba1b` (vitest 54/54; 15/15 publication/moderation
+browser specs), AI slice `4b37f38` (vitest 113/113 incl. 17 live AI cases), analytics slice
+`1bdf4a2` (vitest 143/143; 19/19 editor/actions/entry browser specs), merged server base
+`6e3d523` (vitest 202/202), review fixes `b7a3c86` (ai + analytics + publication live suites
+32/32), UI slice `e7feb44` (38/38 reporter browser specs on both projects).
 
 Live acceptance proven by the suites: the two integrity fixes above; live extraction on a
 readable synthetic label (brand, product, claim and ingredients transcribed verbatim), on the

@@ -12,13 +12,13 @@
     },
     {
       "path": "IMPLEMENTATION_STATUS.md",
-      "bytes": 17179,
-      "sha256": "54c858a448c12a53e44d075b746042f3c84786c6f98597ce648bd0def57d2bd3"
+      "bytes": 23698,
+      "sha256": "70f0d0f6f10e3a8e4f49e9c08e10f82b278df428486c5f7dad12e8aaf0c70c89"
     },
     {
       "path": "README.md",
-      "bytes": 5373,
-      "sha256": "6266777754e1eb6bcacf364232178fb63aac86a6002ce7b8abbbe944f5dd99c3"
+      "bytes": 7984,
+      "sha256": "d0d2bc45d7fbe794f7fb51e082f0283e2d15b6af349a1699f0179c048c8fd918"
     },
     {
       "path": "design/assets/clear-signal-label-preview.jpg",
@@ -57,8 +57,8 @@
     },
     {
       "path": "docs/FOODPROOF_ACCEPTANCE_CHECKLIST.md",
-      "bytes": 4134,
-      "sha256": "e11871d7750d9770afb90c4b9174e3b5e017dc7af54c8e1f9fdcf675fd948af9"
+      "bytes": 6703,
+      "sha256": "2e31a1d615da0bf53ac8529d0bb4d4053388fa15d9f2fdfd16f2460e92e4a8a2"
     },
     {
       "path": "docs/FOODPROOF_AGENT_PROMPTS.md",
@@ -117,8 +117,8 @@
     },
     {
       "path": "docs/FOODPROOF_SETUP_AND_OPERATIONS.md",
-      "bytes": 5836,
-      "sha256": "5db0dd05c616dddd7880e7fb7c83fe37ee6e0af5af1b8f8baca8080a45f34179"
+      "bytes": 10849,
+      "sha256": "32c92fd22fcd922f1ef00e1cb76ba6924bfc64dfe346d55cdd8b14f9e50a52b9"
     },
     {
       "path": "docs/FOODPROOF_TECHNICAL_SPEC.md",
@@ -137,5 +137,5 @@
     }
   ],
   "local_markdown_links": "passed",
-  "application_tests": "typecheck/lint/build pass; vitest 51/51 live; playwright 114/114 on main (desktop + 360 px); T0\u2013T3 merged; T4/T5 not started"
+  "application_tests": "typecheck/lint/build pass; vitest 212/212 live (Supabase, real AI provider, real Mixpanel); playwright 126/126 on the T4 tree (desktop + 360 px); T0–T4 merged; T5 not started"
 }
