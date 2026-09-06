@@ -378,6 +378,39 @@ export async function getFeed(
   return { items: page, nextCursor: hasMore ? encodeCursor(offset + PAGE_SIZE) : null };
 }
 
+interface ApprovedResponseRevision {
+  id: string;
+  source_update_id: string;
+  revision: number;
+  payload: unknown;
+}
+
+/**
+ * The approved RESPONSE revisions that are currently effective for a report:
+ * the LATEST approved revision per source update. A response may be
+ * re-requested and re-approved (e.g. after a correction), which leaves several
+ * `approved` rows for one `source_update_id`; only the newest is projected, so
+ * a response never appears twice in the public detail and the images frozen by
+ * a superseded revision stop serving (see `readPublicationAssetForMedia`).
+ */
+export async function effectiveResponseRevisions(
+  supabase: SupabaseClient,
+  reportId: string,
+): Promise<ApprovedResponseRevision[]> {
+  const { data, error } = await supabase
+    .from("publication_revisions")
+    .select("id, source_update_id, revision, payload")
+    .eq("report_id", reportId)
+    .not("source_update_id", "is", null)
+    .eq("state", "approved")
+    .order("revision", { ascending: true });
+  if (error) throw error;
+  // Ascending revision order: the last row seen per source update wins.
+  const latest = new Map<string, ApprovedResponseRevision>();
+  for (const r of (data ?? []) as ApprovedResponseRevision[]) latest.set(r.source_update_id, r);
+  return Array.from(latest.values()).sort((a, b) => a.revision - b.revision);
+}
+
 /** Full approved concern projection plus approved response summaries. */
 export async function getPublicReport(
   reportId: string,
@@ -406,16 +439,9 @@ export async function getPublicReport(
     .eq("revision_id", pub.approved_revision_id);
   if (aErr) throw aErr;
 
-  const { data: respRevs, error: respErr } = await supabase
-    .from("publication_revisions")
-    .select("id, payload")
-    .eq("report_id", reportId)
-    .not("source_update_id", "is", null)
-    .eq("state", "approved")
-    .order("revision", { ascending: true });
-  if (respErr) throw respErr;
+  const respRevs = await effectiveResponseRevisions(supabase, reportId);
 
-  const responses: PublicResponseSummary[] = (respRevs ?? []).map((r) => {
+  const responses: PublicResponseSummary[] = respRevs.map((r) => {
     const p = r.payload as StoredResponsePayload;
     return {
       publication_revision_id: r.id,
@@ -557,8 +583,10 @@ export async function getReviewDetail(
 
 /**
  * Guarded publication-asset bytes: any valid session while the parent is
- * currently visible, or a reviewer while the revision is pending review. Never a
- * public URL; withdrawal/removal takes effect for subsequent requests.
+ * currently visible (concern assets of the pointed-to revision, response assets
+ * of the latest approved revision per source update), or a reviewer while the
+ * revision is pending review. Never a public URL; withdrawal/removal and
+ * supersession take effect for subsequent requests.
  */
 export async function readPublicationAssetForMedia(
   actor: { accessId: string; role: "user" | "reviewer" },
@@ -589,9 +617,12 @@ export async function readPublicationAssetForMedia(
       .maybeSingle();
     if (pErr) throw pErr;
     if (pub && pub.visible) {
-      permitted = rev.source_update_id
-        ? rev.state === "approved"
-        : pub.approved_revision_id === asset.revision_id;
+      if (rev.source_update_id) {
+        const effective = await effectiveResponseRevisions(supabase, rev.report_id);
+        permitted = effective.some((r) => r.id === asset.revision_id);
+      } else {
+        permitted = pub.approved_revision_id === asset.revision_id;
+      }
     }
   }
   if (!permitted) throw new ApiError("NOT_FOUND", "Asset not found.");

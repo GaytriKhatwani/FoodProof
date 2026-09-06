@@ -121,6 +121,7 @@ async function resetSeed() {
   await del("complaint_drafts", "report_id", reportIds);
   await del("evidence", "report_id", reportIds);
   await del("operation_receipts", "actor_id", ids);
+  await del("ai_spend_ledger", "access_id", ids);
   await del("reports", "id", reportIds);
   await del("demo_sessions", "access_id", ids);
   await del("demo_access", "id", ids);

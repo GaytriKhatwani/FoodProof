@@ -50,10 +50,11 @@ export function publishableClient(): SupabaseClient | null {
 }
 
 /**
- * Cheap probe for `supabase/migrations/0003_transactional_operations.sql`:
- * `fp_schema_version()` returns 3 once it is applied. There is no CLI/psql on
- * the build machine, so 0003 is applied by the project owner in the Supabase SQL
- * Editor; until then the suites that depend on it must report BLOCKED.
+ * Cheap probe for the applied migration level: `fp_schema_version()` returns 3
+ * after `0003_transactional_operations.sql` and 4 after
+ * `0004_publication_atomicity_and_ai_spend.sql`. There is no CLI/psql on the
+ * build machine, so migrations are applied by the project owner in the Supabase
+ * SQL Editor; until then the suites that depend on them must report BLOCKED.
  */
 export async function schemaVersion(): Promise<number> {
   if (!hasLiveSupabase) return 0;
@@ -75,9 +76,19 @@ export interface SuiteGate {
  * Resolve a live suite's gate. A gate that does not run states WHY in the suite
  * name (visible in the vitest summary) and warns once on stderr.
  */
+const MIGRATION_FILE: Record<number, string> = {
+  3: "0003_transactional_operations.sql",
+  4: "0004_publication_atomicity_and_ai_spend.sql",
+};
+
 export async function liveSuite(
   name: string,
-  opts?: { requiresSchema3?: boolean },
+  opts?: {
+    /** Minimum `fp_schema_version()` the suite needs (3 or 4). */
+    requiresSchema?: 3 | 4;
+    /** Legacy alias for `requiresSchema: 3`. */
+    requiresSchema3?: boolean;
+  },
 ): Promise<SuiteGate> {
   if (!hasLiveSupabase) {
     return {
@@ -86,15 +97,17 @@ export async function liveSuite(
       enabled: false,
     };
   }
-  if (opts?.requiresSchema3 && (await schemaVersion()) < 3) {
+  const required = opts?.requiresSchema ?? (opts?.requiresSchema3 ? 3 : 0);
+  if (required > 0 && (await schemaVersion()) < required) {
+    const file = MIGRATION_FILE[required] ?? `migration ${required}`;
     console.warn(
-      `[foodproof tests] BLOCKED: "${name}" needs supabase/migrations/0003_transactional_operations.sql, ` +
-        "which is not applied to the demo project (fp_schema_version() is absent). " +
-        "Apply 0003 in the Supabase SQL Editor and re-run.",
+      `[foodproof tests] BLOCKED: "${name}" needs supabase/migrations/${file}, ` +
+        "which is not applied to the demo project (fp_schema_version() is below it). " +
+        `Apply ${file} in the Supabase SQL Editor and re-run.`,
     );
     return {
       run: describe.skip,
-      title: `${name} — BLOCKED: migration 0003_transactional_operations.sql not applied to the demo project`,
+      title: `${name} — BLOCKED: migration ${file} not applied to the demo project`,
       enabled: false,
     };
   }
@@ -191,9 +204,21 @@ export async function deleteAccess(client: SupabaseClient, ids: string[]) {
   await del("complaint_drafts", "report_id", reportIds);
   await del("evidence", "report_id", reportIds);
   await del("operation_receipts", "actor_id", ids);
+  // Migration 0004: cost/token rows only (cascade from demo_access; deleted
+  // explicitly so a pre-0004 project and a post-0004 project clean up alike).
+  await delIfPresent("ai_spend_ledger", "access_id", ids);
   await del("reports", "id", reportIds);
   await del("demo_sessions", "access_id", ids);
   await del("demo_access", "id", ids);
+
+  async function delIfPresent(table: string, col: string, values: string[]) {
+    if (!values.length) return;
+    const { error } = await client.from(table).delete().in(col, values);
+    // PGRST205 / 42P01: the table does not exist yet (migration not applied).
+    if (error && !/does not exist|PGRST205|schema cache/i.test(`${error.code} ${error.message}`)) {
+      throw new Error(`cleanup ${table} failed: ${error.message}`);
+    }
+  }
 }
 
 /** Remove limiter rows for the given address HMACs. */

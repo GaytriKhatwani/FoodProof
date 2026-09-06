@@ -30,7 +30,7 @@ import {
  * migration is applied to the demo project. A blocked suite proves nothing.
  */
 const historySuite = await liveSuite("drafts + external history (live Supabase)", {
-  requiresSchema3: true,
+  requiresSchema: 4,
 });
 
 historySuite.run(historySuite.title, () => {

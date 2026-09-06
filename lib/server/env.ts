@@ -23,9 +23,13 @@ const ServerEnvSchema = z.object({
   RATE_LIMIT_HMAC_KEY: z.string().min(1),
   DEMO_MODE: z.literal("true"),
   // Selected at T4; optional until the AI path is enabled. An empty value in a
-  // local env file counts as unset rather than an invalid value.
+  // local env file counts as unset rather than an invalid value. The adapter
+  // (lib/server/ai/) is enabled only when BOTH provider and key are present;
+  // it never falls back to a provider SDK's own environment lookup.
   AI_PROVIDER: optionalSecret,
   AI_PROVIDER_API_KEY: optionalSecret,
+  // Optional pinned model id; the adapter's documented default applies when unset.
+  AI_MODEL: optionalSecret,
 });
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;

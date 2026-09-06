@@ -10,3 +10,4 @@ export * from "./public";
 export * from "./entities";
 export * from "./requests";
 export * from "./analytics";
+export * from "./ai";

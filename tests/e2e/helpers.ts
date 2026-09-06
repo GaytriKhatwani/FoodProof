@@ -108,6 +108,13 @@ export async function deleteInvitations(ids: string[]): Promise<void> {
   await del("complaint_drafts", "report_id", reportIds);
   await del("evidence", "report_id", reportIds);
   await del("operation_receipts", "actor_id", ids);
+  // Migration 0004 ledger (costs/tokens only); tolerated when not yet applied.
+  {
+    const { error } = await supabase.from("ai_spend_ledger").delete().in("access_id", ids);
+    if (error && !/does not exist|PGRST205|schema cache/i.test(`${error.code} ${error.message}`)) {
+      throw new Error(`cleanup ai_spend_ledger failed: ${error.message}`);
+    }
+  }
   await del("reports", "id", reportIds);
   await del("demo_sessions", "access_id", ids);
   await del("demo_access", "id", ids);

@@ -22,20 +22,31 @@ export class ApiError extends Error {
 
 /**
  * SQLSTATEs raised by the transactional functions in
- * `supabase/migrations/0003_transactional_operations.sql`, mapped onto the
- * existing API error codes so HTTP responses are unchanged for callers.
+ * `supabase/migrations/0003_transactional_operations.sql` and
+ * `0004_publication_atomicity_and_ai_spend.sql`, mapped onto the existing API
+ * error codes so HTTP responses are unchanged for callers. FP402 (AI budget
+ * exhausted) deliberately maps to the same generic 503 as a provider failure:
+ * the UI shows one honest "AI assistance unavailable" state for every reason.
  */
 const RPC_ERROR_CODES: Record<string, ErrorCode> = {
+  FP402: "DEPENDENCY_UNAVAILABLE",
   FP403: "FORBIDDEN",
   FP404: "NOT_FOUND",
   FP409: "CONFLICT",
   FP422: "VALIDATION_FAILED",
+  FP429: "RATE_LIMITED",
 };
+
+/** Migration files that define the `fp_*` functions, by name. */
+export const MIGRATION_0003 = "supabase/migrations/0003_transactional_operations.sql";
+export const MIGRATION_0004 = "supabase/migrations/0004_publication_atomicity_and_ai_spend.sql";
 
 /** The shape supabase-js returns for a failed PostgREST/RPC call. */
 export interface RpcErrorLike {
   code?: string | null;
   message?: string | null;
+  /** Postgres error HINT; `fp_reserve_ai_spend` carries Retry-After seconds here. */
+  hint?: string | null;
 }
 
 /**
@@ -46,17 +57,19 @@ export interface RpcErrorLike {
  * replace. Anything else is returned unchanged so the route logs it and answers
  * with the generic 503.
  */
-export function mapRpcError(fn: string, error: unknown): unknown {
+export function mapRpcError(fn: string, error: unknown, migration: string = MIGRATION_0003): unknown {
   const e = (error ?? {}) as RpcErrorLike;
   const mapped = e.code ? RPC_ERROR_CODES[e.code] : undefined;
   if (mapped) {
-    return new ApiError(mapped, e.message ?? "The request could not be completed.");
+    const retryAfter = mapped === "RATE_LIMITED" ? Number(e.hint) : NaN;
+    return new ApiError(mapped, e.message ?? "The request could not be completed.", {
+      retryAfterSeconds: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined,
+    });
   }
   if (e.code === "PGRST202" || /could not find the function/i.test(e.message ?? "")) {
     return new ApiError(
       "DEPENDENCY_UNAVAILABLE",
-      `The database function ${fn}() is missing. Apply ` +
-        "supabase/migrations/0003_transactional_operations.sql to this Supabase project.",
+      `The database function ${fn}() is missing. Apply ${migration} to this Supabase project.`,
     );
   }
   return error;
