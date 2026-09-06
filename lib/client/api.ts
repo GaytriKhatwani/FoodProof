@@ -28,6 +28,10 @@ import {
   type RelinkRequest,
   type FlagRequest,
   type ClientAnalyticsEventRequest,
+  type AiExtractRequest,
+  type AiExtractResponse,
+  type AiDraftRequest,
+  type AiDraftResponse,
   type Channel,
   type EvidenceRole,
 } from "@/lib/contracts";
@@ -225,6 +229,27 @@ export interface EvidenceRemovedResponse {
 export interface WithdrawResponse {
   report_id: string;
   withdrawn: true;
+  /** True when a visible publication was hidden by this call (T4, migration 0004). */
+  hidden: boolean;
+  /** The approved concern revision that was hidden, or null when nothing was visible. */
+  publication_revision_id: string | null;
+  withdrawn_at: string;
+}
+
+/**
+ * Analytics flow correlation for report saves (FOODPROOF_MEASUREMENT_AND_PILOT.md
+ * §4 `report_saved.flow_id`). The UI generates one random UUID per editor
+ * session and sends it as the `X-Flow-Id` header; the server joins it to the
+ * server-owned `report_saved` event. It is never a request-body field and the
+ * server ignores anything that is not a UUID.
+ */
+export const FLOW_ID_HEADER = "X-Flow-Id";
+
+function withFlowId(init: RequestInit, flowId?: string): RequestInit {
+  if (!flowId) return init;
+  const headers = new Headers(init.headers);
+  headers.set(FLOW_ID_HEADER, flowId);
+  return { ...init, headers };
 }
 
 /** POST /api/feed/:id/flags — see lib/server/publication.ts raiseFlag(). */
@@ -236,6 +261,11 @@ export interface FlagCreatedResponse {
 export interface FlagResolvedResponse {
   flag_id: string;
   state: "handled";
+  report_id: string;
+  /** True when the resolution also removed the published content (T4, migration 0004). */
+  removed: boolean;
+  publication_revision_id: string | null;
+  removed_at: string | null;
 }
 
 /** Request body for POST /api/review/flags/:id/resolve — a local schema in that route file, not in lib/contracts. */
@@ -248,6 +278,9 @@ export interface FlagResolveRequestBody {
 export interface RemoveContentResponse {
   report_id: string;
   removed: true;
+  /** The approved revision that was hidden, or null when nothing was visible (T4, migration 0004). */
+  publication_revision_id: string | null;
+  removed_at: string | null;
 }
 
 /** Request body for POST /api/review/reports/:id/remove — a local schema in that route file, not in lib/contracts. */
@@ -362,22 +395,37 @@ export const api = {
       const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
       return apiFetch<ReportListResponse>(`/api/reports${qs}`);
     },
-    /** POST /api/reports — requires Idempotency-Key. */
-    create(body: ReportWriteRequest, key: string): Promise<ReportDetail> {
+    /** POST /api/reports — requires Idempotency-Key; optional `flowId` → `X-Flow-Id`. */
+    create(
+      body: ReportWriteRequest,
+      key: string,
+      opts: { flowId?: string } = {},
+    ): Promise<ReportDetail> {
       return apiFetch<ReportDetail>(
         "/api/reports",
-        withIdempotencyKey({ method: "POST", body: JSON.stringify(body) }, key),
+        withFlowId(
+          withIdempotencyKey({ method: "POST", body: JSON.stringify(body) }, key),
+          opts.flowId,
+        ),
       );
     },
     /** GET /api/reports/:id — no Idempotency-Key. */
     get(reportId: string): Promise<ReportDetail> {
       return apiFetch<ReportDetail>(`/api/reports/${reportId}`);
     },
-    /** PATCH /api/reports/:id — requires Idempotency-Key. */
-    patch(reportId: string, body: ReportWriteRequest, key: string): Promise<ReportDetail> {
+    /** PATCH /api/reports/:id — requires Idempotency-Key; optional `flowId` → `X-Flow-Id`. */
+    patch(
+      reportId: string,
+      body: ReportWriteRequest,
+      key: string,
+      opts: { flowId?: string } = {},
+    ): Promise<ReportDetail> {
       return apiFetch<ReportDetail>(
         `/api/reports/${reportId}`,
-        withIdempotencyKey({ method: "PATCH", body: JSON.stringify(body) }, key),
+        withFlowId(
+          withIdempotencyKey({ method: "PATCH", body: JSON.stringify(body) }, key),
+          opts.flowId,
+        ),
       );
     },
     /** POST /api/reports/:id/confirm-facts — requires Idempotency-Key. */
@@ -492,6 +540,34 @@ export const api = {
         `/api/reports/${reportId}/publication-requests`,
         withIdempotencyKey({ method: "POST", body: JSON.stringify(body) }, key),
       );
+    },
+  },
+
+  ai: {
+    /**
+     * POST /api/reports/:id/ai/extract — owner only; no Idempotency-Key. Nothing
+     * is persisted: the response is a SUGGESTION the reporter applies and then
+     * confirms through `reports.confirmFacts` (`method: "assisted"`). Every
+     * failure (provider, timeout, budget, missing configuration, rate limit)
+     * arrives as a ClientApiError and the UI shows exactly
+     * "AI assistance unavailable—continue manually." — never a provider message.
+     */
+    extract(reportId: string, body: AiExtractRequest): Promise<AiExtractResponse> {
+      return apiFetch<AiExtractResponse>(`/api/reports/${reportId}/ai/extract`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    },
+    /**
+     * POST /api/reports/:id/ai/draft — owner only; no Idempotency-Key. Returns an
+     * EDITABLE suggestion; saving is the separate `complaintDrafts.save` with
+     * `method: "assisted"`. Failure semantics as `extract`.
+     */
+    draft(reportId: string, body: AiDraftRequest): Promise<AiDraftResponse> {
+      return apiFetch<AiDraftResponse>(`/api/reports/${reportId}/ai/draft`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
     },
   },
 

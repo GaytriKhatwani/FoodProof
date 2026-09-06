@@ -31,3 +31,17 @@ Build checks: typecheck, lint and production build. Focus automated tests on per
 Any exposure, data loss, false filing status or misrepresented integration blocks the invited demo. The owner provides an AI provider and budget before T4 (D33), so A05's live extraction/drafting is required for full phase-one acceptance; if the provider is genuinely unavailable, missing AI is recorded separately as incomplete intended scope and the owner must approve a narrower release. Public launch always requires phase-two authentication and policy checks.
 
 Pilot usability tasks, cohort and interpretation thresholds are in FOODPROOF_MEASUREMENT_AND_PILOT.md. Keep a separate finding log with observed behaviour, severity, proposed correction and retest result.
+
+## Evidence record — T4 (6 September 2026, local build against the live demo services)
+
+Environment: `main` after the T4 merge (commit ids in `IMPLEMENTATION_STATUS.md`), dedicated demo Supabase project with migrations 0001–0004, the real AI provider, the demo Mixpanel project, `ANALYTICS_AUDIENCE=qa`. Evidence = the named automated suites, run by the integration owner; see the "Checks" table in `IMPLEMENTATION_STATUS.md` for counts.
+
+| ID | Result | Evidence |
+|---|---|---|
+| A03 | pass | `tests/integration/reports.test.ts` (retry dedup, receipt release) unchanged; `tests/integration/analytics.test.ts` proves a same-key retry re-sends one `$insert_id` |
+| A05 | pass (local) | `tests/integration/ai.test.ts`: live extraction on a readable synthetic label, on the fictional photograph and on a blank image (unreadable fields reported honestly); prompt-injection label transcribed without obeying it; live draft from confirmed facts with placeholders and no safety/filing/statutory wording; `tests/unit/ai.test.ts`: timeout / 429 / 5xx / connection / refusal / truncation / malformed / off-schema → "AI assistance is unavailable." with one released reservation; manual confirmation and template drafting with the provider disabled; `tests/e2e/reporter-ai.spec.ts`: the editor and actions screens, including the exact “AI assistance unavailable—continue manually.” state with typed values preserved. Not yet repeated on the deployed URL (A17/T5) |
+| A08 | pass | `tests/integration/publication.test.ts` incl. the three T4 regression tests (atomic request under storage failure; foreign evidence refused in the transaction; one effective approved response revision, superseded image not served) |
+| A13 | pass | unchanged direct-client denial suite; migration 0004 functions revoked from `public`/`anon`/`authenticated`; `ai_spend_ledger` RLS-enabled with anon/authenticated revoked |
+| A14 | pass (ingestion) / owner (read-back) | `tests/integration/analytics.test.ts`: real `feed_viewed` accepted (`{"status":1}`), duplicate accepted, stale event rejected, declined and withdrawn sessions emit nothing; `tests/unit/analytics-pii.test.ts` whitelists the payload keys; Live View inspection of a `scripts/analytics-journey.mjs` run is the owner's step (no service account) |
+| A15 | pass | stable `$insert_id` from the Idempotency-Key + persisted `occurred_at` (`tests/unit/analytics-events.test.ts`, `tests/integration/analytics.test.ts`); reporter/reviewer separated by `actor_role`; `report_published` joined by `report_id` |
+| A17 | not run | T5 |

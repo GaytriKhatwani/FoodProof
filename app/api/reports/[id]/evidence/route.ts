@@ -5,6 +5,8 @@ import { ApiError } from "@/lib/server/errors";
 import { assertSameOrigin, requireSession } from "@/lib/server/context";
 import { requireIdempotencyKey } from "@/lib/server/idempotency";
 import { addEvidence } from "@/lib/server/evidence";
+import { emitServerEvents } from "@/lib/server/analytics";
+import { evidenceUploadedEvent } from "@/lib/server/analytics-events";
 
 /**
  * `POST /api/reports/:id/evidence` — owner multipart upload, one file per
@@ -40,6 +42,7 @@ export function POST(req: NextRequest, { params }: { params: { id: string } }) {
     const bytes = new Uint8Array(await file.arrayBuffer());
 
     const evidence = await addEvidence(ctx.actor.accessId, params.id, meta, { bytes }, key);
+    await emitServerEvents(ctx, key, [evidenceUploadedEvent(params.id, evidence)]);
     return jsonOk(evidence, requestId, { status: 201 });
   });
 }

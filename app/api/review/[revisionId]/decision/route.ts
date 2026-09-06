@@ -4,6 +4,8 @@ import { jsonOk, parseJson, route } from "@/lib/server/http";
 import { assertSameOrigin, requireReviewer } from "@/lib/server/context";
 import { requireIdempotencyKey } from "@/lib/server/idempotency";
 import { decideReview } from "@/lib/server/publication";
+import { emitServerEvents } from "@/lib/server/analytics";
+import { decisionEvents } from "@/lib/server/analytics-events";
 
 /**
  * `POST /api/review/:revisionId/decision` — reviewer only; approve /
@@ -24,6 +26,8 @@ export function POST(
     const key = requireIdempotencyKey(req);
     const body = await parseJson(req, ReviewDecisionRequest);
     const result = await decideReview(ctx.actor.accessId, params.revisionId, body, key);
+    // The reviewer is the actor; their consent governs collection.
+    await emitServerEvents(ctx, key, decisionEvents(result, body.action));
     return jsonOk(result, requestId);
   });
 }

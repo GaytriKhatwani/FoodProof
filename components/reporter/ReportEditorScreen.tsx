@@ -4,9 +4,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ProductMatch } from "@/lib/client/api";
-import type { ReportDetail, ReportWriteRequest } from "@/lib/contracts";
+import type {
+  AiExtractField,
+  AiExtractResponse,
+  ReportDetail,
+  ReportWriteRequest,
+} from "@/lib/contracts";
 import { api } from "@/lib/client/api";
 import { clientAnalytics } from "@/lib/analytics";
+import { useSession } from "@/lib/client/session";
+import { formatWait } from "@/components/shell/errors";
 import { EvidenceSection } from "./EvidenceSection";
 import { ReadinessPanel } from "./ReadinessPanel";
 import { toFailure, trackFlowError, useIdempotencyKeys, type Failure } from "./failure";
@@ -31,9 +38,75 @@ import styles from "./reporter.module.css";
  * contacts nobody. Every failed save keeps the typed values on screen, and a
  * retry reuses the same Idempotency-Key so a request that did reach the server
  * is replayed rather than duplicated.
+ *
+ * The Concern step can ask the configured provider to read the reporter's OWN
+ * label photographs and suggest wording. That control exists only when the
+ * backend is configured (`Me.ai_available`) and the report already has a ready
+ * label image; a suggestion writes nothing to the server, applying one is a
+ * deliberate click, and the reporter still confirms the wording against the
+ * photo. An assisted failure never blocks the manual path.
  */
 
 const STEPS = ["Product", "Evidence", "Concern", "Review"] as const;
+
+/** Image types the assisted reading path accepts (lib/server/ai/limits.ts). */
+const AI_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+/** Most label photographs one assisted call may carry (the server caps at 3). */
+const AI_MAX_IMAGES = 3;
+
+/** Roles worth sending first, in the order the suggestion panel reads them. */
+const AI_ROLE_PRIORITY = ["claim", "ingredients", "identity"] as const;
+
+const SUGGESTION_ORDER: readonly AiExtractField[] = [
+  "product_name",
+  "brand",
+  "claim_text",
+  "ingredients_text",
+];
+
+const SUGGESTION_LABEL: Record<AiExtractField, string> = {
+  product_name: "Product name",
+  brand: "Brand",
+  claim_text: "Gluten-free wording",
+  ingredients_text: "Ingredient wording",
+};
+
+/** Where an applied suggestion landed, since two of the fields are on step 1. */
+const SUGGESTION_APPLIED_NOTE: Record<AiExtractField, string> = {
+  product_name: "Copied into Product name on step 1. Check it against your photo.",
+  brand: "Copied into Brand on step 1. Check it against your photo.",
+  claim_text: "Copied into the field below. Check it against your photo.",
+  ingredients_text: "Copied into the field below. Check it against your photo.",
+};
+
+/**
+ * The label photographs to send, at most {@link AI_MAX_IMAGES}: the ones
+ * carrying the claim, ingredient and identity roles first, then any other ready
+ * label image. Only ready label images of a type the provider accepts are
+ * eligible — the server refuses anything else, and asking for it would waste a
+ * metered call.
+ */
+function pickLabelEvidence(detail: ReportDetail): string[] {
+  const usable = detail.evidence.filter(
+    (item) =>
+      item.kind === "label" &&
+      item.upload_state === "ready" &&
+      AI_IMAGE_TYPES.includes(item.mime_type),
+  );
+  const chosen: string[] = [];
+  const take = (id: string) => {
+    if (chosen.length < AI_MAX_IMAGES && !chosen.includes(id)) chosen.push(id);
+  };
+  for (const role of AI_ROLE_PRIORITY) {
+    const match = usable.find(
+      (item) => item.roles.includes(role) && !chosen.includes(item.id),
+    );
+    if (match) take(match.id);
+  }
+  for (const item of usable) take(item.id);
+  return chosen;
+}
 
 interface EditorForm {
   product_name: string;
@@ -101,6 +174,7 @@ export function ReportEditorScreen({
 }) {
   const router = useRouter();
   const { keyFor, settled } = useIdempotencyKeys();
+  const { aiAvailable } = useSession();
 
   const idRef = useRef<string | null>(initialReportId);
   const [detail, setDetail] = useState<ReportDetail | null>(null);
@@ -118,7 +192,31 @@ export function ReportEditorScreen({
   const [refreshNote, setRefreshNote] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [confirmFailure, setConfirmFailure] = useState<Failure | null>(null);
+  const [suggestions, setSuggestions] = useState<AiExtractResponse | null>(null);
+  const [appliedFields, setAppliedFields] = useState<AiExtractField[]>([]);
+  const [extracting, setExtracting] = useState(false);
+  const [extractFailure, setExtractFailure] = useState<Failure | null>(null);
+  const [assistedRejected, setAssistedRejected] = useState(false);
   const startedRef = useRef(false);
+  /** Guards a second concurrent call; the button is disabled as well. */
+  const extractingRef = useRef(false);
+  /**
+   * Whether a suggestion has been applied since the last successful
+   * confirmation. It is the ONLY thing that makes the confirmation claim
+   * `assisted` (FOODPROOF_MEASUREMENT_AND_PILOT.md §4): typing by hand, or
+   * reading a suggestion without using it, stays `manual`.
+   */
+  const usedSuggestionRef = useRef(false);
+
+  /**
+   * One analytics flow id per editor mount. It correlates `report_started`
+   * (client) with the server-owned `report_saved` for the same attempt
+   * (FOODPROOF_MEASUREMENT_AND_PILOT.md §4/§5 first-save completion), so it must
+   * be generated ONCE, not per save. A resumed draft gets a fresh id too — it
+   * still never emits `report_started`, so its saves simply join no started
+   * flow — and the id is analytics-only: it is never stored on the report.
+   */
+  const flowIdRef = useRef<string>(crypto.randomUUID());
 
   const initialisedRef = useRef(false);
 
@@ -138,6 +236,13 @@ export function ReportEditorScreen({
         initialisedRef.current = true;
         setForm(formFrom(result));
       }
+      // Reading the report again re-seeds the editor from the saved values, so
+      // any earlier assisted provenance no longer describes what is on screen.
+      // `refreshDetailOnly` deliberately does NOT reset it: that path never
+      // touches the typed values, so it must not rewrite where they came from.
+      usedSuggestionRef.current = false;
+      setSuggestions(null);
+      setAppliedFields([]);
       setLoadFailure(null);
       setLoadStatus("ready");
     } catch (error) {
@@ -225,7 +330,7 @@ export function ReportEditorScreen({
     if (fromConcernId && !prefillNote) return;
     startedRef.current = true;
     clientAnalytics.track("report_started", {
-      flow_id: crypto.randomUUID(),
+      flow_id: flowIdRef.current,
       source,
       linked_product: Boolean(fromConcernId),
     });
@@ -279,6 +384,8 @@ export function ReportEditorScreen({
           message:
             "A product name and brand are needed before this private draft can be saved. Everything else can stay incomplete.",
           retryAfterSeconds: null,
+          // Locally decided, never sent: this failure is not reported to analytics.
+          error_code: "validation",
         });
         setStep(0);
         return;
@@ -290,8 +397,8 @@ export function ReportEditorScreen({
       const key = keyFor("report.save", body);
       try {
         const saved = detail
-          ? await api.reports.patch(detail.report_id, body, key)
-          : await api.reports.create(body, key);
+          ? await api.reports.patch(detail.report_id, body, key, { flowId: flowIdRef.current })
+          : await api.reports.create(body, key, { flowId: flowIdRef.current });
         settled("report.save");
         const isFirstSave = !detail;
         idRef.current = saved.report_id;
@@ -320,35 +427,111 @@ export function ReportEditorScreen({
     [detail, form, keyFor, router, settled, validate],
   );
 
-  const confirmFacts = useCallback(async () => {
-    if (!detail) return;
-    setConfirming(true);
-    setConfirmFailure(null);
-    const body = {
-      expected_version: detail.version,
-      claim_text: blankToNull(form.claim_text),
-      ingredients_text: blankToNull(form.ingredients_text),
-      method: "manual" as const,
-    };
-    const key = keyFor("report.confirm-facts", body);
+  /**
+   * Ask the provider to read the label photographs already attached to this
+   * report. Nothing is written: the answer is a suggestion the reporter applies
+   * (or ignores) and then confirms. Every failure — provider, budget, rate
+   * limit, missing configuration — becomes the single honest line
+   * "AI assistance unavailable—continue manually." and leaves the typed values
+   * exactly as they are. Nothing is retried automatically.
+   */
+  const extractSuggestions = useCallback(async () => {
+    if (!detail || extractingRef.current) return;
+    const evidenceIds = pickLabelEvidence(detail);
+    if (evidenceIds.length === 0) return;
+    extractingRef.current = true;
+    setExtracting(true);
+    setExtractFailure(null);
     try {
-      const saved = await api.reports.confirmFacts(detail.report_id, body, key);
-      settled("report.confirm-facts");
-      setDetail(saved);
-      setForm(formFrom(saved));
+      const result = await api.ai.extract(detail.report_id, { evidence_ids: evidenceIds });
+      setSuggestions(result);
+      setAppliedFields([]);
     } catch (error) {
-      const failure = toFailure(error);
-      setConfirmFailure(failure);
-      trackFlowError("save", failure);
+      // Deliberately NOT reported as `flow_error_shown`: that event's
+      // `operation` enum has no assisted value, and the manual path — the one
+      // the reporter needs — is not blocked by this failure.
+      setExtractFailure(toFailure(error));
     } finally {
-      setConfirming(false);
+      extractingRef.current = false;
+      setExtracting(false);
     }
-  }, [detail, form.claim_text, form.ingredients_text, keyFor, settled]);
+  }, [detail]);
+
+  /** Copy one suggestion into its form field. The server learns nothing here. */
+  const applySuggestion = useCallback(
+    (field: AiExtractField, value: string) => {
+      update(
+        field === "product_name"
+          ? { product_name: value }
+          : field === "brand"
+            ? { brand: value }
+            : field === "claim_text"
+              ? { claim_text: value }
+              : { ingredients_text: value },
+      );
+      usedSuggestionRef.current = true;
+      setAppliedFields((current) =>
+        current.includes(field) ? current : [...current, field],
+      );
+    },
+    [update],
+  );
+
+  const confirmFacts = useCallback(
+    async (force?: "manual") => {
+      if (!detail) return;
+      // `assisted` is a claim about where this wording came from, so it is only
+      // made when a suggestion was actually applied since the last confirmation.
+      const method =
+        force === "manual" || !usedSuggestionRef.current ? ("manual" as const) : ("assisted" as const);
+      setConfirming(true);
+      setConfirmFailure(null);
+      setAssistedRejected(false);
+      const body = {
+        expected_version: detail.version,
+        claim_text: blankToNull(form.claim_text),
+        ingredients_text: blankToNull(form.ingredients_text),
+        method,
+      };
+      const key = keyFor("report.confirm-facts", body);
+      try {
+        const saved = await api.reports.confirmFacts(detail.report_id, body, key);
+        settled("report.confirm-facts");
+        setDetail(saved);
+        setForm(formFrom(saved));
+        usedSuggestionRef.current = false;
+        setSuggestions(null);
+        setAppliedFields([]);
+      } catch (error) {
+        const failure = toFailure(error);
+        setConfirmFailure(failure);
+        // The server refuses an `assisted` claim it cannot evidence. Show its
+        // own message and offer the manual confirmation rather than retrying
+        // the same rejected claim.
+        if (method === "assisted" && failure.kind === "validation") setAssistedRejected(true);
+        trackFlowError("save", failure);
+      } finally {
+        setConfirming(false);
+      }
+    },
+    [detail, form.claim_text, form.ingredients_text, keyFor, settled],
+  );
 
   const factsChangedSinceConfirmation =
     detail !== null &&
     (blankToNull(form.claim_text) !== detail.claim_text ||
       blankToNull(form.ingredients_text) !== detail.ingredients_text);
+
+  /**
+   * The assisted control exists only when the backend is configured, the report
+   * is saved, and it holds a label photograph the provider could actually read
+   * (FOODPROOF_SCREENS.md §5: "No AI control appears enabled unless its backend
+   * is configured").
+   */
+  const assistedOffered = useMemo(
+    () => aiAvailable && detail !== null && pickLabelEvidence(detail).length > 0,
+    [aiAvailable, detail],
+  );
 
   if (loadStatus === "loading") {
     return (
@@ -482,10 +665,65 @@ export function ReportEditorScreen({
 
             <h3 className={styles.subTitle}>Label facts</h3>
             <p className={styles.small}>
-              Type these exactly as they appear on your photo. Automatic text
-              extraction is not part of this build, so every fact here is entered
-              and confirmed by you.
+              Type these exactly as they appear on your photo. Every fact here is
+              entered and confirmed by you.
             </p>
+
+            {assistedOffered ? (
+              <div className={styles.panel}>
+                <p className={styles.small}>
+                  FoodProof can read the label photos you uploaded and suggest
+                  wording for these fields. A suggestion is not a fact: check
+                  every word against your photo, change anything that is wrong,
+                  and confirm it yourself.
+                </p>
+                <div className={styles.actions}>
+                  <button
+                    type="button"
+                    className={styles.btnSecondary}
+                    onClick={() => void extractSuggestions()}
+                    disabled={extracting}
+                  >
+                    Suggest wording from my photos
+                  </button>
+                </div>
+                {extracting ? (
+                  <p className={styles.saveState} role="status" aria-live="polite">
+                    Reading your photos…
+                  </p>
+                ) : null}
+                {extractFailure ? (
+                  <div className={styles.alert} role="status">
+                    <p>AI assistance unavailable—continue manually.</p>
+                    {extractFailure.retryAfterSeconds != null ? (
+                      <p>{formatWait(extractFailure.retryAfterSeconds)}</p>
+                    ) : null}
+                    <div className={styles.actions}>
+                      <button
+                        type="button"
+                        className={styles.btnSecondary}
+                        onClick={() => void extractSuggestions()}
+                        disabled={extracting}
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                {suggestions ? (
+                  <SuggestionsPanel
+                    result={suggestions}
+                    applied={appliedFields}
+                    onApply={applySuggestion}
+                    onHide={() => {
+                      setSuggestions(null);
+                      setAppliedFields([]);
+                    }}
+                  />
+                ) : null}
+              </div>
+            ) : null}
+
             <TextField
               id="claim-text"
               label="Gluten-free wording on the label"
@@ -534,7 +772,14 @@ export function ReportEditorScreen({
                 {confirmFailure ? (
                   <FailureNotice
                     failure={confirmFailure}
-                    onRetry={() => void confirmFacts()}
+                    onRetry={
+                      assistedRejected
+                        ? () => void confirmFacts("manual")
+                        : () => void confirmFacts()
+                    }
+                    retryLabel={
+                      assistedRejected ? "Confirm this wording myself" : "Try again"
+                    }
                     onReload={
                       confirmFailure.kind === "stale" ? () => void refreshDetailOnly(true) : undefined
                     }
@@ -665,6 +910,90 @@ export function ReportEditorScreen({
   );
 }
 
+/**
+ * Suggested label wording read from the reporter's own photographs
+ * (docs/FOODPROOF_SCREENS.md §5.3). Every value is a suggestion until the
+ * reporter copies it into a field and confirms it: this panel writes nothing,
+ * confirms nothing, and never claims a field was verified.
+ */
+function SuggestionsPanel({
+  result,
+  applied,
+  onApply,
+  onHide,
+}: {
+  result: AiExtractResponse;
+  applied: AiExtractField[];
+  onApply: (field: AiExtractField, value: string) => void;
+  onHide: () => void;
+}) {
+  // A field the provider named as unreadable is listed as unreadable even if
+  // some text came back for it, so nothing appears in both lists.
+  const readable = SUGGESTION_ORDER.filter(
+    (field) =>
+      result.suggestions[field] !== null && !result.unreadable_fields.includes(field),
+  );
+  const unreadable = SUGGESTION_ORDER.filter((field) => !readable.includes(field));
+
+  return (
+    <div className={styles.panel}>
+      <h4 className={styles.subTitle}>Suggested text — check against your photo</h4>
+      <p className={styles.small}>
+        Read from the label photos on this report. Nothing here is saved and
+        nothing is confirmed. Compare each line with your photo, then use it or
+        type your own wording.
+      </p>
+
+      {readable.length > 0 ? (
+        <ul className={styles.rows}>
+          {readable.map((field) => (
+            <li className={styles.row} key={field}>
+              <div className={styles.rowMain}>
+                <p className={styles.rowTitle}>{SUGGESTION_LABEL[field]}</p>
+                <p className={styles.pre}>{result.suggestions[field]}</p>
+                {applied.includes(field) ? (
+                  <p className={styles.small}>{SUGGESTION_APPLIED_NOTE[field]}</p>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                onClick={() => onApply(field, result.suggestions[field] as string)}
+              >
+                Use this
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className={styles.small}>
+          No wording came back from these photos. Type the label wording
+          yourself.
+        </p>
+      )}
+
+      {unreadable.length > 0 ? (
+        <>
+          <p className={styles.small}>Could not read from these photos:</p>
+          <ul className={styles.rows}>
+            {unreadable.map((field) => (
+              <li className={styles.row} key={field}>
+                {SUGGESTION_LABEL[field]}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+
+      <div className={styles.actions}>
+        <button type="button" className={styles.btnQuiet} onClick={onHide}>
+          Hide suggestions
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** Step 1 — product identity, plus optional linkage to an existing product. */
 function ProductStep({
   form,
@@ -689,6 +1018,8 @@ function ProductStep({
         kind: "validation",
         message: "Enter a brand and product name before looking for an existing product.",
         retryAfterSeconds: null,
+        // Locally decided, never sent: this failure is not reported to analytics.
+        error_code: "validation",
       });
       return;
     }

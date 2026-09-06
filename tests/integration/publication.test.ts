@@ -1,10 +1,11 @@
-import { afterAll, expect, it } from "vitest";
+import { afterAll, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import type { ReportWriteRequest } from "@/lib/contracts";
 import { ApiError } from "@/lib/server/errors";
 import { createReport, confirmFacts } from "@/lib/server/reports";
 import { addEvidence } from "@/lib/server/evidence";
 import { recordSubmission, recordUpdate } from "@/lib/server/history";
+import { evidenceStorage } from "@/lib/server/storage";
 import {
   decideReview,
   raiseFlag,
@@ -19,6 +20,7 @@ import {
   getPublicReport,
   getReviewDetail,
   getReviewQueue,
+  readPublicationAssetForMedia,
 } from "@/lib/server/data";
 import {
   cleanupStorage,
@@ -41,7 +43,7 @@ import {
  * demo project. A blocked suite proves nothing.
  */
 const publicationSuite = await liveSuite("publication + moderation (live Supabase)", {
-  requiresSchema3: true,
+  requiresSchema: 4,
 });
 
 publicationSuite.run(publicationSuite.title, () => {
@@ -381,5 +383,185 @@ publicationSuite.run(publicationSuite.title, () => {
       ),
     );
     expect(err.code).toBe("VALIDATION_FAILED");
+  });
+
+  // -------------------------------------------------------------------------
+  // Carry-over integrity risks fixed at T4 (migration 0004).
+  // -------------------------------------------------------------------------
+
+  it("a Storage failure while freezing leaves no pending revision, and the retry succeeds", async () => {
+    const owner = await newUser();
+    const { reportId, evidenceId, version } = await readyReport(owner);
+    // A second selected image so the outage can hit AFTER one copy landed.
+    const second = await addEvidence(
+      owner,
+      reportId,
+      { kind: "label", roles: ["claim"] },
+      { bytes: samplePng() },
+      randomUUID(),
+    );
+    const v = (await getOwnReport(owner, reportId)).version;
+    expect(v).toBe(version + 1);
+
+    const original = evidenceStorage.putReviewedCopy;
+    const spy = vi
+      .spyOn(evidenceStorage, "putReviewedCopy")
+      .mockImplementationOnce((path) => original.call(evidenceStorage, path))
+      .mockRejectedValueOnce(new Error("simulated storage outage"));
+
+    const key = randomUUID();
+    const body = {
+      expected_version: v,
+      consent: true as const,
+      selected_evidence_ids: [evidenceId, second.id],
+    };
+    await expect(requestPublication(owner, reportId, body, key)).rejects.toThrow(
+      /simulated storage outage/,
+    );
+    expect(spy).toHaveBeenCalledTimes(2);
+    spy.mockRestore();
+
+    // Nothing approvable was written: no revision, no asset rows, and the one
+    // copy that did land was removed again (the reviewed bucket is empty for
+    // this report).
+    const { data: revs } = await client
+      .from("publication_revisions")
+      .select("id")
+      .eq("report_id", reportId);
+    expect(revs ?? []).toHaveLength(0);
+    const { data: reviewed } = await client.storage.from("demo-reviewed").list(reportId);
+    expect(reviewed ?? []).toHaveLength(0);
+    expect((await getOwnReport(owner, reportId)).community_visibility).toBe("private");
+
+    // The failed attempt released its idempotency receipt, so the SAME key
+    // retries for real and freezes both images.
+    const req = await requestPublication(owner, reportId, body, key);
+    expect(req.state).toBe("pending_review");
+    const detail = await getReviewDetail(req.publication_revision_id);
+    expect(detail.asset_ids).toHaveLength(2);
+    const { data: reviewedAfter } = await client.storage.from("demo-reviewed").list(reportId);
+    expect(reviewedAfter ?? []).toHaveLength(2);
+  });
+
+  it("the transaction itself refuses frozen assets that are not this report's evidence", async () => {
+    const owner = await newUser();
+    const stranger = await newUser();
+    const { reportId, version } = await readyReport(owner);
+    const theirs = await readyReport(stranger);
+
+    // Bypass the service layer entirely: hand the function a foreign evidence id
+    // with a plausible path, as a buggy or malicious caller would.
+    const { data, error } = await client.rpc("fp_request_publication", {
+      p_report_id: reportId,
+      p_actor: owner,
+      p_source_update_id: null,
+      p_expected_version: version,
+      p_payload: { report_id: reportId, product_name: "x", brand: "y" },
+      p_assets: [
+        { source_evidence_id: theirs.evidenceId, object_path: `demo-reviewed/${reportId}/forged.png` },
+      ],
+    });
+    expect(data).toBeNull();
+    expect(error?.code).toBe("FP422");
+    expect(error?.message).toMatch(/does not belong to this report/);
+
+    const { data: revs } = await client
+      .from("publication_revisions")
+      .select("id")
+      .eq("report_id", reportId);
+    expect(revs ?? []).toHaveLength(0);
+
+    // And a wrong owner is NOT_FOUND, exactly as the service reports it.
+    const foreign = await client.rpc("fp_request_publication", {
+      p_report_id: reportId,
+      p_actor: stranger,
+      p_source_update_id: null,
+      p_expected_version: version,
+      p_payload: { report_id: reportId },
+      p_assets: [],
+    });
+    expect(foreign.error?.code).toBe("FP404");
+  });
+
+  it("re-approving a corrected response projects only the latest revision and stops serving the superseded image", async () => {
+    const owner = await newUser();
+    const reviewer = await newReviewer();
+    const viewer = await newUser();
+    const { reportId, evidenceId, version } = await readyReport(owner);
+
+    const concern = await requestPublication(
+      owner,
+      reportId,
+      { expected_version: version, consent: true, selected_evidence_ids: [evidenceId] },
+      randomUUID(),
+    );
+    await decideReview(reviewer, concern.publication_revision_id, { expected_version: 0, action: "approve" }, randomUUID());
+
+    const submission = await recordSubmission(
+      owner,
+      reportId,
+      { channel: "brand", recipient: "Sample Pantry care", submitted_at: "2026-09-01" },
+      randomUUID(),
+    );
+    const response = await recordUpdate(
+      owner,
+      reportId,
+      { submission_id: submission.id, kind: "response", sender: "Sample Pantry", occurred_at: "2026-09-02", summary: "First wording of the reply." },
+      randomUUID(),
+    );
+
+    // First response revision, with the label image attached, approved.
+    let v = (await getOwnReport(owner, reportId)).version;
+    const first = await requestPublication(
+      owner,
+      reportId,
+      { expected_version: v, consent: true, selected_evidence_ids: [evidenceId], source_update_id: response.id },
+      randomUUID(),
+    );
+    const firstAssets = (await getReviewDetail(first.publication_revision_id)).asset_ids;
+    expect(firstAssets).toHaveLength(1);
+    await decideReview(reviewer, first.publication_revision_id, { expected_version: 0, action: "approve" }, randomUUID());
+
+    // The reporter re-requests the SAME response (e.g. after a correction) with
+    // a different image; the reviewer approves again.
+    const replacement = await addEvidence(
+      owner,
+      reportId,
+      { kind: "response", roles: [] },
+      { bytes: samplePng() },
+      randomUUID(),
+    );
+    v = (await getOwnReport(owner, reportId)).version;
+    const second = await requestPublication(
+      owner,
+      reportId,
+      { expected_version: v, consent: true, selected_evidence_ids: [replacement.id], source_update_id: response.id },
+      randomUUID(),
+    );
+    const secondAssets = (await getReviewDetail(second.publication_revision_id)).asset_ids;
+    expect(secondAssets).toHaveLength(1);
+    await decideReview(reviewer, second.publication_revision_id, { expected_version: 0, action: "approve" }, randomUUID());
+
+    // Both rows are `approved` in the database…
+    const { data: approved } = await client
+      .from("publication_revisions")
+      .select("id")
+      .eq("source_update_id", response.id)
+      .eq("state", "approved");
+    expect(approved ?? []).toHaveLength(2);
+
+    // …but the public projection carries the response exactly once, as the
+    // latest revision, and only that revision's image still serves.
+    const pub = await getPublicReport(reportId);
+    const forThisUpdate = pub.responses.filter((r) => r.summary === "First wording of the reply.");
+    expect(forThisUpdate).toHaveLength(1);
+    expect(forThisUpdate[0]?.publication_revision_id).toBe(second.publication_revision_id);
+
+    const served = await readPublicationAssetForMedia({ accessId: viewer, role: "user" }, secondAssets[0]!);
+    expect(served.mimeType).toBe("image/png");
+    const gone = await expectApiError(
+      readPublicationAssetForMedia({ accessId: viewer, role: "user" }, firstAssets[0]!),
+    );
+    expect(gone.code).toBe("NOT_FOUND");
   });
 });

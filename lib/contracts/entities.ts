@@ -22,6 +22,14 @@ export const Me = z.object({
   label: z.string(),
   role: DemoRole,
   analytics_consent: z.boolean(),
+  /**
+   * Whether the AI path is configured on this deployment. A capability flag
+   * only — never a credential and never a promise that a call will succeed.
+   * The reporter screens show NO assisted control while it is false
+   * (FOODPROOF_SCREENS.md §5: "No AI control appears enabled unless its
+   * backend is configured").
+   */
+  ai_available: z.boolean(),
 });
 export type Me = z.infer<typeof Me>;
 

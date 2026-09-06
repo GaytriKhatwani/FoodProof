@@ -9,6 +9,7 @@ import { getServiceClient } from "./supabase";
 import { loadOwnedReport } from "./data";
 import { recordEvent } from "./audit";
 import { withReceipt } from "./idempotency";
+import { aiSpend } from "./ai/spend";
 
 /**
  * Complaint drafts (FOODPROOF_TECHNICAL_SPEC.md §8, FOODPROOF_API_DETAILS.md).
@@ -30,7 +31,12 @@ interface TemplateReport {
   facts_confirmed_at: string | null;
 }
 
-const SAMPLE_NOTICE =
+/**
+ * Exported so the assisted path (lib/server/ai/) instructs the provider to keep
+ * the identical notice and then re-asserts it on the returned body: template and
+ * assisted drafts must be labelled sample content in exactly the same words.
+ */
+export const SAMPLE_NOTICE =
   "SAMPLE / DEMONSTRATION CONTENT — this is a fictional practice complaint. Do not send it to any real brand or authority.";
 
 export function buildTemplate(
@@ -118,6 +124,24 @@ export async function saveComplaintDraft(
     async () => {
       const supabase = getServiceClient();
       await loadOwnedReport(accessId, reportId, supabase);
+
+      // `assisted` must be earned: only a real, settled assisted draft for THIS
+      // channel can have produced this text. `template` and `manual` saves are
+      // unaffected and keep working with AI switched off.
+      if (body.method === "assisted") {
+        const assisted = await aiSpend.hasSettledCall(
+          accessId,
+          reportId,
+          "draft",
+          channel,
+        );
+        if (!assisted) {
+          throw new ApiError(
+            "VALIDATION_FAILED",
+            "No assisted draft exists for this channel.",
+          );
+        }
+      }
 
       const { data: existing, error: exErr } = await supabase
         .from("complaint_drafts")

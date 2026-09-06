@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
+  Channel,
   ReportDetail,
   ReportUpdate,
   Submission,
@@ -91,6 +92,26 @@ function mapUpdate(u: Record<string, unknown>): ReportUpdate {
     has_attachment: Boolean(u.evidence_id),
     created_at: u.created_at as string,
   };
+}
+
+/**
+ * The channel of a submission that belongs to this report, or null when there is
+ * none. An update carries no channel of its own, so the server-owned
+ * `followup_recorded` / `response_added` events read it from here rather than
+ * running a query inside a route handler.
+ */
+export async function submissionChannel(
+  reportId: string,
+  submissionId: string,
+): Promise<Channel | null> {
+  const { data, error } = await getServiceClient()
+    .from("submissions")
+    .select("channel, report_id")
+    .eq("id", submissionId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data || data.report_id !== reportId) return null;
+  return data.channel as Channel;
 }
 
 export async function recordSubmission(

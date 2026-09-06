@@ -45,6 +45,7 @@ const ORDERED_TABLES = [
   ["complaint_drafts", "id"],
   ["evidence", "id"],
   ["operation_receipts", "id"],
+  ["ai_spend_ledger", "id"],
   ["reports", "id"],
   ["demo_sessions", "id"],
   ["demo_access_attempts", "id"],

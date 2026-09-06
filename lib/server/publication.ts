@@ -9,7 +9,7 @@ import type {
   ReviewDecisionRequest,
   ReviewRequestState,
 } from "@/lib/contracts";
-import { ApiError, mapRpcError } from "./errors";
+import { ApiError, MIGRATION_0004, mapRpcError } from "./errors";
 import { getServiceClient } from "./supabase";
 import { loadOwnedReport } from "./data";
 import { evidenceStorage } from "./storage";
@@ -24,13 +24,21 @@ import { withReceipt } from "./idempotency";
  *
  * Every operation that would otherwise leave a contradictory public projection
  * halfway through runs as ONE database transaction, in the `fp_*` functions of
- * `supabase/migrations/0003_transactional_operations.sql`: approval (revision
- * state + publication pointer + audit, refusing a stale approval that would
- * resurrect hidden content), withdrawal, reviewer removal, flag resolution with
- * removal, and relinking. Ownership and the reviewer role are still checked here
- * before the call, and again inside the function. If 0003 is not applied the
- * call fails loudly naming the migration — there is no silent fallback to the
- * old step-by-step path.
+ * `supabase/migrations/0003_transactional_operations.sql` and
+ * `0004_publication_atomicity_and_ai_spend.sql`: the publication request itself
+ * (revision + frozen asset rows + audit, re-guarded under the report lock),
+ * approval (revision state + publication pointer + audit, refusing a stale
+ * approval that would resurrect hidden content), withdrawal, reviewer removal,
+ * flag resolution with removal, and relinking. Ownership and the reviewer role
+ * are still checked here before the call, and again inside the function. If a
+ * migration is not applied the call fails loudly naming it — there is no silent
+ * fallback to the old step-by-step path.
+ *
+ * Storage writes cannot join a database transaction. A request therefore
+ * uploads the sanitized copies FIRST and only then calls the transaction: a
+ * Storage failure leaves no revision at all, and a database failure leaves only
+ * orphaned reviewed objects (deleted best-effort below) — never a pending,
+ * approvable revision with fewer assets than the reporter selected.
  */
 
 interface ConcernPayload {
@@ -115,23 +123,11 @@ export async function computeExternalStatus(
   return { brand, government, as_recorded_at: asRecorded };
 }
 
-async function nextRevision(supabase: SupabaseClient, reportId: string): Promise<number> {
-  const { data, error } = await supabase
-    .from("publication_revisions")
-    .select("revision")
-    .eq("report_id", reportId)
-    .order("revision", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  return (data?.revision ?? 0) + 1;
-}
-
 /**
  * Validate the selected evidence and return its private object paths. This runs
- * BEFORE any revision row is written, so a rejected selection leaves nothing
- * behind: previously the revision was inserted first, and a validation failure
- * left an orphan pending request that blocked the owner's next attempt.
+ * BEFORE any Storage upload or database write, so a rejected selection leaves
+ * nothing behind. The transaction re-checks the same facts under the report
+ * lock; this pass exists to fail early and cheaply with a precise message.
  */
 async function validateSelectedEvidence(
   supabase: SupabaseClient,
@@ -164,20 +160,97 @@ async function validateSelectedEvidence(
   return selected;
 }
 
-/** Build sanitized reviewed asset copies for already-validated evidence. */
-async function freezeAssets(
-  supabase: SupabaseClient,
-  revisionId: string,
-  selected: { evidenceId: string; objectPath: string }[],
+/** Row shape returned by `fp_request_publication` (migration 0004). */
+interface RequestRow {
+  publication_revision_id: string;
+  content_kind: "concern" | "response";
+  state: ReviewRequestState["state"];
+  reason: string | null;
+  revision: number;
+  created_at: string;
+}
+
+interface FrozenAsset {
+  source_evidence_id: string;
+  object_path: string;
+}
+
+/**
+ * Delete reviewed copies that no committed revision references. Called when the
+ * transaction failed after some copies were uploaded. If the transaction DID
+ * commit but its response was lost, the rows exist and the objects are kept —
+ * a lost reply must never strip images from a real pending request.
+ */
+export async function removeOrphanedCopies(
+  supabase: Pick<SupabaseClient, "from">,
+  frozen: FrozenAsset[],
+  storage: Pick<typeof evidenceStorage, "removeObject"> = evidenceStorage,
 ): Promise<void> {
-  for (const item of selected) {
-    const reviewed = await evidenceStorage.putReviewedCopy(item.objectPath);
-    const { error: insErr } = await supabase.from("publication_assets").insert({
-      revision_id: revisionId,
-      source_evidence_id: item.evidenceId,
-      object_path: reviewed.objectPath,
+  if (frozen.length === 0) return;
+  const paths = frozen.map((f) => f.object_path);
+  // supabase-js reports a failed lookup as `{ data: null, error }` — it does
+  // NOT throw — so the error must be checked explicitly. If we cannot tell
+  // whether a committed revision references these objects, keep them: an orphan
+  // is harmless, a missing asset on a committed revision is not.
+  const { data, error } = await supabase
+    .from("publication_assets")
+    .select("object_path")
+    .in("object_path", paths);
+  if (error) return;
+  const referenced = new Set((data ?? []).map((a) => a.object_path as string));
+  await Promise.all(
+    paths
+      .filter((p) => !referenced.has(p))
+      .map((p) => storage.removeObject(p).catch(() => undefined)),
+  );
+}
+
+/**
+ * Upload sanitized copies, then commit the request in one transaction. Any
+ * failure before the transaction returns leaves no pending revision.
+ */
+async function freezeAndRequest(
+  supabase: SupabaseClient,
+  args: {
+    accessId: string;
+    reportId: string;
+    sourceUpdateId: string | null;
+    expectedVersion: number;
+    payload: ConcernPayload | ResponsePayload;
+    selected: { evidenceId: string; objectPath: string }[];
+  },
+): Promise<ReviewRequestState> {
+  const frozen: FrozenAsset[] = [];
+  try {
+    // 1. Storage first. Nothing in the database points at these yet.
+    for (const item of args.selected) {
+      const reviewed = await evidenceStorage.putReviewedCopy(item.objectPath);
+      frozen.push({ source_evidence_id: item.evidenceId, object_path: reviewed.objectPath });
+    }
+
+    // 2. One transaction: every guard under the report lock, the revision, its
+    //    asset rows and the audit event — all or nothing.
+    const { data, error } = await supabase.rpc("fp_request_publication", {
+      p_report_id: args.reportId,
+      p_actor: args.accessId,
+      p_source_update_id: args.sourceUpdateId,
+      p_expected_version: args.expectedVersion,
+      p_payload: args.payload,
+      p_assets: frozen,
     });
-    if (insErr) throw insErr;
+    if (error) throw mapRpcError("fp_request_publication", error, MIGRATION_0004);
+    const row = data as RequestRow;
+    return {
+      publication_revision_id: row.publication_revision_id,
+      content_kind: row.content_kind,
+      state: row.state,
+      reason: row.reason ?? null,
+      revision: row.revision,
+      created_at: row.created_at,
+    };
+  } catch (e) {
+    await removeOrphanedCopies(supabase, frozen);
+    throw e;
   }
 }
 
@@ -206,7 +279,7 @@ async function requestConcernRevision(
 ): Promise<ReviewRequestState> {
   const supabase = getServiceClient();
   const report = await loadOwnedReport(accessId, reportId, supabase);
-  if (body.expected_version !== report.version) throw STALE();
+  if (body.expected_version === null || body.expected_version !== report.version) throw STALE();
   if (report.preparation !== "ready") {
     throw new ApiError(
       "VALIDATION_FAILED",
@@ -234,7 +307,7 @@ async function requestConcernRevision(
     throw new ApiError("VALIDATION_FAILED", "Select at least one image.");
   }
 
-  // Validate the selection before anything is persisted.
+  // Validate the selection before anything is uploaded or persisted.
   const selected = await validateSelectedEvidence(
     supabase,
     reportId,
@@ -255,45 +328,14 @@ async function requestConcernRevision(
     external_status: await computeExternalStatus(supabase, reportId),
   };
 
-  const revision = await nextRevision(supabase, reportId);
-  const { data: rev, error } = await supabase
-    .from("publication_revisions")
-    .insert({
-      report_id: reportId,
-      source_update_id: null,
-      revision,
-      payload,
-      consented_at: new Date().toISOString(),
-      requested_by: accessId,
-      state: "pending_review",
-      version: 0,
-    })
-    .select("id, state, revision, created_at")
-    .single();
-  if (error) {
-    if ((error as { code?: string }).code === "23505") {
-      throw new ApiError("CONFLICT", "A review request is already pending for this concern.");
-    }
-    throw error;
-  }
-
-  await freezeAssets(supabase, rev.id, selected);
-  await recordEvent({
+  return freezeAndRequest(supabase, {
+    accessId,
     reportId,
-    actorAccessId: accessId,
-    type: "publication_requested",
-    relatedEntityId: rev.id,
-    metadata: { content_kind: "concern" },
+    sourceUpdateId: null,
+    expectedVersion: body.expected_version,
+    payload,
+    selected,
   });
-
-  return {
-    publication_revision_id: rev.id,
-    content_kind: "concern",
-    state: rev.state,
-    reason: null,
-    revision: rev.revision,
-    created_at: rev.created_at,
-  };
 }
 
 async function requestResponseRevision(
@@ -303,7 +345,7 @@ async function requestResponseRevision(
 ): Promise<ReviewRequestState> {
   const supabase = getServiceClient();
   const report = await loadOwnedReport(accessId, reportId, supabase);
-  if (body.expected_version !== report.version) throw STALE();
+  if (body.expected_version === null || body.expected_version !== report.version) throw STALE();
 
   // Parent concern must be published and visible.
   const { data: pub, error: pubErr } = await supabase
@@ -353,7 +395,7 @@ async function requestResponseRevision(
   }
 
   // Response images are optional and not required to cover label roles, but the
-  // selection is still validated before anything is persisted.
+  // selection is still validated before anything is uploaded or persisted.
   const selected = await validateSelectedEvidence(
     supabase,
     reportId,
@@ -369,52 +411,32 @@ async function requestResponseRevision(
     provenance: "user_recorded",
   };
 
-  const revision = await nextRevision(supabase, reportId);
-  const { data: rev, error } = await supabase
-    .from("publication_revisions")
-    .insert({
-      report_id: reportId,
-      source_update_id: sourceUpdateId,
-      revision,
-      payload,
-      consented_at: new Date().toISOString(),
-      requested_by: accessId,
-      state: "pending_review",
-      version: 0,
-    })
-    .select("id, state, revision, created_at")
-    .single();
-  if (error) {
-    if ((error as { code?: string }).code === "23505") {
-      throw new ApiError("CONFLICT", "A review request is already pending for this response.");
-    }
-    throw error;
-  }
-
-  await freezeAssets(supabase, rev.id, selected);
-  await recordEvent({
+  return freezeAndRequest(supabase, {
+    accessId,
     reportId,
-    actorAccessId: accessId,
-    type: "publication_requested",
-    relatedEntityId: rev.id,
-    metadata: { content_kind: "response" },
+    sourceUpdateId,
+    expectedVersion: body.expected_version,
+    payload,
+    selected,
   });
+}
 
-  return {
-    publication_revision_id: rev.id,
-    content_kind: "response",
-    state: rev.state,
-    reason: null,
-    revision: rev.revision,
-    created_at: rev.created_at,
-  };
+/** Result of a withdrawal; additive fields feed the server-owned analytics event. */
+export interface WithdrawResult {
+  report_id: string;
+  withdrawn: true;
+  /** True when a visible publication was hidden by this call. */
+  hidden: boolean;
+  /** The approved concern revision that was hidden, or null when nothing was visible. */
+  publication_revision_id: string | null;
+  withdrawn_at: string;
 }
 
 export function withdrawPublication(
   accessId: string,
   reportId: string,
   idempotencyKey: string,
-): Promise<{ report_id: string; withdrawn: true }> {
+): Promise<WithdrawResult> {
   return withReceipt(accessId, "publication.withdraw", idempotencyKey, { reportId }, async () => {
     const supabase = getServiceClient();
     await loadOwnedReport(accessId, reportId, supabase);
@@ -422,21 +444,40 @@ export function withdrawPublication(
     // One transaction hides the publication, withdraws the approved concern and
     // its dependent approved responses, cancels anything still in review, and
     // records the audit event — so no pending revision survives to be approved.
-    const { error } = await supabase.rpc("fp_withdraw_publication", {
+    const { data, error } = await supabase.rpc("fp_withdraw_publication", {
       p_report_id: reportId,
       p_actor: accessId,
     });
     if (error) throw mapRpcError("fp_withdraw_publication", error);
-    return { report_id: reportId, withdrawn: true };
+    const row = (data ?? {}) as Partial<WithdrawResult>;
+    if (typeof row.hidden !== "boolean" || typeof row.withdrawn_at !== "string") {
+      throw new ApiError(
+        "DEPENDENCY_UNAVAILABLE",
+        `fp_withdraw_publication() returned an older shape. Apply ${MIGRATION_0004} to this Supabase project.`,
+      );
+    }
+    return {
+      report_id: reportId,
+      withdrawn: true,
+      hidden: row.hidden,
+      publication_revision_id: row.publication_revision_id ?? null,
+      withdrawn_at: row.withdrawn_at,
+    };
   });
 }
+
+/** Decision result: the request state plus what the analytics event needs. */
+export type DecisionResult = ReviewRequestState & {
+  report_id: string;
+  reviewed_at: string;
+};
 
 export function decideReview(
   reviewerAccessId: string,
   revisionId: string,
   body: ReviewDecisionRequest,
   idempotencyKey: string,
-): Promise<ReviewRequestState> {
+): Promise<DecisionResult> {
   return withReceipt(
     reviewerAccessId,
     "review.decision",
@@ -464,27 +505,46 @@ export function decideReview(
       });
       if (error) throw mapRpcError("fp_decide_review", error);
       const row = data as DecisionRow;
+      if (typeof row.report_id !== "string" || typeof row.reviewed_at !== "string") {
+        throw new ApiError(
+          "DEPENDENCY_UNAVAILABLE",
+          `fp_decide_review() returned an older shape. Apply ${MIGRATION_0004} to this Supabase project.`,
+        );
+      }
 
       return {
         publication_revision_id: row.publication_revision_id,
+        report_id: row.report_id,
         content_kind: row.source_update_id ? "response" : "concern",
         state: row.state,
         reason: row.reason ?? null,
         revision: row.revision,
         created_at: row.created_at,
+        reviewed_at: row.reviewed_at,
       };
     },
   );
 }
 
-/** Row shape returned by `fp_decide_review` (migration 0003). */
+/** Row shape returned by `fp_decide_review` (migrations 0003 + 0004). */
 interface DecisionRow {
   publication_revision_id: string;
+  report_id: string;
   source_update_id: string | null;
   state: ReviewRequestState["state"];
   reason: string | null;
   revision: number;
   created_at: string;
+  reviewed_at: string;
+}
+
+/** Result of a reviewer removal; additive fields feed the analytics event. */
+export interface RemoveResult {
+  report_id: string;
+  removed: true;
+  /** The approved revision that was hidden, or null when nothing was visible. */
+  publication_revision_id: string | null;
+  removed_at: string | null;
 }
 
 export function removeContent(
@@ -492,19 +552,31 @@ export function removeContent(
   reportId: string,
   reason: string,
   idempotencyKey: string,
-): Promise<{ report_id: string; removed: true }> {
+): Promise<RemoveResult> {
   return withReceipt(reviewerAccessId, "review.remove", idempotencyKey, { reportId, reason }, async () => {
     const supabase = getServiceClient();
     await assertReviewer(supabase, reviewerAccessId);
     // Hiding the publication, cancelling every still-approvable revision and
     // writing the moderation audit event happen in one transaction.
-    const { error } = await supabase.rpc("fp_remove_content", {
+    const { data, error } = await supabase.rpc("fp_remove_content", {
       p_report_id: reportId,
       p_reviewer: reviewerAccessId,
       p_reason: reason,
     });
     if (error) throw mapRpcError("fp_remove_content", error);
-    return { report_id: reportId, removed: true };
+    const row = (data ?? {}) as Partial<RemoveResult>;
+    if (typeof row.removed_at !== "string") {
+      throw new ApiError(
+        "DEPENDENCY_UNAVAILABLE",
+        `fp_remove_content() returned an older shape. Apply ${MIGRATION_0004} to this Supabase project.`,
+      );
+    }
+    return {
+      report_id: reportId,
+      removed: true,
+      publication_revision_id: row.publication_revision_id ?? null,
+      removed_at: row.removed_at ?? null,
+    };
   });
 }
 
@@ -569,24 +641,49 @@ export function raiseFlag(
   });
 }
 
+/** Result of a flag resolution; additive fields feed the analytics event. */
+export interface FlagResolveResult {
+  flag_id: string;
+  state: "handled";
+  report_id: string;
+  /** True when the resolution also removed the published content. */
+  removed: boolean;
+  publication_revision_id: string | null;
+  removed_at: string | null;
+}
+
 export function resolveFlag(
   reviewerAccessId: string,
   flagId: string,
   opts: { note?: string; remove?: boolean },
   idempotencyKey: string,
-): Promise<{ flag_id: string; state: "handled" }> {
+): Promise<FlagResolveResult> {
   return withReceipt(reviewerAccessId, "flag.resolve", idempotencyKey, { flagId, opts }, async () => {
     const supabase = getServiceClient();
     await assertReviewer(supabase, reviewerAccessId);
     // Resolving the flag and (optionally) removing the content are one unit, so
     // a handled flag can never point at content that is still published.
-    const { error } = await supabase.rpc("fp_resolve_flag", {
+    const { data, error } = await supabase.rpc("fp_resolve_flag", {
       p_flag_id: flagId,
       p_reviewer: reviewerAccessId,
       p_note: opts.note ?? null,
       p_remove: Boolean(opts.remove),
     });
     if (error) throw mapRpcError("fp_resolve_flag", error);
-    return { flag_id: flagId, state: "handled" };
+    const row = (data ?? {}) as Partial<FlagResolveResult>;
+    if (typeof row.report_id !== "string") {
+      throw new ApiError(
+        "DEPENDENCY_UNAVAILABLE",
+        `fp_resolve_flag() returned an older shape. Apply ${MIGRATION_0004} to this Supabase project.`,
+      );
+    }
+    return {
+      flag_id: flagId,
+      state: "handled",
+      report_id: row.report_id,
+      removed: Boolean(row.removed),
+      publication_revision_id: row.publication_revision_id ?? null,
+      removed_at: row.removed_at ?? null,
+    };
   });
 }

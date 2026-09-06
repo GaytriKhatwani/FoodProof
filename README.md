@@ -2,7 +2,7 @@
 
 An evidence and complaint-preparation app for India's celiac community.
 
-**Status: T0 foundation, T1 data/persistence (with closure: transactional functions, real direct-client denial test), the shared client and browser-test harness, T2 reporter journey and T3 community/moderation UI are merged to `main` and verified live against the dedicated demo Supabase project (typecheck, lint, build, 51 integration tests, 114 browser specs at desktop and 360 px).** T4 (AI + live Mixpanel ingestion) and T5 (deployed acceptance) have not started. A guarded deployment exists at https://food-proof.vercel.app (auto-deploys `main`; AI not configured). See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for the exact state, rulings, known gaps and the continuation prompt.
+**Status: T0–T4 are merged to `main` and verified live against the dedicated demo Supabase project, the real AI provider and the demo Mixpanel project (typecheck, lint, build, 212 unit + integration tests, 126 browser specs at desktop and 360 px — see [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)).** T4 added live AI assistance (Anthropic Claude API, model `claude-sonnet-5`, low effort, hard spend cap USD 2.00 enforced by a durable ledger), live consent-controlled Mixpanel ingestion with server-owned success events, and two integrity fixes (atomic publication requests; one effective approved revision per response). T5 (deployed acceptance) has not started. A guarded deployment exists at https://food-proof.vercel.app (auto-deploys `main`; the AI variables are not yet set there, so it runs with the manual path only). See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for the exact state, rulings, known gaps and the continuation prompt.
 
 Start with [the handoff](docs/FOODPROOF_BUILD_HANDOFF.md), then [the PRD](docs/FOODPROOF_PRD.md). Review [the audit and open items](docs/FOODPROOF_REVIEW_REPORT.md) before assigning [build tickets](docs/FOODPROOF_BUILD_TICKETS.md). Current build progress and the exact next step are in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
 
@@ -39,15 +39,18 @@ Against a **dedicated demo** Supabase project (never production):
 1. Apply the schema: paste `supabase/migrations/0001_init.sql` into the Supabase
    SQL Editor and run it. On a project where `0001` was applied before the
    `service_role` grants were folded in, also run `0002_service_role_grants.sql`.
-2. **Apply migration 0003 (required).** Paste
+2. **Apply migrations 0003 and 0004 (required), in order.** Paste
    `supabase/migrations/0003_transactional_operations.sql` into the SQL Editor and
-   run it. It adds the transactional functions the server calls for publication
-   approval, withdrawal, reviewer removal, flag resolution, relinking and
-   close/reopen, and it revokes RPC `EXECUTE` from `public`/`anon`/`authenticated`.
-   It is idempotent, so re-running is safe. Until it is applied those operations
-   fail loudly naming this file, and the integration suites that use them report
-   BLOCKED instead of passing. Verify with `select fp_schema_version();` — it
-   returns `3`.
+   run it, then `supabase/migrations/0004_publication_atomicity_and_ai_spend.sql`.
+   0003 adds the transactional functions for publication approval, withdrawal,
+   reviewer removal, flag resolution, relinking and close/reopen, and revokes RPC
+   `EXECUTE` from `public`/`anon`/`authenticated`. 0004 makes the publication
+   request itself one transaction, adds the AI spend ledger (`ai_spend_ledger` and
+   the `fp_*_ai_spend` functions; costs and token counts only, never content) and
+   returns the ids server-owned analytics events need. Both are idempotent, so
+   re-running is safe. Until they are applied those operations fail loudly naming
+   the file, and the integration suites that use them report BLOCKED instead of
+   passing. Verify with `select fp_schema_version();` — it returns `4`.
 3. Create the private storage buckets: `node --env-file=.env.local scripts/setup-storage.mjs`.
 4. Generate invitation codes (shown once; distribute privately, never commit):
    `node --env-file=.env.local scripts/create-invitations.mjs --users 2`.
@@ -68,6 +71,34 @@ adds the data API under `app/api/**` (session/limiter, reports, evidence + guard
 media, drafts, external history, publication/moderation, feed, flags, analytics
 proxy). T2/T3 build the UI against these frozen contracts; T4 wires live AI and
 Mixpanel ingestion.
+
+### AI assistance and analytics (T4)
+
+- **AI provider:** Anthropic Claude API, model `claude-sonnet-5` (override with
+  `AI_MODEL`), `effort: low`, structured JSON outputs, SDK `@anthropic-ai/sdk` 0.124.0.
+  Set `AI_PROVIDER=anthropic` and `AI_PROVIDER_API_KEY` (server-only) to enable
+  `POST /api/reports/:id/ai/extract` and `/ai/draft`; leave them blank and the app runs
+  with the manual / deterministic-template path only, which is always available.
+- **Limits enforced server-side** (`lib/server/ai/limits.ts`): ≤ 3 label photos per
+  call, ≤ 3 MB each (jpeg/png/webp), 30 s timeout, 1024 / 1500 output tokens,
+  USD 0.06 per call, USD 0.50 per invitation, USD 2.00 for the whole pilot, 6 calls
+  per minute per invitation. Spend is reserved in `ai_spend_ledger` before every
+  provider call and settled on real usage (`select fp_ai_spend_totals();` shows the
+  running total). AI output is advisory: extraction returns suggestions the reporter
+  applies and confirms; drafting returns an editable suggestion saved separately. Any
+  failure shows “AI assistance unavailable—continue manually.”
+- **Provider data handling** (official documentation, 6 September 2026): API prompts
+  and outputs are not retained by default and are not used for model training under
+  the provider's Commercial Terms; images are not stored beyond the request. Evidence
+  photographs are sent only after ownership and type checks, never stored by the
+  provider integration, and never logged.
+- **Analytics:** the server posts only allowlisted events to the dedicated demo
+  Mixpanel project (`MIXPANEL_TOKEN`, regional `MIXPANEL_API_HOST`) after explicit
+  consent; withdrawal clears the identifiers. Mutation-success events are emitted by
+  the server after commit with stable `$insert_id`s. Set `ANALYTICS_AUDIENCE=qa`
+  locally so QA traffic is separable from invited testers. Verify a journey with
+  `node --env-file=.env.local scripts/analytics-journey.mjs` (dev server running) and
+  compare in Mixpanel Live View.
 
 ## Release sequence
 

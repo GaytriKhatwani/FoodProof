@@ -4,6 +4,8 @@ import { jsonOk, parseJson, route } from "@/lib/server/http";
 import { assertSameOrigin, requireReviewer } from "@/lib/server/context";
 import { requireIdempotencyKey } from "@/lib/server/idempotency";
 import { resolveFlag } from "@/lib/server/publication";
+import { emitServerEvents } from "@/lib/server/analytics";
+import { flagResolutionEvent } from "@/lib/server/analytics-events";
 
 /**
  * `POST /api/review/flags/:id/resolve` — reviewer only; records the decision and
@@ -24,6 +26,7 @@ export function POST(req: NextRequest, { params }: { params: { id: string } }) {
     const key = requireIdempotencyKey(req);
     const body = await parseJson(req, FlagResolveRequest);
     const result = await resolveFlag(ctx.actor.accessId, params.id, body, key);
+    await emitServerEvents(ctx, key, [flagResolutionEvent(result)]);
     return jsonOk(result, requestId);
   });
 }

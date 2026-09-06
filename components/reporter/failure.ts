@@ -3,6 +3,7 @@
 import { useCallback, useRef } from "react";
 import { ClientApiError, idempotencyKey } from "@/lib/client/api";
 import { clientAnalytics } from "@/lib/analytics";
+import { flowErrorCode, type FlowErrorCode } from "@/lib/analytics/flow-error";
 
 /**
  * Failure handling shared by every reporter screen (docs/FOODPROOF_SCREENS.md
@@ -52,6 +53,15 @@ export interface Failure {
   message: string;
   fields?: Record<string, string>;
   retryAfterSeconds: number | null;
+  /**
+   * The allowlisted `flow_error_shown.error_code` for this failure, computed
+   * from the ORIGINAL error by the one shared mapping in
+   * `lib/analytics/flow-error.ts`. It is carried on the failure because `kind`
+   * cannot express it: `kind` collapses a dead connection and a 503 into one
+   * `unavailable` state (the screens show the same recovery UI for both), while
+   * the funnel must tell `network` from `unavailable`.
+   */
+  error_code: FlowErrorCode;
 }
 
 export function toFailure(
@@ -63,6 +73,7 @@ export function toFailure(
       message: error.message,
       fields: error.fields,
       retryAfterSeconds: error.retryAfterSeconds,
+      error_code: flowErrorCode(error),
     };
     switch (error.code) {
       case "DEPENDENCY_UNAVAILABLE":
@@ -85,6 +96,7 @@ export function toFailure(
     kind: "unknown",
     message: "Something went wrong. Nothing was saved. Please try again.",
     retryAfterSeconds: null,
+    error_code: flowErrorCode(error),
   };
 }
 
@@ -97,31 +109,19 @@ export type FlowOperation =
   | "handoff"
   | "publish";
 
-function errorCodeFor(failure: Failure): "network" | "validation" | "unavailable" | "unknown" {
-  switch (failure.kind) {
-    case "unavailable":
-      return "unavailable";
-    case "validation":
-    case "stale":
-    case "locked":
-    case "already_pending":
-      return "validation";
-    // The allowlist has no auth value, and an expired demo session is not a
-    // network problem — it must not pollute that bucket.
-    default:
-      return "unknown";
-  }
-}
-
 /**
  * Emit the client-owned `flow_error_shown` event when a blocking failure is
  * actually displayed. Properties are the two allowlisted enums only — never a
  * message, product name, or any free text (FOODPROOF_MEASUREMENT_AND_PILOT.md §4).
+ *
+ * `error_code` was decided by `toFailure` from the original error through the
+ * shared mapping, so a reporter screen and a community screen report the same
+ * bucket for the same failure.
  */
 export function trackFlowError(operation: FlowOperation, failure: Failure): void {
   clientAnalytics.track("flow_error_shown", {
     operation,
-    error_code: errorCodeFor(failure),
+    error_code: failure.error_code,
   });
 }
 

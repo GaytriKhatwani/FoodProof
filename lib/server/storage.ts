@@ -29,6 +29,8 @@ export interface EvidenceStorage {
   putReviewedCopy(sourceObjectPath: string): Promise<StoredObject>;
   readBytes(objectPath: string): Promise<Uint8Array>;
   removeOriginal(objectPath: string): Promise<void>;
+  /** Remove any bucket-prefixed object (used to roll back orphaned reviewed copies). */
+  removeObject(objectPath: string): Promise<void>;
 }
 
 function extFor(mime: string): string {
@@ -100,6 +102,10 @@ export const evidenceStorage: EvidenceStorage = {
   },
 
   async removeOriginal(objectPath) {
+    return this.removeObject(objectPath);
+  },
+
+  async removeObject(objectPath) {
     const supabase = getServiceClient();
     const { bucket, key } = parsePath(objectPath);
     const { error } = await supabase.storage.from(bucket).remove([key]);

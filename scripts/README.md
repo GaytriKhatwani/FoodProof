@@ -37,3 +37,14 @@ Implemented (T1):
 
 Withdrawal hides community content and preserves private history; it is not
 deletion. Deleting demo data is a deliberate operator action via `teardown.mjs`.
+
+Added at T4:
+
+- **`analytics-journey.mjs`** — with the app running, creates a temporary invitation,
+  enters the pilot through the public API, allows analytics consent and drives one
+  consented reporter journey (create → upload the fictional label → confirm facts →
+  save a template draft → record a submission → request publication), then a
+  declined-consent journey and a withdrawn-mid-way journey, printing ONLY the expected
+  event names, their `$insert_id`s and the session's `analytics_actor_id` for
+  comparison in Mixpanel Live View. Deletes everything it created. Prints no codes,
+  tokens or content.
