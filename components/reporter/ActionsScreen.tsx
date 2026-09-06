@@ -8,6 +8,7 @@ import { clientAnalytics } from "@/lib/analytics";
 import { useSession } from "@/lib/client/session";
 import { formatWait } from "@/components/shell/errors";
 import { SubmissionDialog } from "./dialogs";
+import { useAiDisclosure } from "./AiDisclosure";
 import { toFailure, trackFlowError, useIdempotencyKeys, type Failure } from "./failure";
 import { useReportDetail } from "./useReportDetail";
 import {
@@ -51,6 +52,7 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
   const { detail, status, refreshing, failure, reload } = useReportDetail(reportId);
   const { keyFor, settled } = useIdempotencyKeys();
   const { aiAvailable } = useSession();
+  const aiDisclosure = useAiDisclosure();
   const [channel, setChannel] = useState<Channel>("brand");
   const [texts, setTexts] = useState<Partial<Record<Channel, DraftText>>>({});
   /**
@@ -247,6 +249,7 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
 
   return (
     <section className={styles.screen} aria-labelledby="actions-title">
+      {aiDisclosure.dialog}
       <div className={styles.head}>
         <div className={styles.headMain}>
           <h1 className={styles.title} id="actions-title">
@@ -435,7 +438,7 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
                 <button
                   type="button"
                   className={styles.btnSecondary}
-                  onClick={() => void draftWithAssistance()}
+                  onClick={() => aiDisclosure.run(draftWithAssistance)}
                   disabled={drafting}
                 >
                   Draft with AI assistance

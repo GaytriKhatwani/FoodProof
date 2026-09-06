@@ -252,6 +252,7 @@ export async function getOwnReport(
   const review_requests: ReviewRequestState[] = (revisionsRes.data ?? []).map((r) => ({
     publication_revision_id: r.id,
     content_kind: r.source_update_id ? "response" : "concern",
+    source_update_id: r.source_update_id ?? null,
     state: r.state,
     reason: r.reason ?? null,
     revision: r.revision,

@@ -1,12 +1,14 @@
 # FoodProof — Implementation status
 
-Last updated: 6 September 2026. Session: https://claude.ai/code/session_01KzUr2TakH2BV8z1VdK2Gkg
+Last updated: 6 September 2026. Session: https://claude.ai/code/session_017V2mhjRn124qBo9kRS5MPb
 
 This is the current-state record for whoever picks up next. Authoritative product
 scope lives in `docs/` (start at `docs/FOODPROOF_BUILD_HANDOFF.md`); this file
 tracks build progress only. **Stop point: T4 (live AI assistance, spend ledger, live
 consent-controlled analytics, server-owned success events) is implemented and verified
-as recorded below; T5 (deployed guarded-pilot check) has not started.**
+as recorded below; a post-T4 pilot-integrity hardening pass (migration 0005) is merged
+(see "Pilot integrity hardening" below); T5 (deployed guarded-pilot check) has not
+started.**
 
 ## Repository state
 
@@ -30,6 +32,104 @@ as recorded below; T5 (deployed guarded-pilot check) has not started.**
   6. **T4 UI slice** (`feat/t4-ui`, `e7feb44`, merged as `1e8fde4`) — assisted reading of
      label photos in the report editor and assisted drafting on the actions screen, with the
      manual/template path unchanged.
+
+## Pilot integrity hardening (recorded 6 September 2026, migration 0005)
+
+A focused adversarial-review pass after T4, merged as one integration branch
+`hardening/pilot-integrity`. It fixes confirmed release risks and closes the one
+qualifying "known gap"; it does not begin T5 and changes no Vercel configuration.
+Migration `0005_pilot_integrity_hardening.sql` was applied to the demo project via
+the SQL Editor (there is no DDL path from the build machine); `fp_schema_version()`
+returns 5.
+
+1. **Publication evidence must cover identity, claim AND ingredients (server + DB).**
+   Root cause: `fp_request_publication` and the `lib/server/publication.ts` pre-check
+   only required ≥1 label image for a concern; the three-role coverage was enforced
+   only in the share UI, so a caller bypassing the UI could freeze a concern missing a
+   role. Fix: `0005` re-creates `fp_request_publication` (it does **not** edit `0004`)
+   to reject a concern unless the union of the selected, ready label evidence's roles
+   covers all three; `validateSelectedEvidence` mirrors it for an early, precise error;
+   the database remains the final authority under the report lock. Response revisions
+   are unchanged (evidence still optional, never forced to cover label roles).
+
+2. **AI spend cap — verified, not changed.** Sonnet 5 pricing ($2/$10 per MTok) is
+   correct (verified against the live pricing page) and untouched. Adversarial review
+   found the hard cap already holds for the supported (English) input: reservations are
+   serialized by `pg_advisory_xact_lock`; output is clamped by `max_tokens` so
+   settlement output ≤ reservation; the per-image estimate (4784 tok) exceeds the real
+   ceiling (≤~3277 after Anthropic's resize) and the text estimate (chars/3) exceeds
+   English token counts, and any call whose estimate would break that is refused by the
+   per-call cap first; settle/release are idempotent (duplicate settle → FP409; a
+   settlement above its reservation is counted at the real cost, closing the cap for the
+   next call). `0005` adds an operator-only `fp_sweep_abandoned_ai_reservations` that
+   releases only reservations far older than any live request (a 3600 s floor), so a
+   crashed call's reservation stays counted (fail-safe) until an operator reclaims it —
+   it is never released automatically.
+
+3. **Anthropic retention docs corrected + user disclosure.** Root cause: the ops doc
+   claimed API inputs/outputs "are not retained by default." Corrected in
+   `docs/FOODPROOF_SETUP_AND_OPERATIONS.md`: commercial API data is not used for
+   training by default, but standard inputs/outputs may be **retained up to 30 days**,
+   and zero-data-retention needs a separate arrangement (not in effect for this pilot).
+   A concise disclosure (`components/reporter/AiDisclosure.tsx`) now appears before the
+   first assisted extraction or draft in a session, states what leaves FoodProof and the
+   30-day retention, requires a deliberate action, and is explicitly separate from
+   Mixpanel analytics consent.
+
+4. **`/api/analytics` protected.** Added a persistent, Supabase-backed per-session rate
+   limiter (`analytics_event_attempts` + `record_analytics_event_attempt`, keyed by the
+   opaque access id — never a raw address, never written to an event) and `occurred_at`
+   freshness validation (real ISO; rejects > 2 min future or > 24 h stale). Same-origin,
+   session, consent, event-name/property allowlist and the "no event without consent" and
+   "no server-owned event via the client" rules are unchanged.
+
+5. **Dependency triage.** `npm audit` reports 10 advisories (1 critical, 6 high, 3
+   moderate). `npm audit fix` (no `--force`) makes **zero** changes — no advisory has a
+   semver-compatible fix. Nine are dev/build-tooling only (vitest UI, vite/esbuild dev
+   server, glob CLI, postcss source-map, eslint-config-next) and are not in the deployed
+   runtime nor invoked in CI; the one production advisory is Next.js itself, already at
+   the latest 14.2.x (14.2.35), whose only fix is a **major** bump to 16 — deferred as a
+   scoped follow-up (not blind-bumped). This app uses no `next/image`, Server Actions,
+   i18n, rewrites or `remotePatterns`, so most Next sub-advisories are not reachable; the
+   Next major upgrade is a required follow-up before public launch and the owner should
+   decide whether to gate the invited pilot on it. It is not called "acceptable".
+
+6. **B item implemented — `ReviewRequestState.source_update_id`.** The owner timeline
+   listed response review requests "by date" because the id was dropped. Now exposed
+   (the owner's own id, not content) and used by `TimelineScreen` to name the response a
+   request came from. Other B items: `report_saved`/X-Flow-Id (the editor always sends
+   the header, so the event does not disappear — no change); feed thumbnails, upload
+   progress (deferred, not integrity); `stableEventId` duplication (left — consolidating
+   would pull `server-only` code into the operator script); single 404 (kept — it
+   prevents state disclosure); removal-event `content_kind` (kept as `concern` — removal
+   is always report/concern-level; no response-specific removal exists).
+
+### Verification (this pass)
+
+- typecheck, lint, `next build`: clean.
+- `vitest run`: 228 passing (223 pre-existing + hardening 5) plus the 7 new analytics
+  timestamp unit tests and 4 new ledger-invariant integration tests, all live against
+  the demo Supabase + real provider; the schema-5 `tests/integration/hardening.test.ts`
+  ran green after `0005` was applied.
+- Playwright (desktop + 360 px): green after updating one assertion for the reworded
+  timeline line; one community-responsive check was a confirmed flake (green on re-run).
+- Fresh `npm audit`: unchanged (see item 5).
+
+### Migration and rollback (0005)
+
+- `0005` is additive and idempotent (`create or replace`, `create table if not exists`,
+  guarded grants). It only replaces `fp_request_publication` and adds
+  `analytics_event_attempts`, `record_analytics_event_attempt` and
+  `fp_sweep_abandoned_ai_reservations`. Rollback: re-create `fp_request_publication` from
+  `0004` and drop the two new functions and the table; no data migration is involved.
+- Until `0005` is applied, `/api/analytics` answers 503 (the limiter RPC is missing) —
+  non-blocking, the same "fail loud if a migration is missing" pattern as `0004`.
+
+### Owner actions still required
+
+- Next.js major upgrade (14 → 16) as a separate, compatibility-reviewed follow-up before
+  public launch; decide whether it gates the invited pilot.
+- All prior T5 owner steps still stand (see below).
 
 ## Carry-over integrity risks fixed before T4 work started (migration 0004)
 

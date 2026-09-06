@@ -40,6 +40,7 @@ const RPC_ERROR_CODES: Record<string, ErrorCode> = {
 /** Migration files that define the `fp_*` functions, by name. */
 export const MIGRATION_0003 = "supabase/migrations/0003_transactional_operations.sql";
 export const MIGRATION_0004 = "supabase/migrations/0004_publication_atomicity_and_ai_spend.sql";
+export const MIGRATION_0005 = "supabase/migrations/0005_pilot_integrity_hardening.sql";
 
 /** The shape supabase-js returns for a failed PostgREST/RPC call. */
 export interface RpcErrorLike {

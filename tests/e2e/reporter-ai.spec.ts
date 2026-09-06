@@ -168,10 +168,30 @@ test("live extraction suggests wording the reporter applies, then confirms as as
     .getByLabel("Your concern")
     .fill("The sample pack front says gluten-free; I want the wording checked.");
 
+  // #3: viewing the screen must not, on its own, send anything to the provider.
+  let extractCalls = 0;
+  page.on("request", (r) => {
+    if (r.url().includes("/ai/extract")) extractCalls += 1;
+  });
+  expect(extractCalls).toBe(0);
+
   await page.getByRole("button", { name: "Suggest wording from my photos" }).click();
+
+  // The disclosure appears BEFORE any request, names the 30-day retention, and
+  // no request has fired yet.
+  await expect(page.getByRole("heading", { name: "Before you use AI assistance" })).toBeVisible();
+  await expect(page.getByText(/up to 30 days/)).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Suggested text — check against your photo" }),
+  ).toHaveCount(0);
+  expect(extractCalls).toBe(0);
+
+  // Only a deliberate acknowledgement runs the assisted call.
+  await page.getByRole("button", { name: "Send to AI assistance" }).click();
   await expect(
     page.getByRole("heading", { name: "Suggested text — check against your photo" }),
   ).toBeVisible({ timeout: 120_000 });
+  expect(extractCalls).toBeGreaterThan(0);
 
   // Applying a suggestion is a deliberate per-field click, never automatic.
   const claimRow = page
@@ -205,6 +225,8 @@ test("live assisted draft is labelled, editable, and saved as assisted", async (
   await expect(body).toContainText("SAMPLE / DEMONSTRATION CONTENT");
 
   await page.getByRole("button", { name: "Draft with AI assistance" }).click();
+  // #3: acknowledge the disclosure before the drafting call runs.
+  await page.getByRole("button", { name: "Send to AI assistance" }).click();
   await expect(page.getByText(/This draft was written with AI assistance/)).toBeVisible({
     timeout: 120_000,
   });
@@ -249,6 +271,7 @@ test("an unavailable extraction keeps the typed wording and manual confirmation 
   await page.getByLabel("Ingredient wording").fill("Wheat starch, sugar, salt");
 
   await page.getByRole("button", { name: "Suggest wording from my photos" }).click();
+  await page.getByRole("button", { name: "Send to AI assistance" }).click();
   await expect(page.getByText(UNAVAILABLE)).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Suggested text — check against your photo" }),
@@ -281,6 +304,7 @@ test("an unavailable draft leaves the template alone and saving still records te
   const template = await body.inputValue();
 
   await page.getByRole("button", { name: "Draft with AI assistance" }).click();
+  await page.getByRole("button", { name: "Send to AI assistance" }).click();
   await expect(page.getByText(UNAVAILABLE)).toBeVisible();
   await expect(body).toHaveValue(template);
   await expect(page.getByText(/This draft was written with AI assistance/)).toHaveCount(0);
@@ -331,6 +355,7 @@ test("a rate-limited extraction shows the same honest line plus the wait", async
   const before = await claim.inputValue();
 
   await page.getByRole("button", { name: "Suggest wording from my photos" }).click();
+  await page.getByRole("button", { name: "Send to AI assistance" }).click();
   await expect(page.getByText(UNAVAILABLE)).toBeVisible();
   await expect(page.getByText("Wait about 30 seconds before trying again.")).toBeVisible();
   await expect(claim).toHaveValue(before);

@@ -79,13 +79,14 @@ export interface SuiteGate {
 const MIGRATION_FILE: Record<number, string> = {
   3: "0003_transactional_operations.sql",
   4: "0004_publication_atomicity_and_ai_spend.sql",
+  5: "0005_pilot_integrity_hardening.sql",
 };
 
 export async function liveSuite(
   name: string,
   opts?: {
-    /** Minimum `fp_schema_version()` the suite needs (3 or 4). */
-    requiresSchema?: 3 | 4;
+    /** Minimum `fp_schema_version()` the suite needs (3, 4 or 5). */
+    requiresSchema?: 3 | 4 | 5;
     /** Legacy alias for `requiresSchema: 3`. */
     requiresSchema3?: boolean;
   },

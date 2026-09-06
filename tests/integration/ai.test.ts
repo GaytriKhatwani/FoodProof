@@ -330,6 +330,128 @@ aiSuite.run(aiSuite.title, () => {
   });
 
   // -------------------------------------------------------------------------
+  // Adversarial spend-cap invariants (risk #2). These call the ledger functions
+  // directly with tiny injected caps, so the hard cap is proven under
+  // concurrency and duplicate/over-settlement without spending real budget.
+  // -------------------------------------------------------------------------
+
+  interface ReserveCaps {
+    reserve: number;
+    perCall?: number;
+    actor?: number;
+    total?: number;
+    rateCalls?: number;
+    windowSeconds?: number;
+  }
+
+  async function reserveRpc(accessId: string, caps: ReserveCaps) {
+    return client.rpc("fp_reserve_ai_spend", {
+      p_access_id: accessId,
+      p_report_id: null,
+      p_operation: "extract",
+      p_channel: null,
+      p_model: "test-model",
+      p_reserve_micros: caps.reserve,
+      p_per_call_cap_micros: caps.perCall ?? 1_000_000,
+      p_actor_cap_micros: caps.actor ?? 1_000_000,
+      p_total_cap_micros: caps.total ?? 100_000_000,
+      p_rate_limit_calls: caps.rateCalls ?? 100,
+      p_rate_limit_window_seconds: caps.windowSeconds ?? 60,
+    });
+  }
+
+  it("serializes concurrent reservations so a cap cannot be double-spent", async () => {
+    const owner = await tester();
+    // Only one reservation of 1000 fits under this actor's 1000 cap. The
+    // advisory lock in fp_reserve_ai_spend must stop two concurrent calls from
+    // both reading a spent total of 0.
+    const [a, b] = await Promise.all([
+      reserveRpc(owner, { reserve: 1_000, actor: 1_000 }),
+      reserveRpc(owner, { reserve: 1_000, actor: 1_000 }),
+    ]);
+    const results = [a, b];
+    const ok = results.filter((r) => !r.error);
+    const denied = results.filter((r) => r.error);
+    expect(ok).toHaveLength(1);
+    expect(denied).toHaveLength(1);
+    expect(denied[0]!.error!.code).toBe("FP402");
+
+    // Exactly one reserved row exists, so the cap was not exceeded.
+    const rows = await ledgerRows(owner);
+    expect(rows.filter((r) => r.state === "reserved")).toHaveLength(1);
+
+    // Release the winning reservation so it does not linger as `reserved_open`
+    // pilot-wide for later tests (the fail-safe would otherwise keep counting it).
+    const winnerId = (ok[0]!.data as { ledger_id: string }).ledger_id;
+    await client.rpc("fp_release_ai_spend", { p_ledger_id: winnerId });
+  });
+
+  it("rejects a duplicate settlement so a call is never charged twice", async () => {
+    const owner = await tester();
+    const reserved = await reserveRpc(owner, { reserve: 5_000 });
+    const ledgerId = (reserved.data as { ledger_id: string }).ledger_id;
+
+    const first = await client.rpc("fp_settle_ai_spend", {
+      p_ledger_id: ledgerId,
+      p_settled_micros: 3_000,
+      p_input_tokens: 1_000,
+      p_output_tokens: 100,
+    });
+    expect(first.error).toBeNull();
+
+    const second = await client.rpc("fp_settle_ai_spend", {
+      p_ledger_id: ledgerId,
+      p_settled_micros: 3_000,
+      p_input_tokens: 1_000,
+      p_output_tokens: 100,
+    });
+    expect(second.error).not.toBeNull();
+    expect(second.error!.code).toBe("FP409");
+
+    const rows = await ledgerRows(owner);
+    expect(rows.filter((r) => r.state === "settled")).toHaveLength(1);
+    expect(Number(rows[0]!.settled_micros)).toBe(3_000);
+  });
+
+  it("treats release as idempotent and never revives a settled row", async () => {
+    const owner = await tester();
+    const reserved = await reserveRpc(owner, { reserve: 5_000 });
+    const ledgerId = (reserved.data as { ledger_id: string }).ledger_id;
+
+    const first = await client.rpc("fp_release_ai_spend", { p_ledger_id: ledgerId });
+    expect(first.error).toBeNull();
+    expect((first.data as { released: boolean }).released).toBe(true);
+
+    const second = await client.rpc("fp_release_ai_spend", { p_ledger_id: ledgerId });
+    expect(second.error).toBeNull();
+    expect((second.data as { released: boolean }).released).toBe(false);
+
+    const rows = await ledgerRows(owner);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.state).toBe("released");
+  });
+
+  it("counts a settlement above its reservation at the real cost, closing the cap", async () => {
+    const owner = await tester();
+    // Reserve 600 under a 1000 actor cap, then settle 900 — more than reserved.
+    const reserved = await reserveRpc(owner, { reserve: 600, actor: 1_000 });
+    const ledgerId = (reserved.data as { ledger_id: string }).ledger_id;
+    await client.rpc("fp_settle_ai_spend", {
+      p_ledger_id: ledgerId,
+      p_settled_micros: 900,
+      p_input_tokens: 300,
+      p_output_tokens: 60,
+    });
+
+    // The next reservation must see the real 900 already spent, not the 600
+    // reserved, so a settlement over its estimate cannot be used to slip further
+    // spend under the cap.
+    const next = await reserveRpc(owner, { reserve: 200, actor: 1_000 });
+    expect(next.error).not.toBeNull();
+    expect(next.error!.code).toBe("FP402");
+  });
+
+  // -------------------------------------------------------------------------
   // Assisted-method gating.
   // -------------------------------------------------------------------------
 

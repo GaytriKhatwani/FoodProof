@@ -129,6 +129,13 @@ export async function computeExternalStatus(
  * nothing behind. The transaction re-checks the same facts under the report
  * lock; this pass exists to fail early and cheaply with a precise message.
  */
+/** The three label roles a concern snapshot must collectively show. */
+const REQUIRED_CONCERN_ROLES = ["identity", "claim", "ingredients"] as const;
+
+/** Error message shared with `fp_request_publication` so all layers agree. */
+const CONCERN_COVERAGE_MESSAGE =
+  "The selected photos must together show the product identity, the gluten-free (or relevant) claim, and the ingredients.";
+
 async function validateSelectedEvidence(
   supabase: SupabaseClient,
   reportId: string,
@@ -136,10 +143,11 @@ async function validateSelectedEvidence(
   requireLabel: boolean,
 ): Promise<{ evidenceId: string; objectPath: string }[]> {
   const selected: { evidenceId: string; objectPath: string }[] = [];
+  const coveredRoles = new Set<string>();
   for (const evId of evidenceIds) {
     const { data: ev, error } = await supabase
       .from("evidence")
-      .select("object_path, kind, upload_state, mime_type, report_id")
+      .select("object_path, kind, upload_state, mime_type, report_id, roles")
       .eq("id", evId)
       .maybeSingle();
     if (error) throw error;
@@ -155,7 +163,15 @@ async function validateSelectedEvidence(
     if (!String(ev.mime_type).startsWith("image/")) {
       throw new ApiError("VALIDATION_FAILED", "Only images can be published as assets.");
     }
+    for (const role of (ev.roles as string[] | null) ?? []) coveredRoles.add(role);
     selected.push({ evidenceId: evId, objectPath: ev.object_path as string });
+  }
+  // A concern snapshot must collectively cover identity, claim and ingredients.
+  // This mirrors the authoritative check inside fp_request_publication so the
+  // request fails early with a precise message; the database remains the final
+  // authority under the report lock.
+  if (requireLabel && !REQUIRED_CONCERN_ROLES.every((role) => coveredRoles.has(role))) {
+    throw new ApiError("VALIDATION_FAILED", CONCERN_COVERAGE_MESSAGE);
   }
   return selected;
 }
@@ -243,6 +259,7 @@ async function freezeAndRequest(
     return {
       publication_revision_id: row.publication_revision_id,
       content_kind: row.content_kind,
+      source_update_id: args.sourceUpdateId,
       state: row.state,
       reason: row.reason ?? null,
       revision: row.revision,
@@ -516,6 +533,7 @@ export function decideReview(
         publication_revision_id: row.publication_revision_id,
         report_id: row.report_id,
         content_kind: row.source_update_id ? "response" : "concern",
+        source_update_id: row.source_update_id ?? null,
         state: row.state,
         reason: row.reason ?? null,
         revision: row.revision,

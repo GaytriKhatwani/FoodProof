@@ -398,21 +398,27 @@ export function TimelineScreen({ reportId }: { reportId: string }) {
           <>
             <h3 className={styles.subTitle}>Response review requests</h3>
             <ul className={styles.timeline}>
-              {responseRequests.map((request) => (
-                <li className={styles.timelineItem} key={request.publication_revision_id}>
-                  <span className={styles.timelineWhere}>Inside FoodProof</span>
-                  <p>
-                    Response sent for owner review · {formatDateTime(request.created_at)} · now{" "}
-                    {REVISION_STATE_LABEL[request.state]}
-                    {request.reason ? ` — owner’s reason: ${request.reason}` : ""}
-                  </p>
-                </li>
-              ))}
+              {responseRequests.map((request) => {
+                const source = detail.updates.find(
+                  (u) => u.id === request.source_update_id,
+                );
+                return (
+                  <li className={styles.timelineItem} key={request.publication_revision_id}>
+                    <span className={styles.timelineWhere}>Inside FoodProof</span>
+                    <p>
+                      {source
+                        ? `Response of ${formatDate(source.occurred_at)}${
+                            source.sender ? ` from ${source.sender}` : ""
+                          }`
+                        : "Response"}{" "}
+                      sent for owner review · {formatDateTime(request.created_at)} · now{" "}
+                      {REVISION_STATE_LABEL[request.state]}
+                      {request.reason ? ` — owner’s reason: ${request.reason}` : ""}
+                    </p>
+                  </li>
+                );
+              })}
             </ul>
-            <p className={styles.footnote}>
-              The demo API returns response review requests without naming the
-              response they came from, so they are listed by date.
-            </p>
           </>
         ) : null}
         {latestConcernRequest ? (
