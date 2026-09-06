@@ -174,10 +174,13 @@ returns 5.
   key from its own environment lookup. With either variable absent `getAiAdapter()` returns
   null, `/api/me` reports `ai_available: false`, no AI control renders, and the two `/ai`
   routes answer `DEPENDENCY_UNAVAILABLE`.
-- **Provider data handling (official docs, 6 September 2026):** API inputs and outputs are
-  not retained by default and are never used for model training under the Commercial Terms;
-  uploaded images are not stored beyond the request and no image metadata is read;
-  `claude-sonnet-5` is not a "Covered Model" (those require 30-day retention). Vision accepts
+- **Provider data handling (official docs, 6 September 2026; corrected by the hardening
+  pass, item 3):** API inputs and outputs are not used for model training under the
+  Commercial Terms but may be retained up to 30 days (no zero-data-retention arrangement is
+  in effect). Since `fix/ai-strip-image-metadata` every image is metadata-stripped
+  (`stripImageMetadata`) inside the adapter before it is base64-encoded, so EXIF/XMP
+  (location, device, time) never leaves FoodProof — previously the private original's bytes
+  were sent as stored. Vision accepts
   JPEG/PNG/GIF/WebP up to 10 MB per image; images are downscaled to at most 2576 px on the
   long edge (≈ 4784 visual tokens). Structured outputs require `additionalProperties:false`
   and all fields listed as required. List prices: USD 2 / 10 per million input / output
@@ -377,10 +380,13 @@ tester codes with `scripts/create-invitations.mjs` and distribute privately.
 
 ## Handoff notes (known gaps recorded, not fixed)
 
-- Phase-2 notes still apply: `PublicFeedItem` carries no asset ids; `GET /api/feed/:id`
-  answers one 404 for never-published / withdrawn / removed; `ReviewRequestState` has no
-  `source_update_id`; reviewer detail shows only frozen copies; no upload percentage; the
-  official destination stays a labelled placeholder until T5 verification.
+- Phase-2 notes still apply: `GET /api/feed/:id` answers one 404 for never-published /
+  withdrawn / removed (kept deliberately); reviewer detail shows only frozen copies.
+  Superseded since this note was written: `PublicFeedItem` now carries
+  `thumbnail_asset_id` and `PublicReport` carries `approved_assets` with roles (`052cd90`);
+  the evidence step shows an upload percentage (`88dc31a`); `ReviewRequestState` carries
+  `source_update_id` (hardening pass, `6f92b40`); the official destination is verified and
+  wired (`c7ecbd6`, awaiting the owner's `OFFICIAL_PORTAL_KEY` on Vercel).
 - `report_saved` is emitted only when the `X-Flow-Id` header is a UUID; the editor is the
   only caller today, so nothing is lost, but a future save path must send it deliberately.
 - `moderation_decided` with `decision: "removed"` reports `content_kind: "concern"` (the
@@ -407,9 +413,38 @@ tester codes with `scripts/create-invitations.mjs` and distribute privately.
 - Vercel: `AI_PROVIDER`, `AI_PROVIDER_API_KEY` (and optional `AI_MODEL`); `ANALYTICS_AUDIENCE`
   unset; `OFFICIAL_PORTAL_KEY=fssai_foscos_grievance` to enable the official-portal action
   (see A.3). Owner sets these; there is no Vercel CLI/token on the build machine.
-- Mixpanel Live View verification by the owner (steps in the operations doc).
-- Official FSSAI destination browser-verification; contact/moderator route; 30-day
-  retention confirmation (T5).
+- Mixpanel read-back (see "Owner decisions (6 September 2026)").
+- Official FSSAI destination: verified and enabled by the owner (`OFFICIAL_PORTAL_KEY` set
+  on Vercel, 6 September 2026). Contact/moderator route and provider retention: DECIDED —
+  see "Owner decisions (6 September 2026)". Not open questions any more.
+
+## Owner decisions (6 September 2026) — recorded, not to be re-asked
+
+1. **Anthropic API retention — ACCEPTED for synthetic-only testing.** The owner accepts the
+   standard commercial API arrangement (inputs/outputs retained up to 30 days, not used for
+   training; no zero-data-retention arrangement) and keeps AI **enabled**. Scope of the
+   approval: synthetic/fictional data only. It does **not** authorise sending real tester
+   data, personal details or real user photographs to the provider. Revisit only if real
+   user data is introduced (Phase two). What leaves FoodProof, exactly, is recorded in
+   `docs/FOODPROOF_SETUP_AND_OPERATIONS.md` ("Data handling"); label photographs are
+   metadata-stripped before they leave (`fix/ai-strip-image-metadata`, unit-tested).
+2. **FoodProof's own pilot-data deletion schedule is a SEPARATE decision** (demo Supabase
+   records, storage originals/reviewed copies, Mixpanel events) — still the owner's; the
+   ops doc's proposed 30-day review period remains a proposal.
+3. **Private contact / moderator route:** `gayatrikhatwani@gmail.com` (owner-provided).
+4. **Observed pilot sessions (A.6) — dropped.** No external testers on the invitation-code
+   flow: the owner judged it not in a condition to hand to users; Phase two (real email /
+   mobile sign-in) replaces it.
+5. **Next.js 14 → 16 major upgrade — not required at this stage** (remains a pre-public-
+   launch follow-up).
+6. **A.2 Mixpanel read-back — DONE.** `scripts/analytics-journey.mjs` was re-run against a
+   local server at 13:58 UTC on 6 September 2026 (ingestion `status:1` for all seven events,
+   no delivery warnings) and the owner confirmed the events in the Mixpanel UI (project
+   "FoodProof", id 4061064): the six consented events in order, the withdrawn session's
+   single pre-withdrawal `report_saved`, nothing from the declined session. The Mixpanel
+   plan does not allow Query/Export API calls, so the UI remains the read-back path; the
+   temporary service account the owner created for this should be deleted.
+7. **Phase two C.1 (real sign-in) starts in the NEXT session** by the owner's instruction.
 
 ## Session end (6 September 2026, T4)
 
@@ -510,19 +545,43 @@ No new feature work; verification and configuration on the deployed URL:
 
 ### B. Known gaps worth closing before or during T5 (small; from "Handoff notes")
 
-- Feed-card thumbnails (`PublicFeedItem` carries no asset ids; `PublicReport` asset ids
-  carry no roles) — additive contract change.
-- `ReviewRequestState.source_update_id` so response review requests can be placed under
-  their response on the timeline — additive.
+Closed (branch `feat/t5-b-items`, 6 September 2026):
+
+- **Feed-card thumbnails — DONE (`052cd90`).** Additive contract only:
+  `PublicFeedItem.thumbnail_asset_id` (optional, nullable) is the guarded media id of the
+  reviewed IDENTITY image of the approved revision, and `PublicReport.approved_assets`
+  (optional) repeats `approved_asset_ids` in the same order with each asset's label roles.
+  `approved_asset_ids` is unchanged. The projection reads the frozen `publication_assets`
+  rows and joins the label roles of the owned source evidence (the asset row stores only
+  the reviewed copy); the image is served by the existing guarded
+  `/api/publication-assets/:id` route, so a hidden, withdrawn, removed or superseded
+  revision serves nothing and the card falls back to a placeholder. Feed cards show it at
+  desktop and 360 px with an alt text naming the product. Tests: 3 contract cases, one live
+  integration case (two label photos; the identity one is chosen, and stops serving after
+  withdrawal) and a Playwright assertion in the community-feed spec.
+- **Upload progress — DONE (`88dc31a`).** The evidence step shows a `role="progressbar"`
+  with `aria-valuenow`/`aria-valuetext`, distinguishing "file sent" from "the service
+  confirmed it was stored", and keeps the chosen file, type and ticked roles on a failure
+  (retry reuses the same idempotency key). An evidence upload uses `XMLHttpRequest` only to
+  obtain progress; the HTTP contract is unchanged. E2E covers the forced failure, the
+  preserved selection and the successful retry.
+- **`ReviewRequestState.source_update_id` — DONE in the hardening pass** (merge `6f92b40`,
+  work `7927e90`): response review requests carry their source update, so the timeline can
+  place them under their response.
+- **The three-role publication check — DONE in the hardening pass** (migration
+  `0005_pilot_integrity_hardening.sql`, merge `6f92b40`): `fp_request_publication` now
+  rejects a concern revision whose selected, ready label evidence does not collectively
+  cover identity, claim AND ingredients, and `lib/server/publication.ts` fails early with
+  the same message. Response revisions are unchanged.
+
+Still open:
+
 - `report_saved` depends on the `X-Flow-Id` header (editor is the only caller today).
 - Removal events always report `content_kind: "concern"`.
-- The concern-revision transaction requires ≥ 1 label image but not that the selected
-  subset covers identity/claim/ingredients (the share screen enforces it; the API
-  supplement says the revision should) — server-side check in `fp_request_publication`
-  would be a migration 0005 plus a test update.
-- `stableEventId` duplicated in `scripts/analytics-journey.mjs`; no sweeper for
-  `reserved_open` ledger rows (deliberate); no upload progress; one 404 for
-  never-published / withdrawn / removed.
+- `stableEventId` duplicated in `scripts/analytics-journey.mjs`; no automatic sweeper for
+  `reserved_open` ledger rows (deliberate — migration 0005 adds the operator-only
+  `fp_sweep_abandoned_ai_reservations`); one 404 for never-published / withdrawn / removed
+  (deliberate: naming which applies would leak a moderation outcome).
 
 ### C. Phase two — before unrestricted public launch (`docs/FOODPROOF_BUILD_TICKETS.md`
 "Phase two", technical spec §10, decisions D18/D32). Needs explicit owner assignment and

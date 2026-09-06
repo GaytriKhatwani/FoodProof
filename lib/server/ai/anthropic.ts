@@ -7,6 +7,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import * as z from "zod/v4";
 import type { Channel } from "@/lib/contracts";
 import { SAMPLE_NOTICE } from "../drafts";
+import { stripImageMetadata } from "../image";
 import type {
   AiUsage,
   ComplaintDraftText,
@@ -169,13 +170,17 @@ export function createAnthropicAdapter(deps: AnthropicAdapterDeps): MeteredAiAda
     for (const evidenceId of ownedEvidenceIds) {
       index += 1;
       const image = await deps.loadImage(evidenceId);
+      // The private original keeps its metadata (EXIF/XMP: possibly location,
+      // device, time). Only the pixels are evidence, so the copy that leaves
+      // FoodProof is stripped the same way a reviewed copy is (§5, §6).
+      const pixels = stripImageMetadata(image.bytes, image.mimeType);
       content.push({ type: "text", text: `Image ${index}:` });
       content.push({
         type: "image",
         source: {
           type: "base64",
           media_type: image.mimeType,
-          data: Buffer.from(image.bytes).toString("base64"),
+          data: Buffer.from(pixels).toString("base64"),
         },
       });
     }

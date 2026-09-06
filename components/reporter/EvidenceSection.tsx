@@ -44,6 +44,31 @@ export function readyLabelEvidence(report: ReportDetail): EvidenceMeta[] {
   );
 }
 
+/**
+ * What the upload indicator shows. `sending` is the request body leaving the
+ * browser; `confirming` is the wait for the server's answer, during which
+ * nothing is stored yet; `done` and `failed` stay on screen after the attempt so
+ * the reporter can see how it ended.
+ */
+type UploadPhase = "sending" | "confirming" | "done" | "failed";
+interface UploadProgressState {
+  percent: number;
+  phase: UploadPhase;
+}
+
+function progressText(progress: UploadProgressState): string {
+  switch (progress.phase) {
+    case "sending":
+      return `Uploading… ${progress.percent}% sent.`;
+    case "confirming":
+      return "File sent. Waiting for the demo service to confirm it was stored — nothing is saved until it does.";
+    case "done":
+      return "Upload complete. The demo service confirmed the file was stored.";
+    case "failed":
+      return `Upload failed at ${progress.percent}%. Nothing was saved and your file, type and roles are still selected — retry below.`;
+  }
+}
+
 /** The last per-file action, so a failure notice can retry that exact call. */
 type RowAction =
   | { type: "roles"; evidence: EvidenceMeta; role: EvidenceRole; checked: boolean }
@@ -67,6 +92,7 @@ export function EvidenceSection({
   const [kind, setKind] = useState<"label" | "receipt">("label");
   const [roles, setRoles] = useState<EvidenceRole[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState<UploadProgressState | null>(null);
   const [uploadFailure, setUploadFailure] = useState<Failure | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [busyEvidenceId, setBusyEvidenceId] = useState<string | null>(null);
@@ -111,6 +137,7 @@ export function EvidenceSection({
     }
     setLocalError(null);
     setUploading(true);
+    setProgress({ percent: 0, phase: "sending" });
     setAnnouncement("Uploading your file. Nothing is saved until it succeeds.");
     // The retry of a failed upload reuses this key, so a request that actually
     // reached the server is replayed instead of stored twice.
@@ -126,8 +153,18 @@ export function EvidenceSection({
         report.report_id,
         { file, kind, roles: kind === "label" ? roles : [] },
         key,
+        {
+          onProgress: ({ fraction }) =>
+            setProgress({
+              percent: Math.round(fraction * 100),
+              // A fully sent body is not a stored file: say so until the server
+              // answers.
+              phase: fraction >= 1 ? "confirming" : "sending",
+            }),
+        },
       );
       settled("evidence.upload");
+      setProgress({ percent: 100, phase: "done" });
       setUploadFailure(null);
       setFile(null);
       setRoles([]);
@@ -137,6 +174,8 @@ export function EvidenceSection({
     } catch (error) {
       const failure = toFailure(error);
       setUploadFailure(failure);
+      // Keep the percentage the attempt reached; the retry starts from zero.
+      setProgress((current) => ({ percent: current?.percent ?? 0, phase: "failed" }));
       trackFlowError("upload", failure);
       setAnnouncement("Upload failed. Your file is still selected — retry below.");
     } finally {
@@ -272,6 +311,7 @@ export function EvidenceSection({
             const chosen = event.target.files?.[0] ?? null;
             setFile(chosen);
             setUploadFailure(null);
+            setProgress(null);
             setLocalError(chosen ? validateLocally(chosen) : null);
           }}
         />
@@ -326,11 +366,28 @@ export function EvidenceSection({
             {uploading ? "Uploading…" : uploadFailure ? "Retry this upload" : "Upload file"}
           </button>
         </div>
-        {uploading ? (
-          <p className={styles.small}>
-            Uploading… this stays on screen until the demo service confirms the
-            file was stored.
-          </p>
+        {progress ? (
+          <div className={styles.progressBlock}>
+            <div
+              className={styles.progressTrack}
+              role="progressbar"
+              aria-label="Upload progress"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={progress.percent}
+              aria-valuetext={progressText(progress)}
+            >
+              <div
+                className={
+                  progress.phase === "failed"
+                    ? `${styles.progressBar} ${styles.progressBarFailed}`
+                    : styles.progressBar
+                }
+                style={{ width: `${progress.percent}%` }}
+              />
+            </div>
+            <p className={styles.small}>{progressText(progress)}</p>
+          </div>
         ) : null}
         {uploadFailure ? (
           <FailureNotice failure={uploadFailure} onRetry={() => void upload()} retryLabel="Retry upload" />

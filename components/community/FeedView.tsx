@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "@/lib/client/api";
+import { api, publicationAssetUrl } from "@/lib/client/api";
 import { clientAnalytics } from "@/lib/analytics";
 import type { PublicFeedItem } from "@/lib/contracts";
 import { loadFailureCopy } from "@/components/shell/errors";
@@ -22,6 +22,12 @@ import styles from "./FeedView.module.css";
  * The author is always the anonymous label carried by the contract, and an
  * empty result is stated as an absence of reports — never as evidence that a
  * product is safe.
+ *
+ * The card thumbnail is the reviewed identity photo of the approved revision,
+ * streamed by the guarded media route from `thumbnail_asset_id`. It is never a
+ * private original: a withdrawn, removed or superseded revision stops serving
+ * its bytes, and a card whose image cannot be fetched falls back to the same
+ * placeholder as a card that never had one.
  */
 
 const SEARCH_MAX_LENGTH = 120;
@@ -38,6 +44,8 @@ export function FeedView() {
   const [activeQuery, setActiveQuery] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState<unknown>(null);
+  /** Asset ids whose image failed to load, so the card shows the placeholder. */
+  const [failedThumbnails, setFailedThumbnails] = useState<string[]>([]);
 
   // `feed_viewed` is a route-entry event: emitted once, after the first
   // successful render, and never again on a rerender or a "show more".
@@ -47,6 +55,7 @@ export function FeedView() {
     setStatus("loading");
     setError(null);
     setMoreError(null);
+    setFailedThumbnails([]);
     try {
       const page = await api.feed.list(query ? { q: query } : {});
       setItems(page.items);
@@ -230,8 +239,36 @@ export function FeedView() {
 
           {items.length > 0 ? (
             <ul className={styles.list}>
-              {items.map((item) => (
+              {items.map((item) => {
+                const thumbnailId = item.thumbnail_asset_id ?? null;
+                const showThumbnail =
+                  thumbnailId !== null && !failedThumbnails.includes(thumbnailId);
+                return (
                 <li key={item.publication_revision_id} className={styles.item}>
+                  <div className={styles.itemThumb}>
+                    {showThumbnail ? (
+                      /* eslint-disable-next-line @next/next/no-img-element -- guarded API route, unknown intrinsic size */
+                      <img
+                        className={styles.thumbImage}
+                        src={publicationAssetUrl(thumbnailId)}
+                        alt={`Reviewed photo of the product identity for ${productTitle(
+                          item.product_name,
+                          item.variant,
+                        )} by ${item.brand}`}
+                        onError={() =>
+                          setFailedThumbnails((current) =>
+                            current.includes(thumbnailId) ? current : [...current, thumbnailId],
+                          )
+                        }
+                      />
+                    ) : (
+                      /* Decorative: the card's own text already says everything
+                         known about this concern, so nothing is announced. */
+                      <span className={styles.thumbFallback} aria-hidden="true">
+                        No approved photo
+                      </span>
+                    )}
+                  </div>
                   <div className={styles.itemMain}>
                     <h2 className={styles.itemTitle}>
                       <Link href={`/pilot/concerns/${item.report_id}?source=${source}`}>
@@ -267,7 +304,8 @@ export function FeedView() {
                     </Link>
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           ) : null}
 

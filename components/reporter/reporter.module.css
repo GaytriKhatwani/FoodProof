@@ -499,6 +499,31 @@
   border: 1px solid var(--color-rule);
 }
 
+/* Upload progress. The bar is only an accent: the sentence under it carries the
+   meaning, and the same words are the progressbar's aria-valuetext. */
+.progressBlock {
+  margin-top: var(--space-sm);
+}
+
+.progressTrack {
+  width: 100%;
+  max-width: 420px;
+  height: 10px;
+  background: var(--color-tint);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+
+.progressBar {
+  height: 100%;
+  background: var(--color-primary);
+}
+
+.progressBarFailed {
+  background: var(--color-error);
+}
+
 .fileRow {
   display: flex;
   flex-wrap: wrap;
