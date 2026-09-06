@@ -4,6 +4,8 @@ import { jsonOk, parseJson, route } from "@/lib/server/http";
 import { assertSameOrigin, requireReviewer } from "@/lib/server/context";
 import { requireIdempotencyKey } from "@/lib/server/idempotency";
 import { removeContent } from "@/lib/server/publication";
+import { emitServerEvents } from "@/lib/server/analytics";
+import { removalEvent } from "@/lib/server/analytics-events";
 
 /**
  * `POST /api/review/reports/:id/remove` — reviewer only; hides content and
@@ -21,6 +23,7 @@ export function POST(req: NextRequest, { params }: { params: { id: string } }) {
     const key = requireIdempotencyKey(req);
     const body = await parseJson(req, RemoveRequest);
     const result = await removeContent(ctx.actor.accessId, params.id, body.reason, key);
+    await emitServerEvents(ctx, key, [removalEvent(result)]);
     return jsonOk(result, requestId);
   });
 }

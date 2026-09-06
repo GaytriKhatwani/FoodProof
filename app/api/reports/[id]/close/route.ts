@@ -4,6 +4,8 @@ import { jsonOk, parseJson, route } from "@/lib/server/http";
 import { assertSameOrigin, requireSession } from "@/lib/server/context";
 import { requireIdempotencyKey } from "@/lib/server/idempotency";
 import { closeReport } from "@/lib/server/history";
+import { emitServerEvents } from "@/lib/server/analytics";
+import { lifecycleEvent } from "@/lib/server/analytics-events";
 
 /**
  * `POST /api/reports/:id/close` — owner closes the report; a reason is required
@@ -19,6 +21,7 @@ export function POST(req: NextRequest, { params }: { params: { id: string } }) {
     const key = requireIdempotencyKey(req);
     const body = await parseJson(req, CloseRequest);
     const detail = await closeReport(ctx.actor.accessId, params.id, body.reason, key);
+    await emitServerEvents(ctx, key, [lifecycleEvent(detail, "closed")]);
     return jsonOk(detail, requestId);
   });
 }
