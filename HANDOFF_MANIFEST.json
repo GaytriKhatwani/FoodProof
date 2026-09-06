@@ -67,8 +67,8 @@
     },
     {
       "path": "docs/FOODPROOF_BUILD_HANDOFF.md",
-      "bytes": 4560,
-      "sha256": "fa7df1980c8c90275167e543e91c8b1967bce244c3f3174de2f55fb23119df03"
+      "bytes": 5060,
+      "sha256": "29c0e26c7480d9950b88be7bb684f058301df1733cc8b78e0d1c9ddb6c1b7209"
     },
     {
       "path": "docs/FOODPROOF_BUILD_TICKETS.md",
@@ -137,13 +137,13 @@
     },
     {
       "path": "IMPLEMENTATION_STATUS.md",
-      "bytes": 48279,
-      "sha256": "52a99d17b742597ed2d2b45eb91b8c4f6fb250aae6bd160d75eb60ff4edcd6d7"
+      "bytes": 48799,
+      "sha256": "aa6dd4cec43f2aa22d066ff07f69f19da56929f018d8b34ed690be9b5c295310"
     },
     {
       "path": "README.md",
-      "bytes": 7984,
-      "sha256": "d0d2bc45d7fbe794f7fb51e082f0283e2d15b6af349a1699f0179c048c8fd918"
+      "bytes": 8199,
+      "sha256": "8c850aadfc870ddb97ea4695cad6ebea6153b7b4ed353675fa828afbec6b41b7"
     }
   ],
   "local_markdown_links": "passed",
