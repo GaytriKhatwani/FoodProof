@@ -81,6 +81,55 @@ test.describe("pilot entry", () => {
     await expect(page.getByRole("heading", { name: "Usage analytics" })).toHaveCount(0);
   });
 
+  /*
+   * A14: a session whose consent is withdrawn emits no optional event. The
+   * server refuses one anyway (`{"accepted": false}`), but a refused request
+   * is still a request: the browser must not attempt to report anything after
+   * a withdrawal. Asserted on the wire, not on a mock.
+   */
+  test("no analytics request is made after consent is withdrawn", async ({ page }) => {
+    const invitation = await createInvitation("user", "user@foodproof");
+    createdAccessIds.push(invitation.accessId);
+
+    await page.context().clearCookies();
+    await page.goto("/pilot");
+    await submitCode(page, invitation.code);
+    await page.getByRole("button", { name: "Allow usage analytics" }).click();
+    await expect(page).toHaveURL(/\/pilot\/feed$/);
+
+    const header = page.getByRole("banner");
+    await expect(header).toContainText("Usage analytics: allowed");
+
+    // Consented: the feed really does report itself, so the assertion below
+    // is about the withdrawal and not about a route that never emits.
+    const allowed: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/api/analytics")) allowed.push(request.url());
+    });
+    await page.getByRole("link", { name: "My reports" }).click();
+    await page.getByRole("link", { name: "Feed" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Community concerns" })).toBeVisible();
+    await expect.poll(() => allowed.length).toBeGreaterThan(0);
+
+    await header.getByRole("button", { name: "Withdraw consent" }).click();
+    await expect(header).toContainText("Usage analytics: off");
+
+    const afterWithdrawal: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/api/analytics")) afterWithdrawal.push(request.url());
+    });
+
+    await page.getByRole("link", { name: "My reports" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "My reports" })).toBeVisible();
+    await page.getByRole("link", { name: "Feed" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Community concerns" })).toBeVisible();
+    await page.getByLabel("Search product or brand").fill("sample");
+    await page.getByRole("button", { name: "Search" }).click();
+    await expect(page.getByText(/Showing \d+ reviewed concern|No reports match|No concerns loaded/)).toBeVisible();
+
+    expect(afterWithdrawal).toEqual([]);
+  });
+
   // A reviewer invitation landing on `/pilot/review` is covered in
   // review-queue.spec.ts, next to the rest of the reviewer surface.
 

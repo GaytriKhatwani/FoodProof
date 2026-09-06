@@ -145,3 +145,23 @@ export async function enterPilot(page: Page, code: string): Promise<void> {
     throw new Error(`enterPilot failed (${res.status()}): ${body}`);
   }
 }
+
+/**
+ * Record the analytics-consent answer for the session `enterPilot` created.
+ *
+ * `enterPilot` skips the entry form, so its session carries the stored default
+ * — no consent. The client adapter emits no optional event without one, and the
+ * server drops any that arrives, so a spec that asserts on a client-owned event
+ * has to grant consent first, exactly as a participant would at entry.
+ * The next page load reads it back through `GET /api/me`.
+ */
+export async function setAnalyticsConsent(page: Page, consent: boolean): Promise<void> {
+  const res = await page.request.put("/api/me/analytics-consent", {
+    headers: { Origin: E2E_ORIGIN },
+    data: { allowed: consent },
+  });
+  if (!res.ok()) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`setAnalyticsConsent failed (${res.status()}): ${body}`);
+  }
+}
