@@ -347,7 +347,13 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
           ].map((item) => (
             <li
               key={item.label}
-              className={cx(styles.checkItem, item.done ? styles.checkDone : styles.checkTodo)}
+              // Not a failure list: an absent entry here is named in the draft
+              // rather than guessed, and two of these fields are optional. The
+              // word "Missing" carries it without error colour.
+              className={cx(
+                styles.checkItem,
+                item.done ? styles.checkDone : styles.checkNeutral,
+              )}
             >
               <span className={styles.checkMark}>{item.done ? "Supplied" : "Missing"}</span>{" "}
               <span>

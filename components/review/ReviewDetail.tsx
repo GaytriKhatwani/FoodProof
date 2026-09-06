@@ -66,6 +66,7 @@ const DECIDED_STATE_COPY: Record<string, { title: string; body: string }> = {
 
 export function ReviewDetail({ revisionId }: { revisionId: string }) {
   const reasonId = useId();
+  const approveHelpId = useId();
 
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [detail, setDetail] = useState<ReviewDetailResponse | null>(null);
@@ -242,6 +243,9 @@ export function ReviewDetail({ revisionId }: { revisionId: string }) {
       {decided ? (
         <StateBlock
           tone="warning"
+          // The decision panel below unmounts on a decision, taking the focused
+          // button with it. Focus lands on the outcome instead of the body.
+          focusOnMount
           title={
             decided.action === "approve"
               ? "Approved for publication"
@@ -441,6 +445,9 @@ export function ReviewDetail({ revisionId }: { revisionId: string }) {
               className="btn-primary"
               onClick={() => void decide("approve")}
               disabled={!allChecked || deciding !== null}
+              // A disabled control explains nothing on its own; this names the
+              // note below that says which condition is not met yet.
+              aria-describedby={!allChecked ? approveHelpId : undefined}
             >
               {deciding === "approve" ? "Approving…" : "Approve publication"}
             </button>
@@ -463,7 +470,7 @@ export function ReviewDetail({ revisionId }: { revisionId: string }) {
           </div>
 
           {!allChecked ? (
-            <p className={styles.footnote}>
+            <p id={approveHelpId} className={styles.footnote}>
               Approving needs every checklist item confirmed. Requesting changes and
               rejecting do not, but they need a reason.
             </p>

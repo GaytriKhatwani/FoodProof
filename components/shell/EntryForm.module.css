@@ -40,12 +40,22 @@
   letter-spacing: 0.04em;
   color: var(--color-ink);
   background: var(--color-surface);
-  border: 1px solid var(--color-rule);
+  border: 1px solid var(--color-control-border);
   border-radius: var(--radius-control);
 }
 
 .input:focus-visible {
   border-color: var(--color-primary);
+}
+
+/*
+ * A refused code is stated in words above; this only makes the field itself
+ * look wrong as well, so the message and the control it belongs to are
+ * connected visually as well as through `aria-describedby`.
+ */
+.inputInvalid {
+  border-color: var(--color-error);
+  border-width: 2px;
 }
 
 .reveal {

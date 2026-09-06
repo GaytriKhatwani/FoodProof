@@ -17,6 +17,7 @@ export function StateBlock({
   actions,
   headingLevel = "h2",
   role,
+  focusOnMount = false,
 }: {
   tone?: StateTone;
   title: string;
@@ -25,11 +26,27 @@ export function StateBlock({
   /** Use `h2` inside a page that already has an `h1`; `h1` when this IS the page. */
   headingLevel?: "h1" | "h2" | "h3";
   role?: "alert" | "status";
+  /**
+   * Move focus here when this block replaces the control that was focused —
+   * a submitted form, for example. Without it the browser drops focus to the
+   * body and a keyboard user restarts from the top of the page.
+   */
+  focusOnMount?: boolean;
 }) {
   const Heading = headingLevel;
   return (
     <div className={`${styles.block} ${styles[tone]}`} role={role}>
-      <Heading className={styles.title}>{title}</Heading>
+      {/*
+        A callback ref rather than an effect, so this module stays free of
+        hooks: `LoadingBlock` beside it is rendered from a server component.
+      */}
+      <Heading
+        className={styles.title}
+        ref={focusOnMount ? (el: HTMLHeadingElement | null) => el?.focus() : undefined}
+        tabIndex={focusOnMount ? -1 : undefined}
+      >
+        {title}
+      </Heading>
       {children ? <div className={styles.body}>{children}</div> : null}
       {actions ? <div className={styles.actions}>{actions}</div> : null}
     </div>
@@ -60,18 +77,25 @@ export function LoadingBlock({
   );
 }
 
-/** Inline, non-blocking message tied to a control or a completed action. */
+/**
+ * Inline, non-blocking message tied to a control or a completed action. Pass
+ * `id` when the message explains why a specific field was refused, so the
+ * field can point at it with `aria-describedby` instead of relying on the one
+ * announcement an alert makes.
+ */
 export function InlineNote({
   tone = "neutral",
   children,
   role,
+  id,
 }: {
   tone?: StateTone;
   children: ReactNode;
   role?: "alert" | "status";
+  id?: string;
 }) {
   return (
-    <p className={`${styles.inline} ${styles[tone]}`} role={role}>
+    <p id={id} className={`${styles.inline} ${styles[tone]}`} role={role}>
       {children}
     </p>
   );

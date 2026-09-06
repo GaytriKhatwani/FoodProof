@@ -68,15 +68,15 @@ export default function HomePage() {
         <section className="section container" aria-label="What FoodProof does">
           <div className="pillars">
             <div className="pillar">
-              <h3>Document</h3>
+              <h2>Document</h2>
               <p>Label photos and a plain-language concern, kept private first.</p>
             </div>
             <div className="pillar">
-              <h3>Take action</h3>
+              <h2>Take action</h2>
               <p>Prepare a factual draft and send it through your own channels.</p>
             </div>
             <div className="pillar">
-              <h3>Follow the record</h3>
+              <h2>Follow the record</h2>
               <p>Record responses and share reviewed concerns with the community.</p>
             </div>
           </div>

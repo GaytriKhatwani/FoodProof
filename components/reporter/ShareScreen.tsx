@@ -328,6 +328,11 @@ export function ShareScreen({ reportId }: { reportId: string }) {
             type="checkbox"
             checked={consent}
             disabled={pending}
+            // The blocking message is about this box (or about the photo
+            // selection above it), so it is named here instead of only being
+            // announced once as an alert.
+            aria-invalid={blocked ? true : undefined}
+            aria-describedby={blocked ? "share-blocked" : undefined}
             onChange={(event) => setConsent(event.target.checked)}
           />
           <span>
@@ -337,7 +342,7 @@ export function ShareScreen({ reportId }: { reportId: string }) {
         </label>
 
         {blocked ? (
-          <p className={styles.alert} role="alert">
+          <p id="share-blocked" className={styles.alert} role="alert">
             {blocked}
           </p>
         ) : null}

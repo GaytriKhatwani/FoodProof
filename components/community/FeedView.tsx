@@ -102,6 +102,20 @@ export function FeedView() {
 
   const source = activeQuery ? "search" : "feed";
 
+  /**
+   * What the live region says. Empty while loading or after a failure — the
+   * loading block and the error block speak for those — so the region reports
+   * a count only when there is one to report.
+   */
+  const countLine =
+    status !== "ready"
+      ? ""
+      : items.length === 0
+        ? "No concerns loaded."
+        : `Showing ${items.length} reviewed concern${items.length === 1 ? "" : "s"}${
+            nextCursor ? ", more available" : ""
+          }.`;
+
   return (
     <>
       <div className={styles.pageHead}>
@@ -146,6 +160,16 @@ export function FeedView() {
         <p className={styles.toolsNote}>Newest published first. Product and brand only.</p>
       </form>
 
+      {/*
+        The result count is its own permanent live region. It used to live
+        inside the `ready` branch, so every search destroyed and recreated the
+        region and the new count was not reliably announced — the one thing a
+        screen-reader user needs after pressing Search.
+      */}
+      <p className={styles.count} aria-live="polite">
+        {countLine}
+      </p>
+
       {status === "loading" ? (
         <LoadingBlock label="Loading reviewed concerns…" lines={4} />
       ) : null}
@@ -171,14 +195,6 @@ export function FeedView() {
 
       {status === "ready" ? (
         <>
-          <p className={styles.count} aria-live="polite">
-            {items.length === 0
-              ? "No concerns loaded."
-              : `Showing ${items.length} reviewed concern${items.length === 1 ? "" : "s"}${
-                  nextCursor ? ", more available" : ""
-                }.`}
-          </p>
-
           {items.length === 0 && activeQuery ? (
             <StateBlock
               title="No reports match this search"

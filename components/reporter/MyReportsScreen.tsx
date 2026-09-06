@@ -166,6 +166,19 @@ export function MyReportsScreen() {
               </li>
             ))}
           </ul>
+          {/*
+            A failed "show older" used to set `failure` while `status` stayed
+            "ready", so the notice above never rendered and the click looked
+            like it had simply done nothing. The page failure is shown at the
+            top; this one belongs next to the button that caused it.
+          */}
+          {status === "ready" && failure ? (
+            <FailureNotice
+              failure={failure}
+              onRetry={() => void loadMore()}
+              retryLabel="Try loading older reports again"
+            />
+          ) : null}
           {cursor ? (
             <div className={styles.actions}>
               <button

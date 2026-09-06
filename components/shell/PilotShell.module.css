@@ -182,8 +182,15 @@
     align-items: flex-start;
   }
 
-  .nav {
-    order: 3;
+  /*
+   * The wrapped header keeps DOM order. `order: 3` used to push navigation
+   * below the session controls while Tab still reached it first, so the visual
+   * sequence disagreed with the focus sequence (WCAG 1.3.2 / 2.4.3). Each part
+   * simply takes its own row instead, and navigation stays where it reads
+   * first: it is the primary control on the screen.
+   */
+  .nav,
+  .session {
     flex-basis: 100%;
   }
 

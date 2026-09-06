@@ -149,6 +149,27 @@ function formFrom(detail: ReportDetail): EditorForm {
 
 const blankToNull = (value: string): string | null => (value.trim() ? value.trim() : null);
 
+/** Form-field id for each error key `validate` can return, in step-1 order. */
+const FIELD_ID: Record<string, string> = {
+  product_name: "product-name",
+  brand: "brand",
+  observation_date: "observation-date",
+};
+
+/**
+ * Move the caret to the first field that has to change. Validation sends the
+ * editor back to step 1 from wherever the reporter pressed save, so without
+ * this the focused control is one that no longer exists and a keyboard or
+ * screen-reader user is left at the top of a screen that silently changed.
+ * The frame delay lets the step-1 fields mount first.
+ */
+function focusFirstInvalidField(errors: Record<string, string>): void {
+  const entry = Object.entries(FIELD_ID).find(([name]) => errors[name]);
+  if (!entry) return;
+  const id = entry[1];
+  window.setTimeout(() => document.getElementById(id)?.focus(), 0);
+}
+
 function writeRequest(form: EditorForm, expectedVersion: number | null): ReportWriteRequest {
   return {
     product_name: form.product_name.trim(),
@@ -221,6 +242,16 @@ export function ReportEditorScreen({
   const flowIdRef = useRef<string>(crypto.randomUUID());
 
   const initialisedRef = useRef(false);
+  const stepPanelRef = useRef<HTMLDivElement | null>(null);
+  const lastStepRef = useRef(step);
+
+  // Focus follows the step the reporter chose — but only when the step really
+  // changed, never on mount or on an unrelated re-render.
+  useEffect(() => {
+    if (lastStepRef.current === step) return;
+    lastStepRef.current = step;
+    stepPanelRef.current?.focus();
+  }, [step]);
 
   /**
    * Read the saved report. The form is populated from the FIRST successful
@@ -390,6 +421,7 @@ export function ReportEditorScreen({
           error_code: "validation",
         });
         setStep(0);
+        focusFirstInvalidField(errors);
         return;
       }
       setFieldErrors({});
@@ -422,7 +454,10 @@ export function ReportEditorScreen({
         const failure = toFailure(error);
         setSaveState("failed");
         setSaveFailure(failure);
-        if (failure.fields) setFieldErrors(failure.fields);
+        if (failure.fields) {
+          setFieldErrors(failure.fields);
+          focusFirstInvalidField(failure.fields);
+        }
         trackFlowError("save", failure);
       }
     },
@@ -590,7 +625,7 @@ export function ReportEditorScreen({
         />
       ) : null}
 
-      <ol className={styles.steps}>
+      <ol className={styles.steps} aria-label={`Report steps (${STEPS.length})`}>
         {STEPS.map((name, index) => (
           <li key={name}>
             <button
@@ -606,7 +641,14 @@ export function ReportEditorScreen({
         ))}
       </ol>
 
-      <div className={styles.section}>
+      {/*
+        The four steps swap the whole panel below without moving the page, so
+        "Continue" at the bottom used to leave focus on a button while the
+        content above it silently changed. Focus lands on the new panel, which
+        starts a screen reader at its heading; `stepPanelRef` is not focused on
+        the first render, so entering the editor is unaffected.
+      */}
+      <div className={styles.section} ref={stepPanelRef} tabIndex={-1}>
         {step === 0 ? (
           <ProductStep
             form={form}
@@ -900,7 +942,14 @@ export function ReportEditorScreen({
       {saveFailure ? (
         <FailureNotice
           failure={saveFailure}
-          onRetry={saveFailure.kind === "stale" ? undefined : () => void save("stay")}
+          // Neither a stale version nor a rejected value is fixed by repeating
+          // the same request: one needs a reload, the other needs an edit. The
+          // named fields above are the actual next step.
+          onRetry={
+            saveFailure.kind === "stale" || saveFailure.kind === "validation"
+              ? undefined
+              : () => void save("stay")
+          }
           onReload={saveFailure.kind === "stale" ? () => void refreshDetailOnly(true) : undefined}
         />
       ) : null}

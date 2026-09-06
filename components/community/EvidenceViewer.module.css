@@ -2,12 +2,26 @@
   width: min(1100px, 96vw);
   max-width: 96vw;
   max-height: 92vh;
+  /*
+   * Column layout instead of subtracting an assumed bar height: at 360 px the
+   * caption and the two buttons wrap onto separate rows, and the old
+   * `calc(92vh - 76px)` canvas then overflowed a dialog that clips.
+   */
   padding: 0;
   border: 1px solid var(--color-rule);
   border-radius: var(--radius-control);
   background: var(--color-surface);
   color: var(--color-ink);
   overflow: hidden;
+}
+
+/*
+ * Only the OPEN dialog becomes a flex column — a bare `display: flex` would
+ * override the user-agent `display: none` and leave the closed dialog visible.
+ */
+.dialog[open] {
+  display: flex;
+  flex-direction: column;
 }
 
 .dialog::backdrop {
@@ -20,6 +34,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
+  flex: 0 0 auto;
   padding: var(--space-sm) var(--space-md);
   border-bottom: 1px solid var(--color-rule);
 }
@@ -52,7 +67,8 @@
 }
 
 .canvas {
-  max-height: calc(92vh - 76px);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
   background: var(--color-paper);
   padding: var(--space-md);

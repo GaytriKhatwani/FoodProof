@@ -13,6 +13,13 @@
   --color-ink: #06132f;
   --color-muted: #4d5668;
   --color-rule: #cbd0d9;
+  /*
+   * Boundary of an INTERACTIVE control (input, textarea, select, step button,
+   * tab, picture button). WCAG 2.1 SC 1.4.11 needs 3:1 against its background
+   * and `--color-rule` is only ~1.55:1, so rules stay decorative and controls
+   * use this. 3.7:1 on white, 3.6:1 on paper, 3.1:1 on tint.
+   */
+  --color-control-border: #7d8596;
   --color-tint: #e6ebff;
   --color-status-ink: #1c399d;
   --color-error: #a12c2a;
@@ -170,7 +177,12 @@ a:hover {
   gap: var(--space-lg);
 }
 
-.pillar h3 {
+/*
+ * The three pillars are the top-level content of their section, so they are
+ * `h2` — an `h3` here would jump a level down from the page `h1`. They keep the
+ * smaller display size on purpose; heading LEVEL is structure, size is emphasis.
+ */
+.pillar h2 {
   font-family: var(--font-display);
   font-size: 19px;
   margin: 0 0 4px;
