@@ -325,15 +325,86 @@ tester codes with `scripts/create-invitations.mjs` and distribute privately.
   `scripts/analytics-journey.mjs` (procedure in `docs/FOODPROOF_SETUP_AND_OPERATIONS.md`).
 - Nothing is half-done. The next session starts at step 1 below.
 
+## Remaining work per the planning documents (recorded 6 September 2026)
+
+Every P0 requirement (R01–R15, `docs/FOODPROOF_PRD.md`) has an implementation on `main`.
+What the planning documents still call for, in order:
+
+### A. Phase one — T5 deployed invited-demo check (`docs/FOODPROOF_BUILD_TICKETS.md` T5)
+
+No new feature work; verification and configuration on the deployed URL:
+
+1. **Owner configuration.** Set `AI_PROVIDER=anthropic`, `AI_PROVIDER_API_KEY` (optional
+   `AI_MODEL`) on Vercel; leave `ANALYTICS_AUDIENCE` unset there; confirm `GET /api/health`
+   reports `ai: true` and that `APP_ORIGIN` equals the deployed origin.
+2. **Mixpanel read-back.** With the app running, `node --env-file=.env.local
+   scripts/analytics-journey.mjs`; in Live View confirm the consented sequence and
+   `$insert_id`s, that the declined and withdrawn sections produced nothing afterwards, that
+   no property carries content/PII, and review Mixpanel's own added metadata (measurement
+   doc §2/§7; procedure in `docs/FOODPROOF_SETUP_AND_OPERATIONS.md` "T4 operations").
+3. **Official destination.** Verify `https://foscos.fssai.gov.in/consumergrievance/` manually
+   in a browser (technical spec §8); only then enable the disabled "Open official portal"
+   action in `components/reporter/ActionsScreen.tsx` with the verified URL as an allowlisted
+   configuration key, so `official_channel_opened` (`destination_key`) can be emitted.
+4. **Operational inputs from the owner** (`docs/FOODPROOF_SETUP_AND_OPERATIONS.md`): the
+   private contact/moderator route (never invent an address), the 30-day retention
+   confirmation, and privately distributed tester invitations
+   (`scripts/create-invitations.mjs`).
+5. **Deployed acceptance run** (`docs/FOODPROOF_ACCEPTANCE_CHECKLIST.md` A17, re-checking
+   A01–A16 on https://food-proof.vercel.app): homepage separation, permissions, save/reopen,
+   upload, share/moderate/feed, response privacy, withdrawal, close/reopen, consented
+   events, one assisted extraction and one assisted draft, at desktop and 360 px and
+   keyboard-only, with fictional labels only. Record the release evidence record.
+6. **Observed pilot sessions.** Three to five participants with the task script in
+   measurement doc §6; keep the finding log; fix blocking comprehension/usability issues;
+   re-run affected tasks. Passing the demo does not approve public launch.
+
+### B. Known gaps worth closing before or during T5 (small; from "Handoff notes")
+
+- Feed-card thumbnails (`PublicFeedItem` carries no asset ids; `PublicReport` asset ids
+  carry no roles) — additive contract change.
+- `ReviewRequestState.source_update_id` so response review requests can be placed under
+  their response on the timeline — additive.
+- `report_saved` depends on the `X-Flow-Id` header (editor is the only caller today).
+- Removal events always report `content_kind: "concern"`.
+- The concern-revision transaction requires ≥ 1 label image but not that the selected
+  subset covers identity/claim/ingredients (the share screen enforces it; the API
+  supplement says the revision should) — server-side check in `fp_request_publication`
+  would be a migration 0005 plus a test update.
+- `stableEventId` duplicated in `scripts/analytics-journey.mjs`; no sweeper for
+  `reserved_open` ledger rows (deliberate); no upload progress; one 404 for
+  never-published / withdrawn / removed.
+
+### C. Phase two — before unrestricted public launch (`docs/FOODPROOF_BUILD_TICKETS.md`
+"Phase two", technical spec §10, decisions D18/D32). Needs explicit owner assignment and
+decisions; not started:
+
+1. Real authentication: Supabase email OTP, phone OTP, Google sign-in; account-linking
+   decisions; deliberate mapping of demo records to verified owners (never auto-claim).
+2. Production RBAC / RLS / Storage policies with admin assignment, tested with two real
+   accounts (allow and deny); remove the service-role-only boundary assumptions where a
+   client will read directly.
+3. Remove demo code and data: invitation entry and `demo_*` tables, `/api/health` fixture,
+   seed invitations, fictional seed content.
+4. Public (unauthenticated) read access to approved projections only.
+5. Owner moderation operations, correction/deletion policy, abuse handling, privacy notice,
+   retention/deletion wording, operator recovery.
+6. Production analytics project and configuration separation (`ANALYTICS_AUDIENCE` and a
+   separate `MIXPANEL_TOKEN`).
+
+### D. Phase three — after public launch (PRD "Phase boundary")
+
+- Reminders and translations, as separately scoped tickets.
+
 ## Exact next action (continuation prompt for the next session)
 
-1. **T5:** set the AI variables on Vercel; verify `GET /api/health` reports `ai: true` and
-   the deployed `APP_ORIGIN`; run the acceptance checklist on https://food-proof.vercel.app at
-   desktop and 360 px, keyboard-only, with fictional labels, including one assisted
-   extraction and one assisted draft; run `scripts/analytics-journey.mjs` against the
-   deployment (with a QA audience only if you set it there temporarily) and inspect Live
-   View; verify the official destination before enabling it; record evidence per
-   `docs/FOODPROOF_ACCEPTANCE_CHECKLIST.md`. No public launch, no tester contact, no code
-   distribution without explicit authorization.
-2. Before any later suite run, check `demo_access` holds only the two seed rows and
+1. Start with **A.1–A.2** (owner-side; nothing to code) and then **A.3–A.6** (T5). Record
+   evidence per `docs/FOODPROOF_ACCEPTANCE_CHECKLIST.md`. No public launch, no tester
+   contact, no code distribution without explicit authorization.
+2. Close **B** items the owner selects, each on its own branch from `main` with tests, the
+   same verify-then-merge discipline (typecheck, lint, build, `npx vitest run`,
+   `npm run test:e2e`), and this document updated.
+3. Begin **C** only with explicit owner assignment and the owner's authentication decisions
+   (D18); it is a new ticket set, not a continuation of T0–T5.
+4. Before any suite run, check `demo_access` holds only the two seed rows and
    `fp_ai_spend_totals()` shows no `reserved_open` rows.
