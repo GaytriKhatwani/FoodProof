@@ -547,8 +547,8 @@ only deltas from the T5-in-progress note above:
   only (the two acceptance-run invitations and two stray `user@foodproof` / `reviewer@foodproof`
   rows from a parallel session were deleted child→parent with their reports and storage objects
   by the owner); `fp_ai_spend_totals()`: 3 settled, 0 open; no pending reviews; migrations
-  0001–0005. The `MIXPANEL_SA_*` service-account lines in the local `.env.local` are unused —
-  the owner is deleting that account.
+  0001–0005. The temporary Mixpanel service account used for the read-back attempt was deleted
+  by the owner and its lines removed from the local `.env.local`; no open owner items remain.
 
 ## Remaining work per the planning documents (recorded 6 September 2026)
 
