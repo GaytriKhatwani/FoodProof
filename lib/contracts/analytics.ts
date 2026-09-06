@@ -152,6 +152,26 @@ export const EventProperties = {
   }),
 } as const;
 
+/**
+ * The events a BROWSER may report through `POST /api/analytics`: views, copies,
+ * handoffs and displayed errors. Every other event in the dictionary records a
+ * persisted action and is emitted by the server after commit
+ * (lib/server/analytics-events.ts); the proxy refuses them from a client so a
+ * browser can never claim a save, a publication or a moderation decision
+ * (FOODPROOF_API_DETAILS.md "Analytics", FOODPROOF_TECHNICAL_SPEC.md §9).
+ */
+export const CLIENT_OWNED_EVENTS: ReadonlySet<EventName> = new Set<EventName>([
+  "demo_entered",
+  "feed_viewed",
+  "feed_search_completed",
+  "feed_report_viewed",
+  "report_started",
+  "complaint_text_copied",
+  "official_channel_opened",
+  "brand_email_opened",
+  "flow_error_shown",
+]);
+
 /** What a client is allowed to POST to /api/analytics (server owns the envelope). */
 export const ClientAnalyticsEventRequest = z
   .object({

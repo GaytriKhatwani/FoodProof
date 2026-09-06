@@ -181,25 +181,27 @@ interface FrozenAsset {
  * commit but its response was lost, the rows exist and the objects are kept —
  * a lost reply must never strip images from a real pending request.
  */
-async function removeOrphanedCopies(supabase: SupabaseClient, frozen: FrozenAsset[]): Promise<void> {
+export async function removeOrphanedCopies(
+  supabase: Pick<SupabaseClient, "from">,
+  frozen: FrozenAsset[],
+  storage: Pick<typeof evidenceStorage, "removeObject"> = evidenceStorage,
+): Promise<void> {
   if (frozen.length === 0) return;
   const paths = frozen.map((f) => f.object_path);
-  let referenced = new Set<string>();
-  try {
-    const { data } = await supabase
-      .from("publication_assets")
-      .select("object_path")
-      .in("object_path", paths);
-    referenced = new Set((data ?? []).map((a) => a.object_path as string));
-  } catch {
-    // If we cannot tell, keep the objects: an orphan is harmless, a missing
-    // asset on a committed revision is not.
-    return;
-  }
+  // supabase-js reports a failed lookup as `{ data: null, error }` — it does
+  // NOT throw — so the error must be checked explicitly. If we cannot tell
+  // whether a committed revision references these objects, keep them: an orphan
+  // is harmless, a missing asset on a committed revision is not.
+  const { data, error } = await supabase
+    .from("publication_assets")
+    .select("object_path")
+    .in("object_path", paths);
+  if (error) return;
+  const referenced = new Set((data ?? []).map((a) => a.object_path as string));
   await Promise.all(
     paths
       .filter((p) => !referenced.has(p))
-      .map((p) => evidenceStorage.removeObject(p).catch(() => undefined)),
+      .map((p) => storage.removeObject(p).catch(() => undefined)),
   );
 }
 
@@ -563,6 +565,12 @@ export function removeContent(
     });
     if (error) throw mapRpcError("fp_remove_content", error);
     const row = (data ?? {}) as Partial<RemoveResult>;
+    if (typeof row.removed_at !== "string") {
+      throw new ApiError(
+        "DEPENDENCY_UNAVAILABLE",
+        `fp_remove_content() returned an older shape. Apply ${MIGRATION_0004} to this Supabase project.`,
+      );
+    }
     return {
       report_id: reportId,
       removed: true,

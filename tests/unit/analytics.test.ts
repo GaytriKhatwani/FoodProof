@@ -49,6 +49,33 @@ function session(overrides: Partial<SessionContext> = {}): SessionContext {
 const KEY = "3f4a1f8e-0a4b-4a2f-9d3e-1b2c3d4e5f60";
 
 describe("analytics ingestion", () => {
+  it("refuses server-owned events from the browser, whatever the consent state", async () => {
+    const { sink, calls } = captureSink();
+    for (const event_name of ["report_saved", "report_published", "moderation_decided"] as const) {
+      await expect(
+        ingestClientEvent(
+          session(),
+          {
+            event_name,
+            event_id: crypto.randomUUID(),
+            occurred_at: new Date().toISOString(),
+            properties: {
+              report_id: KEY,
+              publication_revision_id: KEY,
+              flow_id: KEY,
+              is_first_save: true,
+              evidence_complete: false,
+              decision: "approved",
+              content_kind: "concern",
+            },
+          },
+          sink,
+        ),
+      ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    }
+    expect(calls).toHaveLength(0);
+  });
+
   it("drops events when consent is not granted", async () => {
     const { sink, calls } = captureSink();
     const result = await ingestClientEvent(

@@ -45,6 +45,22 @@ export interface AiLimits {
   readonly estimatedPromptTokens: number;
 }
 
+/**
+ * List prices per model, micro-USD per million tokens. The ledger settles real
+ * usage at these prices, so a model that is not listed here cannot be metered
+ * honestly: `getAiAdapter()` refuses to enable AI for an unlisted `AI_MODEL`
+ * rather than under-counting against the owner's hard cap. Add a row (from the
+ * provider's published pricing) before pinning a different model.
+ */
+export const PRICED_MODELS: Readonly<
+  Record<string, Pick<AiLimits, "inputMicrosPerMillionTokens" | "outputMicrosPerMillionTokens">>
+> = {
+  "claude-sonnet-5": {
+    inputMicrosPerMillionTokens: 2_000_000, // $2.00 / MTok
+    outputMicrosPerMillionTokens: 10_000_000, // $10.00 / MTok
+  },
+};
+
 export const AI_LIMITS: AiLimits = {
   maxEvidencePerCall: 3,
   maxImageBytes: 3 * 1024 * 1024,
@@ -57,8 +73,7 @@ export const AI_LIMITS: AiLimits = {
   totalCapMicros: 2_000_000, // $2.00 — the owner's hard cap for the pilot
   rateLimitCalls: 6,
   rateLimitWindowSeconds: 60,
-  inputMicrosPerMillionTokens: 2_000_000, // $2.00 / MTok
-  outputMicrosPerMillionTokens: 10_000_000, // $10.00 / MTok
+  ...PRICED_MODELS["claude-sonnet-5"]!,
   estimatedTokensPerImage: 4784,
   estimatedPromptTokens: 1200,
 };

@@ -95,6 +95,7 @@ function fakeData(over?: {
 function fakeSpend() {
   const reserved: ReserveInput[] = [];
   const settled: string[] = [];
+  const settledUsage: { settledMicros: number; inputTokens: number; outputTokens: number }[] = [];
   const released: string[] = [];
   const spend: AiSpendLedger = {
     async reserve(input) {
@@ -105,8 +106,9 @@ function fakeSpend() {
         totalSpentMicros: 0,
       };
     },
-    async settle(ledgerId) {
+    async settle(ledgerId, usage) {
       settled.push(ledgerId);
+      settledUsage.push(usage);
     },
     async release(ledgerId) {
       released.push(ledgerId);
@@ -115,7 +117,7 @@ function fakeSpend() {
       return false;
     },
   };
-  return { spend, reserved, settled, released };
+  return { spend, reserved, settled, settledUsage, released };
 }
 
 function fakeAdapter(
@@ -361,8 +363,12 @@ describe("spend metering around a failing provider", () => {
     reserveMicros: 41_344,
   };
 
-  const failures: [string, () => unknown][] = [
-    ["timeout", () => new Anthropic.APIConnectionTimeoutError({ message: "timed out" })],
+  /** Usage the provider reports on a call it answered — and therefore billed. */
+  const BILLED = { inputTokens: 5_100, outputTokens: 220 };
+
+  // The provider never processed these: nothing was billed, so the reservation
+  // is released and an immediate retry is charged once.
+  const unbilled: [string, () => unknown][] = [
     [
       "rate limit",
       () => new Anthropic.RateLimitError(429, undefined, "slow down", new Headers()),
@@ -372,13 +378,10 @@ describe("spend metering around a failing provider", () => {
       () => new Anthropic.InternalServerError(503, undefined, "upstream", new Headers()),
     ],
     ["connection", () => new Anthropic.APIConnectionError({ message: "socket" })],
-    ["refusal", () => new AiProviderError("refusal")],
-    ["truncation", () => new AiProviderError("max_tokens")],
-    ["malformed output", () => new AiProviderError("unparsed_output")],
-    ["schema mismatch", () => new AiProviderError("schema_mismatch")],
+    ["pre-response failure", () => new AiProviderError("image_missing")],
   ];
 
-  it.each(failures)(
+  it.each(unbilled)(
     "turns a %s into the one generic state and releases the reservation exactly once",
     async (_name, makeError) => {
       const { spend, reserved, settled, released } = fakeSpend();
@@ -392,6 +395,61 @@ describe("spend metering around a failing provider", () => {
       expect(reserved).toHaveLength(1);
       expect(settled).toEqual([]);
       expect(released).toEqual(["ledger-1"]);
+    },
+  );
+
+  // The provider answered — and billed — but the answer was unusable: the real
+  // usage is SETTLED, never released, so the hard cap sees the money that left.
+  const billed: [string, () => unknown][] = [
+    ["refusal", () => new AiProviderError("refusal", BILLED)],
+    ["truncation", () => new AiProviderError("max_tokens", BILLED)],
+    ["malformed output", () => new AiProviderError("unparsed_output", BILLED)],
+    ["schema mismatch", () => new AiProviderError("schema_mismatch", BILLED)],
+    ["empty draft", () => new AiProviderError("empty_draft", BILLED)],
+  ];
+
+  it.each(billed)(
+    "turns a %s into the one generic state but settles the billed usage",
+    async (_name, makeError) => {
+      const { spend, reserved, settled, settledUsage, released } = fakeSpend();
+      const err = await expectApiError(
+        withSpend("extract", spend, AI_LIMITS, reserveInput, () => {
+          throw makeError();
+        }),
+      );
+      expect(err.code).toBe("DEPENDENCY_UNAVAILABLE");
+      expect(err.message).toBe("AI assistance is unavailable.");
+      expect(reserved).toHaveLength(1);
+      expect(released).toEqual([]);
+      expect(settled).toEqual(["ledger-1"]);
+      expect(settledUsage[0]).toEqual({
+        settledMicros: settlementMicros(AI_LIMITS, BILLED),
+        inputTokens: BILLED.inputTokens,
+        outputTokens: BILLED.outputTokens,
+      });
+    },
+  );
+
+  // We cannot know whether a timed-out request was processed: the reservation
+  // stays open and counts at its worst-case estimate.
+  const timeouts: [string, () => unknown][] = [
+    ["timeout", () => new Anthropic.APIConnectionTimeoutError({ message: "timed out" })],
+    ["deadline", () => new AiProviderError("deadline_exceeded")],
+  ];
+
+  it.each(timeouts)(
+    "leaves the reservation open after a %s (neither settled nor released)",
+    async (_name, makeError) => {
+      const { spend, reserved, settled, released } = fakeSpend();
+      const err = await expectApiError(
+        withSpend("extract", spend, AI_LIMITS, reserveInput, () => {
+          throw makeError();
+        }),
+      );
+      expect(err.code).toBe("DEPENDENCY_UNAVAILABLE");
+      expect(reserved).toHaveLength(1);
+      expect(settled).toEqual([]);
+      expect(released).toEqual([]);
     },
   );
 
@@ -412,6 +470,7 @@ describe("spend metering around a failing provider", () => {
     expect(warn).toHaveBeenCalledWith("[ai] extract failed", {
       reason: "http_429",
       ledgerId: "ledger-1",
+      disposition: "released",
     });
     const everything = JSON.stringify([
       warn.mock.calls,
@@ -447,7 +506,21 @@ describe("spend metering around a failing provider", () => {
     };
     const err = await expectApiError(
       withSpend("extract", spend, AI_LIMITS, reserveInput, () => {
-        throw new AiProviderError("refusal");
+        throw new Anthropic.InternalServerError(503, undefined, "upstream", new Headers());
+      }),
+    );
+    expect(err.code).toBe("DEPENDENCY_UNAVAILABLE");
+    expect(err.message).toBe("AI assistance is unavailable.");
+  });
+
+  it("does not let a failed settlement mask the original failure", async () => {
+    const { spend } = fakeSpend();
+    spend.settle = async () => {
+      throw new Error("ledger unreachable");
+    };
+    const err = await expectApiError(
+      withSpend("extract", spend, AI_LIMITS, reserveInput, () => {
+        throw new AiProviderError("refusal", BILLED);
       }),
     );
     expect(err.code).toBe("DEPENDENCY_UNAVAILABLE");
@@ -612,7 +685,7 @@ describe("extraction service checks (no provider, no ledger)", () => {
     expect(settled).toEqual(["ledger-1"]);
   });
 
-  it("treats an off-contract unreadable field as a provider failure and releases", async () => {
+  it("treats an off-contract unreadable field as a provider failure and settles the billed usage", async () => {
     const { spend, settled, released } = fakeSpend();
     const err = await expectApiError(
       extractForReport(
@@ -632,8 +705,9 @@ describe("extraction service checks (no provider, no ledger)", () => {
       ),
     );
     expect(err.code).toBe("DEPENDENCY_UNAVAILABLE");
-    expect(settled).toEqual([]);
-    expect(released).toEqual(["ledger-1"]);
+    // The adapter answered, so the provider billed it: settled, not released.
+    expect(settled).toEqual(["ledger-1"]);
+    expect(released).toEqual([]);
   });
 });
 
@@ -703,31 +777,63 @@ describe("drafting service checks (no provider, no ledger)", () => {
 });
 
 describe("provider configuration", () => {
-  it("is switched off unless both the provider and the key are set", async () => {
-    const savedProvider = process.env.AI_PROVIDER;
-    const savedKey = process.env.AI_PROVIDER_API_KEY;
-    try {
-      for (const env of [
-        { AI_PROVIDER: undefined, AI_PROVIDER_API_KEY: undefined },
-        { AI_PROVIDER: "anthropic", AI_PROVIDER_API_KEY: undefined },
-        { AI_PROVIDER: undefined, AI_PROVIDER_API_KEY: "unused-in-this-test" },
-        { AI_PROVIDER: "some-other-provider", AI_PROVIDER_API_KEY: "unused-in-this-test" },
-      ]) {
-        if (env.AI_PROVIDER === undefined) delete process.env.AI_PROVIDER;
-        else process.env.AI_PROVIDER = env.AI_PROVIDER;
-        if (env.AI_PROVIDER_API_KEY === undefined) delete process.env.AI_PROVIDER_API_KEY;
-        else process.env.AI_PROVIDER_API_KEY = env.AI_PROVIDER_API_KEY;
-
-        vi.resetModules();
-        const { getAiAdapter } = await import("@/lib/server/ai");
-        expect(getAiAdapter()).toBeNull();
-      }
-    } finally {
-      if (savedProvider === undefined) delete process.env.AI_PROVIDER;
-      else process.env.AI_PROVIDER = savedProvider;
-      if (savedKey === undefined) delete process.env.AI_PROVIDER_API_KEY;
-      else process.env.AI_PROVIDER_API_KEY = savedKey;
-      vi.resetModules();
+  const saved = {
+    AI_PROVIDER: process.env.AI_PROVIDER,
+    AI_PROVIDER_API_KEY: process.env.AI_PROVIDER_API_KEY,
+    AI_MODEL: process.env.AI_MODEL,
+  };
+  const setEnv = (env: Record<string, string | undefined>) => {
+    for (const [k, v] of Object.entries(env)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
     }
+  };
+  afterEach(() => {
+    setEnv(saved);
+    vi.resetModules();
+    vi.restoreAllMocks();
+  });
+
+  it("is switched off unless both the provider and the key are set", async () => {
+    for (const env of [
+      { AI_PROVIDER: undefined, AI_PROVIDER_API_KEY: undefined },
+      { AI_PROVIDER: "anthropic", AI_PROVIDER_API_KEY: undefined },
+      { AI_PROVIDER: undefined, AI_PROVIDER_API_KEY: "unused-in-this-test" },
+      { AI_PROVIDER: "some-other-provider", AI_PROVIDER_API_KEY: "unused-in-this-test" },
+    ]) {
+      setEnv({ ...env, AI_MODEL: undefined });
+      vi.resetModules();
+      const { getAiAdapter, isAiConfigured } = await import("@/lib/server/ai");
+      expect(getAiAdapter()).toBeNull();
+      expect(isAiConfigured()).toBe(false);
+    }
+  });
+
+  it("is switched off for a model that has no price row, so the cap can never under-count", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    setEnv({
+      AI_PROVIDER: "anthropic",
+      AI_PROVIDER_API_KEY: "unused-in-this-test",
+      AI_MODEL: "some-unpriced-model",
+    });
+    vi.resetModules();
+    const { getAiAdapter, isAiConfigured } = await import("@/lib/server/ai");
+    expect(isAiConfigured()).toBe(false);
+    expect(getAiAdapter()).toBeNull();
+    expect(warn).toHaveBeenCalled();
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("unused-in-this-test");
+  });
+
+  it("is on for the priced default model and reports the model it will meter", async () => {
+    setEnv({
+      AI_PROVIDER: "anthropic",
+      AI_PROVIDER_API_KEY: "unused-in-this-test",
+      AI_MODEL: undefined,
+    });
+    vi.resetModules();
+    const { getAiAdapter, isAiConfigured, DEFAULT_AI_MODEL } = await import("@/lib/server/ai");
+    expect(isAiConfigured()).toBe(true);
+    // Constructing the client performs no network call.
+    expect(getAiAdapter()?.model).toBe(DEFAULT_AI_MODEL);
   });
 });

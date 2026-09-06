@@ -3,11 +3,13 @@ import { createHash } from "node:crypto";
 import type { z } from "zod";
 import {
   AnalyticsEnvelope,
+  CLIENT_OWNED_EVENTS,
   EventProperties,
   type ClientAnalyticsEventRequest,
   type EventName,
 } from "@/lib/contracts";
 import { analyticsAudience, getServerEnv } from "./env";
+import { ApiError } from "./errors";
 import type { SessionContext } from "./session";
 
 /**
@@ -65,15 +67,18 @@ export function trackPayload(
   },
 ) {
   const parsed = Date.parse(event.occurred_at);
+  // Spread order matters: the server-derived envelope and the fixed delivery
+  // keys are written LAST, so no dictionary property added later could ever
+  // shadow them.
   return {
     event: event.event_name,
     properties: {
+      ...event.properties,
+      ...envelope,
       token,
       distinct_id: envelope.analytics_actor_id,
       time: Number.isFinite(parsed) ? parsed : Date.now(),
       $insert_id: event.event_id,
-      ...envelope,
-      ...event.properties,
     },
   };
 }
@@ -158,16 +163,21 @@ function consented(session: SessionContext): boolean {
 }
 
 /**
- * Ingest a client-owned event: dropped silently without consent, validated
- * against the exact event dictionary, wrapped in the server-derived envelope,
- * and delivered best-effort. The sink is injectable for tests. A dictionary
- * violation throws here (the route answers 422) — the client owns its payload.
+ * Ingest a client-owned event: refused when the event is one the server owns
+ * (a browser can never claim a save, publication or decision), dropped silently
+ * without consent, validated against the exact event dictionary, wrapped in the
+ * server-derived envelope, and delivered best-effort. The sink is injectable for
+ * tests. A dictionary violation throws here (the route answers 422) — the client
+ * owns its payload.
  */
 export async function ingestClientEvent(
   session: SessionContext,
   event: ClientAnalyticsEventRequest,
   sink: AnalyticsSink = analyticsSink,
 ): Promise<{ accepted: boolean }> {
+  if (!CLIENT_OWNED_EVENTS.has(event.event_name)) {
+    throw new ApiError("VALIDATION_FAILED", "That event is recorded by the server, not the browser.");
+  }
   if (!consented(session)) return { accepted: false };
   const properties = validateProperties(event.event_name, event.properties);
   await sink.emit(deriveEnvelope(session), {

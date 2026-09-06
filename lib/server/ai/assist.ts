@@ -1,4 +1,5 @@
 import "server-only";
+import Anthropic from "@anthropic-ai/sdk";
 import {
   AiDraftResponse,
   AiExtractResponse,
@@ -159,13 +160,32 @@ function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
 }
 
 /**
+ * True for failures where the provider may have processed — and billed — the
+ * request even though no usable answer reached us: our own deadline and the
+ * SDK's per-attempt timeout. Everything else that fails before a response
+ * (4xx/5xx, refused connection, DNS) is not billed.
+ */
+function mayHaveBeenBilled(e: unknown): boolean {
+  if (e instanceof Anthropic.APIConnectionTimeoutError) return true;
+  return e instanceof AiProviderError && e.reason === "deadline_exceeded";
+}
+
+/**
  * Reserve, call, then settle the real cost or release the reservation. Exported
  * so the failure matrix can be tested without a provider or a database.
  *
- * A failure releases exactly once and never settles, so an immediate retry is
- * not charged twice. If settlement itself fails the reservation deliberately
- * stays open — the call did cost money, and counting it at the estimate is the
- * safe direction for the pilot's hard cap.
+ * What happens to the reservation on failure follows what the provider could
+ * have charged, so the ledger never under-counts against the hard cap:
+ *   - the provider answered but the answer was unusable (refusal, truncation,
+ *     off-schema): SETTLE the real usage the error carries — it was billed;
+ *   - the provider did not process the request (4xx/5xx, connection refused):
+ *     RELEASE, so an immediate retry is not charged twice;
+ *   - a timeout, where we cannot know: leave the reservation OPEN, counted at
+ *     its worst-case estimate (`fp_ai_spend_totals()` reports it as
+ *     `reserved_open`).
+ * If the ledger update itself fails the reservation likewise stays open — the
+ * safe direction for the pilot's cap — and the original failure is what the
+ * caller sees.
  */
 export async function withSpend<T>(
   operation: AiOperation,
@@ -180,16 +200,27 @@ export async function withSpend<T>(
   try {
     outcome = await withDeadline(call(), limits.timeoutMs * 2 + 2_000);
   } catch (e) {
+    const billedUsage = e instanceof AiProviderError ? e.usage : undefined;
+    const disposition = billedUsage ? "settled" : mayHaveBeenBilled(e) ? "kept" : "released";
     console.warn(`[ai] ${operation} failed`, {
       reason: failureReason(e),
       ledgerId: reservation.ledgerId,
+      disposition,
     });
     try {
-      await spend.release(reservation.ledgerId);
-    } catch (releaseError) {
+      if (billedUsage) {
+        await spend.settle(reservation.ledgerId, {
+          settledMicros: settlementMicros(limits, billedUsage),
+          inputTokens: billedUsage.inputTokens,
+          outputTokens: billedUsage.outputTokens,
+        });
+      } else if (disposition === "released") {
+        await spend.release(reservation.ledgerId);
+      }
+    } catch (ledgerError) {
       // Never mask the original failure with a cleanup failure.
-      console.warn(`[ai] ${operation} release failed`, {
-        reason: failureReason(releaseError),
+      console.warn(`[ai] ${operation} ledger update failed`, {
+        reason: failureReason(ledgerError),
         ledgerId: reservation.ledgerId,
       });
     }
@@ -319,8 +350,9 @@ export async function extractForReport(
         },
         unreadable_fields: metered.result.unreadableFields,
       });
-      // A partial or off-contract result is a failure, not a half-answer.
-      if (!parsed.success) throw new AiProviderError("contract_mismatch");
+      // A partial or off-contract result is a failure, not a half-answer — but
+      // the provider did answer, so the usage is settled, not released.
+      if (!parsed.success) throw new AiProviderError("contract_mismatch", metered.usage);
       return { result: parsed.data, usage: metered.usage };
     },
   );
@@ -400,7 +432,7 @@ export async function draftForReport(
         body: withSampleNotice(metered.result.body),
       });
       if (!parsed.success || !parsed.data.subject) {
-        throw new AiProviderError("contract_mismatch");
+        throw new AiProviderError("contract_mismatch", metered.usage);
       }
       return { result: parsed.data, usage: metered.usage };
     },

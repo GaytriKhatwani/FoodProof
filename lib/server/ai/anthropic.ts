@@ -8,6 +8,7 @@ import * as z from "zod/v4";
 import type { Channel } from "@/lib/contracts";
 import { SAMPLE_NOTICE } from "../drafts";
 import type {
+  AiUsage,
   ComplaintDraftText,
   ConfirmedFacts,
   LabelExtraction,
@@ -35,14 +36,20 @@ export type LoadImage = (
  * A provider failure the service turns into the single honest
  * "AI assistance is unavailable." state. It deliberately carries no provider
  * text: `reason` is a short, content-free label for the server log.
+ *
+ * `usage` is set when the provider DID answer (and therefore billed the call)
+ * but the answer was unusable — a refusal, a truncated or off-schema output —
+ * so the spend ledger can settle the real cost instead of releasing it.
  */
 export class AiProviderError extends Error {
   readonly reason: string;
+  readonly usage?: AiUsage;
 
-  constructor(reason: string) {
+  constructor(reason: string, usage?: AiUsage) {
     super(`AI provider call failed (${reason}).`);
     this.name = "AiProviderError";
     this.reason = reason;
+    this.usage = usage;
   }
 }
 
@@ -136,13 +143,14 @@ function usageOf(response: {
 
 /**
  * Reject anything we cannot fully trust: a safety refusal, a truncated answer,
- * or output the schema could not produce. A half-result is never returned.
+ * or output the schema could not produce. A half-result is never returned. The
+ * provider has already billed these calls, so the error carries the usage.
  */
-function assertUsable(stopReason: string | null, parsed: unknown): void {
-  if (stopReason === "refusal") throw new AiProviderError("refusal");
-  if (stopReason === "max_tokens") throw new AiProviderError("max_tokens");
+function assertUsable(stopReason: string | null, parsed: unknown, usage: AiUsage): void {
+  if (stopReason === "refusal") throw new AiProviderError("refusal", usage);
+  if (stopReason === "max_tokens") throw new AiProviderError("max_tokens", usage);
   if (parsed === null || parsed === undefined) {
-    throw new AiProviderError("unparsed_output");
+    throw new AiProviderError("unparsed_output", usage);
   }
 }
 
@@ -187,9 +195,10 @@ export function createAnthropicAdapter(deps: AnthropicAdapterDeps): MeteredAiAda
       output_config: { effort: "low", format: zodOutputFormat(ExtractionOutput) },
     });
 
-    assertUsable(response.stop_reason, response.parsed_output);
+    const usage = usageOf(response);
+    assertUsable(response.stop_reason, response.parsed_output, usage);
     const parsed = ExtractionOutput.safeParse(response.parsed_output);
-    if (!parsed.success) throw new AiProviderError("schema_mismatch");
+    if (!parsed.success) throw new AiProviderError("schema_mismatch", usage);
 
     const value = parsed.data;
     const result: LabelExtraction = { unreadableFields: value.unreadable_fields };
@@ -197,7 +206,7 @@ export function createAnthropicAdapter(deps: AnthropicAdapterDeps): MeteredAiAda
     if (value.brand !== null) result.brand = value.brand;
     if (value.claim_text !== null) result.claimText = value.claim_text;
     if (value.ingredients_text !== null) result.ingredientsText = value.ingredients_text;
-    return { result, usage: usageOf(response) };
+    return { result, usage };
   }
 
   async function draftComplaintMetered(
@@ -230,13 +239,14 @@ export function createAnthropicAdapter(deps: AnthropicAdapterDeps): MeteredAiAda
       output_config: { effort: "low", format: zodOutputFormat(DraftOutput) },
     });
 
-    assertUsable(response.stop_reason, response.parsed_output);
+    const usage = usageOf(response);
+    assertUsable(response.stop_reason, response.parsed_output, usage);
     const parsed = DraftOutput.safeParse(response.parsed_output);
-    if (!parsed.success) throw new AiProviderError("schema_mismatch");
+    if (!parsed.success) throw new AiProviderError("schema_mismatch", usage);
     if (!parsed.data.subject.trim() || !parsed.data.body.trim()) {
-      throw new AiProviderError("empty_draft");
+      throw new AiProviderError("empty_draft", usage);
     }
-    return { result: parsed.data, usage: usageOf(response) };
+    return { result: parsed.data, usage };
   }
 
   return {
