@@ -13,6 +13,12 @@ the contrast ratio of every token pair actually used, measured layout and touch
 targets in a real browser at 360 px, and captured full-page screenshots of every
 screen at both widths against a live demo session.
 
+This branch was merged with `main` after the audit (feed-card thumbnails, accessible
+upload progress, the AI EXIF-strip fix) and every check below was re-run on the merged
+tree. Both incoming changes sit alongside these fixes rather than against them: the
+upload progress markup is untouched by D2, which only adds a role to the error element
+beside it, and the new thumbnail column keeps the search field's corrected border.
+
 Constraints honoured: no API contract, server code or analytics event name or property
 was touched; no user-facing string that a test asserts on was changed; the Clear Signal
 tokens in `docs/DESIGN.md` were extended, never replaced; no dependency was added; no
@@ -409,15 +415,32 @@ Reported from the deployed acceptance run, not found by this audit.
   qualified where they appear, and no screen can silently imply filing, delivery or
   safety.
 
+#### C7 · Merged upload progress bar — **checked, no change needed**
+
+`components/reporter/reporter.module.css` `.progressTrack` uses `--color-rule` for its
+outer border, which A1 would normally flag. It is correct as it stands: a progress bar
+is not operated, and SC 1.4.11 asks that the **state** be perceivable — the filled
+`--color-primary` against the `--color-tint` track is 6.87 : 1, comfortably over 3:1.
+Left exactly as the branch that added it wrote it.
+
 ## Verification
 
-Run after the changes above, from `polish/ui-impeccable`:
+Run on the merged tree (`polish/ui-impeccable` after `git merge main`):
 
-- `npm run typecheck` — pass, 0 errors
-- `npm run lint` — pass, 0 warnings and 0 errors
-- `npm run build` — pass, 24 routes compiled
-- `npm run test:e2e` — see the branch's commit message for the run counts (both
-  projects: `desktop` at 1280×800 and `mobile` at 360×740)
+| Check | Result |
+|---|---|
+| `npm run typecheck` | pass — 0 errors |
+| `npm run lint` | pass — 0 warnings, 0 errors |
+| `npm run build` | pass — compiled successfully |
+| `npm run test:e2e` | **128 passed, 0 failed** (8.0m) — both projects, `desktop` 1280×800 and `mobile` 360×740 |
+| `npx vitest run` | **239 passed, 0 failed** across 19 files (live Supabase) |
+
+Baseline before this pass: 126 e2e and 233 vitest. The two extra e2e tests are the
+withdrawn-consent assertion running in both projects; the extra vitest tests are the
+withdrawn and not-yet-known consent cases plus the two that arrived with `main`.
+
+Both live suites were run holding the shared lock at
+`/private/tmp/claude-501/foodproof-live-suite.lock`, released immediately after.
 
 ## Open questions for the owner
 
