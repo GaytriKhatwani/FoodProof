@@ -232,7 +232,11 @@ test("a recorded response can be proposed for review without any attachment", as
   await dialog.getByRole("checkbox", { name: /I want this response summary/ }).check();
   await dialog.getByRole("button", { name: "Request response review" }).click();
 
-  await expect(page.getByText("Response sent for owner review", { exact: false })).toBeVisible();
+  // The timeline names the response the review request came from (source_update_id),
+  // rather than listing it by date alone.
+  await expect(
+    page.getByText(/Response of .* from Sample Pantry customer team sent for owner review/),
+  ).toBeVisible();
 });
 
 test("withdrawing hides the community version and keeps the private record", async ({ page }) => {

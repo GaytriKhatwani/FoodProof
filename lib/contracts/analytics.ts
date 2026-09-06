@@ -177,7 +177,9 @@ export const ClientAnalyticsEventRequest = z
   .object({
     event_name: EventName,
     event_id: z.string().uuid(),
-    occurred_at: z.string(),
+    // A real ISO 8601 timestamp (UTC). The endpoint additionally rejects values
+    // outside a freshness window (lib/server/analytics-rate-limit.ts).
+    occurred_at: z.string().datetime(),
     properties: z.record(z.string(), z.unknown()),
   })
   .strict();

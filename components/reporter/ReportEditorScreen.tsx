@@ -16,6 +16,7 @@ import { useSession } from "@/lib/client/session";
 import { formatWait } from "@/components/shell/errors";
 import { EvidenceSection } from "./EvidenceSection";
 import { ReadinessPanel } from "./ReadinessPanel";
+import { useAiDisclosure } from "./AiDisclosure";
 import { toFailure, trackFlowError, useIdempotencyKeys, type Failure } from "./failure";
 import {
   DemoDataNote,
@@ -175,6 +176,7 @@ export function ReportEditorScreen({
   const router = useRouter();
   const { keyFor, settled } = useIdempotencyKeys();
   const { aiAvailable } = useSession();
+  const aiDisclosure = useAiDisclosure();
 
   const idRef = useRef<string | null>(initialReportId);
   const [detail, setDetail] = useState<ReportDetail | null>(null);
@@ -558,6 +560,7 @@ export function ReportEditorScreen({
 
   return (
     <section className={styles.screen} aria-labelledby="editor-title">
+      {aiDisclosure.dialog}
       <div className={styles.head}>
         <div className={styles.headMain}>
           <h1 className={styles.title} id="editor-title">
@@ -681,7 +684,7 @@ export function ReportEditorScreen({
                   <button
                     type="button"
                     className={styles.btnSecondary}
-                    onClick={() => void extractSuggestions()}
+                    onClick={() => aiDisclosure.run(extractSuggestions)}
                     disabled={extracting}
                   >
                     Suggest wording from my photos
@@ -702,7 +705,7 @@ export function ReportEditorScreen({
                       <button
                         type="button"
                         className={styles.btnSecondary}
-                        onClick={() => void extractSuggestions()}
+                        onClick={() => aiDisclosure.run(extractSuggestions)}
                         disabled={extracting}
                       >
                         Try again

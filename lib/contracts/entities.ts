@@ -106,6 +106,13 @@ export type ReportUpdate = z.infer<typeof ReportUpdate>;
 export const ReviewRequestState = z.object({
   publication_revision_id: z.string().uuid(),
   content_kind: ContentKind,
+  /**
+   * The recorded response this review request was raised for, or null for a
+   * concern request. It lets the private timeline place a response request under
+   * its own response instead of listing it by date. It is the owner's own id, not
+   * any response content.
+   */
+  source_update_id: z.string().uuid().nullable(),
   state: RevisionState,
   reason: z.string().nullable(),
   revision: z.number().int(),

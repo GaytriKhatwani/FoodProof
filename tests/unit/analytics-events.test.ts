@@ -288,6 +288,7 @@ describe("publication_requested", () => {
       publicationRequestedEvent(REPORT, {
         publication_revision_id: REVISION,
         content_kind: "response",
+        source_update_id: REVISION,
         state: "pending_review",
         reason: null,
         revision: 1,
@@ -347,6 +348,7 @@ describe("moderation decisions", () => {
     publication_revision_id: REVISION,
     report_id: REPORT,
     content_kind: kind,
+    source_update_id: kind === "response" ? REVISION : null,
     state,
     reason: "Please crop the ingredients photo.",
     revision: 1,
