@@ -223,7 +223,7 @@ codes with `scripts/create-invitations.mjs` and distribute privately.
    `.next/cache/fetch-cache` cleared, dev server stopped) and record the result here; the
    expected outcome is 114 passed on both viewports. Remove the merged worktree
    `../FoodProof-worktrees/t3-community`.
-2. **T4** on a new worktree from `main`: add `@anthropic-ai/sdk`-style provider code only
+2. **T4** on a new worktree from `main`: add the provider's official SDK and provider code only
    through the frozen `AiAdapter` interface (`lib/server/ai.ts`) using the owner's chosen
    provider/model/effort (see `.env.local` comment; keep these documents neutral); map
    `AI_PROVIDER` / `AI_PROVIDER_API_KEY` in `lib/server/env.ts`; implement
