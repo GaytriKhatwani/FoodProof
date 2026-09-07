@@ -11,6 +11,23 @@ export const metadata = {
   title: "Edit report — FoodProof pilot",
 };
 
-export default function EditReportPage({ params }: { params: { id: string } }) {
-  return <ReportEditorScreen reportId={params.id} fromConcernId={null} source="my_reports" />;
+/** `?step=concern` opens the Concern step directly (the actions screen links here to confirm facts). */
+const STEP_BY_NAME: Record<string, number> = { product: 0, evidence: 1, concern: 2, review: 3 };
+
+export default function EditReportPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams: { step?: string };
+}) {
+  const initialStep = STEP_BY_NAME[searchParams.step ?? ""] ?? 0;
+  return (
+    <ReportEditorScreen
+      reportId={params.id}
+      fromConcernId={null}
+      source="my_reports"
+      initialStep={initialStep}
+    />
+  );
 }

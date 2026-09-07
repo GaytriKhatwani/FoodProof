@@ -220,10 +220,13 @@ function writeRequest(form: EditorForm, expectedVersion: number | null): ReportW
 export function ReportEditorScreen({
   reportId: initialReportId,
   fromConcernId,
+  initialStep = 0,
   source,
 }: {
   reportId: string | null;
   fromConcernId: string | null;
+  /** Step to open on first render; `/actions` deep-links to the Concern step to confirm facts. */
+  initialStep?: number;
   source: "feed" | "detail" | "my_reports";
 }) {
   const router = useRouter();
@@ -234,7 +237,7 @@ export function ReportEditorScreen({
   const idRef = useRef<string | null>(initialReportId);
   const [detail, setDetail] = useState<ReportDetail | null>(null);
   const [form, setForm] = useState<EditorForm>(EMPTY_FORM);
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(() => Math.min(Math.max(0, initialStep), STEPS.length - 1));
   const [loadStatus, setLoadStatus] = useState<"loading" | "ready" | "failed">(
     initialReportId ? "loading" : "ready",
   );
@@ -919,7 +922,27 @@ export function ReportEditorScreen({
               </div>
             </dl>
             {detail ? (
-              <ReadinessPanel report={detail} />
+              <>
+                <ReadinessPanel report={detail} />
+                {!detail.facts_confirmed_at ? (
+                  // The one entry a reporter cannot add by typing more: the
+                  // confirmation lives on the Concern step, so name it and go there.
+                  <div className={styles.callout}>
+                    <h3 className={styles.subTitle}>The complaint draft waits for your confirmation</h3>
+                    <p>
+                      A draft is built only from label wording you have confirmed against
+                      your own photo. Go back to step 3, check the claim and ingredient
+                      wording, and press &ldquo;I checked this wording against my
+                      photo&rdquo;.
+                    </p>
+                    <div className={styles.actions}>
+                      <button type="button" className="btn-primary" onClick={() => setStep(2)}>
+                        Go to step 3 and confirm the facts
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </>
             ) : (
               <p className={styles.inset}>
                 Nothing is saved yet. Save this private draft to see what the

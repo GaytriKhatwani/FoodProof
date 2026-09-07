@@ -37,7 +37,7 @@ interface Failure {
   message: string;
 }
 
-export function EntryForm() {
+export function EntryForm({ demoCode = null }: { demoCode?: string | null }) {
   const searchParams = useSearchParams();
   const codeFieldId = useId();
   const codeErrorId = useId();
@@ -176,6 +176,31 @@ export function EntryForm() {
           <p id={codeErrorId} className={styles.error} role="alert">
             {fieldError ?? failure?.message}
           </p>
+        ) : null}
+        {demoCode ? (
+          // Published by the owner through DEMO_PUBLIC_USER_CODE, so anyone can
+          // walk the demo as a user without asking for a code. Rendered only
+          // when the deployment sets it; the field still has to be submitted.
+          <div className={styles.demoCode}>
+            <div className={styles.demoCodeRow}>
+              <span>
+                Just looking? The shared demo user code is <code>{demoCode}</code>
+              </span>
+              <button
+                type="button"
+                className={styles.reveal}
+                onClick={() => {
+                  setCode(demoCode);
+                  setRevealCode(true);
+                  setFieldError(null);
+                  setFailure(null);
+                  codeInputRef.current?.focus();
+                }}
+              >
+                Use the demo code
+              </button>
+            </div>
+          </div>
         ) : null}
       </div>
 

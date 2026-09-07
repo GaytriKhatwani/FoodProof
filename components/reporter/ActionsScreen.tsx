@@ -301,387 +301,408 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
           <h2 className={styles.sectionTitle}>Confirm your label facts first</h2>
           <p>
             The draft is built only from facts you have checked against your own
-            photo, so nothing in it is invented. Confirm the label wording in the
-            editor and this screen will prepare the message.
+            photo, so nothing in it is invented. Nothing below can be prepared,
+            copied or sent until that confirmation exists.
           </p>
+          <ol className={styles.checklist}>
+            <li className={cx(styles.checkItem, styles.checkNeutral)}>
+              <span>Open the editor at step 3, &ldquo;Concern&rdquo;.</span>
+            </li>
+            <li className={cx(styles.checkItem, styles.checkNeutral)}>
+              <span>Type the label claim and the ingredient wording exactly as printed.</span>
+            </li>
+            <li className={cx(styles.checkItem, styles.checkNeutral)}>
+              <span>Press &ldquo;I checked this wording against my photo&rdquo;, then come back here.</span>
+            </li>
+          </ol>
           <div className={styles.actions}>
-            <Link className="btn-primary" href={`/pilot/reports/${detail.report_id}/edit`}>
+            <Link className="btn-primary" href={`/pilot/reports/${detail.report_id}/edit?step=concern`}>
               Confirm the label facts
             </Link>
           </div>
+          <p className={styles.small}>
+            Once confirmed, this screen prepares the message, you copy it and send it
+            yourself through your own email or the official portal, and you record what
+            you sent. FoodProof sends nothing.
+          </p>
         </div>
       ) : null}
 
-      <div className={styles.tabs} role="group" aria-label="Message channel">
-        {(["brand", "government"] as const).map((option) => (
-          <button
-            key={option}
-            type="button"
-            className={styles.tab}
-            aria-pressed={channel === option}
-            onClick={() => {
-              setChannel(option);
-              setSaveState("idle");
-              setSaveFailure(null);
-              setCopyState("idle");
-              setHandoffNote(null);
-              setPrepareFailure(null);
-              setDraftFailure(null);
-            }}
-          >
-            {CHANNEL_LABEL[option]}
-          </button>
-        ))}
-      </div>
+      {factsConfirmed ? (
+        <>
 
-      <section className={styles.section} aria-labelledby="draft-title">
-        <h2 className={styles.stageTitle} id="draft-title">
-          <span className={styles.stageNum} aria-hidden="true">
-            1
-          </span>
-          {CHANNEL_LABEL[channel]}
-        </h2>
-        <p className={styles.intro}>
-          FoodProof fills this in from the facts you confirmed. Edit anything you
-          want, then save it. Saving a draft sends nothing.
-        </p>
-
-        <h3 className={styles.subTitle} id="facts-title">
-          What the draft is built from
-        </h3>
-        <ul className={styles.checklist} aria-labelledby="facts-title">
-          {[
-            { label: "Product and brand", value: `${detail.brand} · ${detail.product_name}`, done: true },
-            { label: "Label claim you confirmed", value: detail.claim_text, done: Boolean(detail.claim_text) },
-            {
-              label: "Ingredient wording you confirmed",
-              value: detail.ingredients_text,
-              done: Boolean(detail.ingredients_text),
-            },
-            { label: "Your concern", value: detail.concern_text, done: Boolean(detail.concern_text) },
-            {
-              label: "Observation date",
-              value: detail.observation_date ? formatDate(detail.observation_date) : null,
-              done: Boolean(detail.observation_date),
-            },
-            { label: "Batch number", value: detail.batch_number, done: Boolean(detail.batch_number) },
-          ].map((item) => (
-            <li
-              key={item.label}
-              // Not a failure list: an absent entry here is named in the draft
-              // rather than guessed, and two of these fields are optional. The
-              // word "Missing" carries it without error colour.
-              className={cx(
-                styles.checkItem,
-                item.done ? styles.checkDone : styles.checkNeutral,
-              )}
-            >
-              <span className={styles.checkMark}>{item.done ? "Supplied" : "Missing"}</span>{" "}
-              <span>
-                {item.label}
-                {item.done && item.value ? `: ${item.value}` : ""}
-              </span>
-            </li>
-          ))}
-        </ul>
-        <p className={styles.small}>
-          Missing information is named in the draft rather than guessed. Add it in
-          the editor if you want it included.
-        </p>
-
-        {preparing ? <Loading what="the template" /> : null}
-        {prepareFailure ? (
-          <FailureNotice
-            failure={prepareFailure}
-            onRetry={() => void prepare(detail, channel)}
-            retryLabel="Try preparing again"
-          />
-        ) : null}
-
-        {current ? (
-          <>
-            <h3 className={styles.subTitle}>The message</h3>
-            <TextField
-              id={`draft-subject-${channel}`}
-              label="Subject"
-              value={current.subject}
-              onChange={(value) => {
-                setTexts((entries) => ({
-                  ...entries,
-                  [channel]: { subject: value, body: current.body },
-                }));
+        <div className={styles.tabs} role="group" aria-label="Message channel">
+          {(["brand", "government"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={styles.tab}
+              aria-pressed={channel === option}
+              onClick={() => {
+                setChannel(option);
                 setSaveState("idle");
+                setSaveFailure(null);
                 setCopyState("idle");
+                setHandoffNote(null);
+                setPrepareFailure(null);
+                setDraftFailure(null);
               }}
+            >
+              {CHANNEL_LABEL[option]}
+            </button>
+          ))}
+        </div>
+
+        <section className={styles.section} aria-labelledby="draft-title">
+          <h2 className={styles.stageTitle} id="draft-title">
+            <span className={styles.stageNum} aria-hidden="true">
+              1
+            </span>
+            {CHANNEL_LABEL[channel]}
+          </h2>
+          <p className={styles.intro}>
+            FoodProof fills this in from the facts you confirmed. Edit anything you
+            want, then save it. Saving a draft sends nothing.
+          </p>
+
+          <h3 className={styles.subTitle} id="facts-title">
+            What the draft is built from
+          </h3>
+          <ul className={styles.checklist} aria-labelledby="facts-title">
+            {[
+              { label: "Product and brand", value: `${detail.brand} · ${detail.product_name}`, done: true },
+              { label: "Label claim you confirmed", value: detail.claim_text, done: Boolean(detail.claim_text) },
+              {
+                label: "Ingredient wording you confirmed",
+                value: detail.ingredients_text,
+                done: Boolean(detail.ingredients_text),
+              },
+              { label: "Your concern", value: detail.concern_text, done: Boolean(detail.concern_text) },
+              {
+                label: "Observation date",
+                value: detail.observation_date ? formatDate(detail.observation_date) : null,
+                done: Boolean(detail.observation_date),
+              },
+              { label: "Batch number", value: detail.batch_number, done: Boolean(detail.batch_number) },
+            ].map((item) => (
+              <li
+                key={item.label}
+                // Not a failure list: an absent entry here is named in the draft
+                // rather than guessed, and two of these fields are optional. The
+                // word "Missing" carries it without error colour.
+                className={cx(
+                  styles.checkItem,
+                  item.done ? styles.checkDone : styles.checkNeutral,
+                )}
+              >
+                <span className={styles.checkMark}>{item.done ? "Supplied" : "Missing"}</span>{" "}
+                <span>
+                  {item.label}
+                  {item.done && item.value ? `: ${item.value}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className={styles.small}>
+            Missing information is named in the draft rather than guessed. Add it in
+            the editor if you want it included.
+          </p>
+
+          {preparing ? <Loading what="the template" /> : null}
+          {prepareFailure ? (
+            <FailureNotice
+              failure={prepareFailure}
+              onRetry={() => void prepare(detail, channel)}
+              retryLabel="Try preparing again"
             />
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor={`draft-body-${channel}`}>
-                Message
-              </label>
-              <textarea
-                id={`draft-body-${channel}`}
-                ref={copyAreaRef}
-                className={styles.textarea}
-                rows={18}
-                value={current.body}
-                aria-describedby={`draft-body-${channel}-hint`}
-                onChange={(event) => {
+          ) : null}
+
+          {current ? (
+            <>
+              <h3 className={styles.subTitle}>The message</h3>
+              <TextField
+                id={`draft-subject-${channel}`}
+                label="Subject"
+                value={current.subject}
+                onChange={(value) => {
                   setTexts((entries) => ({
                     ...entries,
-                    [channel]: { subject: current.subject, body: event.target.value },
+                    [channel]: { subject: value, body: current.body },
                   }));
                   setSaveState("idle");
                   setCopyState("idle");
                 }}
               />
-              <span className={styles.hint} id={`draft-body-${channel}-hint`}>
-                Editable. Add your own name and contact details in your email or
-                the portal, not here.
-              </span>
-            </div>
-
-            <div className={styles.actions}>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => void save()}
-                disabled={saveState === "saving" || refreshing}
-              >
-                Save draft
-              </button>
-              {savedDraft ? (
-                <button
-                  type="button"
-                  className={styles.btnQuiet}
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        "Replace what is on screen with a fresh template built from your confirmed facts? Your saved draft is not changed until you save again.",
-                      )
-                    ) {
-                      setTexts((entries) => ({ ...entries, [channel]: undefined }));
-                      void prepare(detail, channel);
-                    }
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor={`draft-body-${channel}`}>
+                  Message
+                </label>
+                <textarea
+                  id={`draft-body-${channel}`}
+                  ref={copyAreaRef}
+                  className={styles.textarea}
+                  rows={18}
+                  value={current.body}
+                  aria-describedby={`draft-body-${channel}-hint`}
+                  onChange={(event) => {
+                    setTexts((entries) => ({
+                      ...entries,
+                      [channel]: { subject: current.subject, body: event.target.value },
+                    }));
+                    setSaveState("idle");
+                    setCopyState("idle");
                   }}
-                >
-                  Start again from the template
-                </button>
-              ) : null}
-              {aiAvailable && factsConfirmed ? (
+                />
+                <span className={styles.hint} id={`draft-body-${channel}-hint`}>
+                  Editable. Add your own name and contact details in your email or
+                  the portal, not here.
+                </span>
+              </div>
+
+              <div className={styles.actions}>
                 <button
                   type="button"
-                  className={styles.btnSecondary}
-                  onClick={() => aiDisclosure.run(draftWithAssistance)}
-                  disabled={drafting}
+                  className="btn-primary"
+                  onClick={() => void save()}
+                  disabled={saveState === "saving" || refreshing}
                 >
-                  Draft with AI assistance
+                  Save draft
                 </button>
-              ) : null}
-            </div>
-            {drafting ? (
-              <p className={styles.saveState} role="status" aria-live="polite">
-                Drafting…
-              </p>
-            ) : null}
-            {draftFailure ? (
-              <div className={styles.alert} role="status">
-                <p>AI assistance unavailable—continue manually.</p>
-                {draftFailure.retryAfterSeconds != null ? (
-                  <p>{formatWait(draftFailure.retryAfterSeconds)}</p>
+                {savedDraft ? (
+                  <button
+                    type="button"
+                    className={styles.btnQuiet}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          "Replace what is on screen with a fresh template built from your confirmed facts? Your saved draft is not changed until you save again.",
+                        )
+                      ) {
+                        setTexts((entries) => ({ ...entries, [channel]: undefined }));
+                        void prepare(detail, channel);
+                      }
+                    }}
+                  >
+                    Start again from the template
+                  </button>
                 ) : null}
-                <div className={styles.actions}>
+                {aiAvailable && factsConfirmed ? (
                   <button
                     type="button"
                     className={styles.btnSecondary}
-                    onClick={() => void draftWithAssistance()}
+                    onClick={() => aiDisclosure.run(draftWithAssistance)}
                     disabled={drafting}
                   >
-                    Try again
+                    Draft with AI assistance
                   </button>
-                </div>
+                ) : null}
               </div>
-            ) : null}
-            {draftMethod === "assisted" ? (
-              <p className={styles.inset} role="status">
-                Written with AI assistance from your confirmed facts. Check
-                every line before you save or send it. Nothing has been sent.
-              </p>
-            ) : null}
-            <SaveState state={saveState} />
-            {refreshing ? (
-              <p className={styles.saveState} role="status" aria-live="polite">
-                Reloading the saved draft…
-              </p>
-            ) : null}
-            {savedDraft ? (
-              <p className={styles.small}>
-                A draft for this channel is saved ({savedDraft.method}, version{" "}
-                {savedDraft.version}). Saving a draft does not send it.
-              </p>
-            ) : null}
-            {saveFailure ? (
-              <FailureNotice
-                failure={saveFailure}
-                onRetry={saveFailure.kind === "stale" ? undefined : () => void save()}
-                onReload={saveFailure.kind === "stale" ? () => void reload() : undefined}
-              />
-            ) : null}
-          </>
-        ) : null}
+              {drafting ? (
+                <p className={styles.saveState} role="status" aria-live="polite">
+                  Drafting…
+                </p>
+              ) : null}
+              {draftFailure ? (
+                <div className={styles.alert} role="status">
+                  <p>AI assistance unavailable—continue manually.</p>
+                  {draftFailure.retryAfterSeconds != null ? (
+                    <p>{formatWait(draftFailure.retryAfterSeconds)}</p>
+                  ) : null}
+                  <div className={styles.actions}>
+                    <button
+                      type="button"
+                      className={styles.btnSecondary}
+                      onClick={() => void draftWithAssistance()}
+                      disabled={drafting}
+                    >
+                      Try again
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              {draftMethod === "assisted" ? (
+                <p className={styles.inset} role="status">
+                  Written with AI assistance from your confirmed facts. Check
+                  every line before you save or send it. Nothing has been sent.
+                </p>
+              ) : null}
+              <SaveState state={saveState} />
+              {refreshing ? (
+                <p className={styles.saveState} role="status" aria-live="polite">
+                  Reloading the saved draft…
+                </p>
+              ) : null}
+              {savedDraft ? (
+                <p className={styles.small}>
+                  A draft for this channel is saved ({savedDraft.method}, version{" "}
+                  {savedDraft.version}). Saving a draft does not send it.
+                </p>
+              ) : null}
+              {saveFailure ? (
+                <FailureNotice
+                  failure={saveFailure}
+                  onRetry={saveFailure.kind === "stale" ? undefined : () => void save()}
+                  onReload={saveFailure.kind === "stale" ? () => void reload() : undefined}
+                />
+              ) : null}
+            </>
+          ) : null}
 
-        <p className={styles.small}>
-          The template is deterministic and built only from the facts you
-          confirmed.
-          {aiAvailable
-            ? " An assisted draft rewrites those same facts: it cannot add a fact you did not confirm, you edit it, and you save it yourself."
-            : ""}
-        </p>
-      </section>
-
-      <section className={styles.section} aria-labelledby="handoff-title">
-        <h2 className={styles.stageTitle} id="handoff-title">
-          <span className={styles.stageNum} aria-hidden="true">
-            2
-          </span>
-          Send it yourself
-        </h2>
-        <p className={styles.intro}>
-          You send this yourself, outside FoodProof. Take the text with you,
-          then open your own email app or the official portal. Opening a
-          destination does not submit anything, and you attach any evidence
-          yourself.
-        </p>
-
-        <div className={styles.actions}>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => void copy()}
-            disabled={!current}
-          >
-            Copy message
-          </button>
-        </div>
-        {copyState === "copied" ? (
-          <p className={styles.okNote} role="status">
-            Copied to your clipboard. Copying is not sending — nothing has left
-            FoodProof.
+          <p className={styles.small}>
+            The template is deterministic and built only from the facts you
+            confirmed.
+            {aiAvailable
+              ? " An assisted draft rewrites those same facts: it cannot add a fact you did not confirm, you edit it, and you save it yourself."
+              : ""}
           </p>
-        ) : null}
-        {copyState === "blocked" ? (
-          <p className={styles.alert} role="alert">
-            Your browser blocked the copy. The message above is selected —
-            copy it by hand. Nothing was sent.
+        </section>
+
+        <section className={styles.section} aria-labelledby="handoff-title">
+          <h2 className={styles.stageTitle} id="handoff-title">
+            <span className={styles.stageNum} aria-hidden="true">
+              2
+            </span>
+            Send it yourself
+          </h2>
+          <p className={styles.intro}>
+            You send this yourself, outside FoodProof. Take the text with you,
+            then open your own email app or the official portal. Opening a
+            destination does not submit anything, and you attach any evidence
+            yourself.
           </p>
-        ) : null}
 
-        <h3 className={styles.subTitle}>
-          {channel === "brand" ? "Then open your email app" : "Then open the official portal"}
-        </h3>
-
-        {channel === "brand" ? (
-          <>
-            <TextField
-              id="brand-recipient"
-              label="Brand email address"
-              type="email"
-              value={recipient}
-              hint="You confirm this address. FoodProof never guesses a brand's contact details, and this address is not saved."
-              onChange={(value) => {
-                setRecipient(value);
-                setHandoffNote(null);
-              }}
-            />
-            <div className={styles.actions}>
-              <button
-                type="button"
-                className={styles.btnSecondary}
-                onClick={openEmail}
-                disabled={!current || !recipient.trim()}
-              >
-                Open my email app
-              </button>
-            </div>
-            <p className={styles.small}>
-              Opens your email app with the text filled in. No file is
-              attached, so add evidence yourself. If it opens empty, use Copy
-              message instead.
+          <div className={styles.actions}>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => void copy()}
+              disabled={!current}
+            >
+              Copy message
+            </button>
+          </div>
+          {copyState === "copied" ? (
+            <p className={styles.okNote} role="status">
+              Copied to your clipboard. Copying is not sending — nothing has left
+              FoodProof.
             </p>
-          </>
-        ) : (
-          <>
-            <div className={styles.actions}>
-              <button
-                type="button"
-                className={styles.btnSecondary}
-                onClick={openOfficial}
-                disabled={!current || !officialPortal}
-              >
-                Open official portal
-              </button>
-            </div>
-            {officialPortal ? (
+          ) : null}
+          {copyState === "blocked" ? (
+            <p className={styles.alert} role="alert">
+              Your browser blocked the copy. The message above is selected —
+              copy it by hand. Nothing was sent.
+            </p>
+          ) : null}
+
+          <h3 className={styles.subTitle}>
+            {channel === "brand" ? "Then open your email app" : "Then open the official portal"}
+          </h3>
+
+          {channel === "brand" ? (
+            <>
+              <TextField
+                id="brand-recipient"
+                label="Brand email address"
+                type="email"
+                value={recipient}
+                hint="You confirm this address. FoodProof never guesses a brand's contact details, and this address is not saved."
+                onChange={(value) => {
+                  setRecipient(value);
+                  setHandoffNote(null);
+                }}
+              />
+              <div className={styles.actions}>
+                <button
+                  type="button"
+                  className={styles.btnSecondary}
+                  onClick={openEmail}
+                  disabled={!current || !recipient.trim()}
+                >
+                  Open my email app
+                </button>
+              </div>
               <p className={styles.small}>
-                Opens the official portal in a new tab. Complete and submit the
-                complaint yourself there, attaching evidence where the form
-                asks for it. Use Copy message first to paste your prepared
-                text.
+                Opens your email app with the text filled in. No file is
+                attached, so add evidence yourself. If it opens empty, use Copy
+                message instead.
               </p>
-            ) : (
-              <p className={styles.inset}>
-                Official destination not configured. This button stays off
-                until the owner adds a verified government destination. Use
-                Copy message, then go to the official portal yourself.
-              </p>
-            )}
-          </>
-        )}
+            </>
+          ) : (
+            <>
+              <div className={styles.actions}>
+                <button
+                  type="button"
+                  className={styles.btnSecondary}
+                  onClick={openOfficial}
+                  disabled={!current || !officialPortal}
+                >
+                  Open official portal
+                </button>
+              </div>
+              {officialPortal ? (
+                <p className={styles.small}>
+                  Opens the official portal in a new tab. Complete and submit the
+                  complaint yourself there, attaching evidence where the form
+                  asks for it. Use Copy message first to paste your prepared
+                  text.
+                </p>
+              ) : (
+                <p className={styles.inset}>
+                  Official destination not configured. This button stays off
+                  until the owner adds a verified government destination. Use
+                  Copy message, then go to the official portal yourself.
+                </p>
+              )}
+            </>
+          )}
 
-        {handoffNote ? (
-          <p className={styles.okNote} role="status">
-            {handoffNote}
+          {handoffNote ? (
+            <p className={styles.okNote} role="status">
+              {handoffNote}
+            </p>
+          ) : null}
+        </section>
+
+        <section className={styles.section} aria-labelledby="record-title">
+          <h2 className={styles.stageTitle} id="record-title">
+            <span className={styles.stageNum} aria-hidden="true">
+              3
+            </span>
+            Record what you sent
+          </h2>
+          <p className={styles.intro}>
+            Recording a submission is your own note that you sent something. It
+            creates no message and confirms no delivery. Anything that comes back
+            is recorded against it on the report&rsquo;s timeline.
           </p>
+          <div className={styles.actions}>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => setSubmissionOpen(true)}
+            >
+              Record that you sent it
+            </button>
+            <Link className={styles.btnQuiet} href={`/pilot/reports/${detail.report_id}`}>
+              Record a response on the timeline
+            </Link>
+          </div>
+          <p className={styles.small}>
+            {detail.submissions.filter((item) => item.channel === channel).length} submission
+            {detail.submissions.filter((item) => item.channel === channel).length === 1 ? "" : "s"}{" "}
+            recorded by you on this channel.
+          </p>
+        </section>
+
+        {submissionOpen ? (
+          <SubmissionDialog
+            report={detail}
+            channel={channel}
+            onClose={() => setSubmissionOpen(false)}
+            onSaved={reload}
+          />
         ) : null}
-      </section>
-
-      <section className={styles.section} aria-labelledby="record-title">
-        <h2 className={styles.stageTitle} id="record-title">
-          <span className={styles.stageNum} aria-hidden="true">
-            3
-          </span>
-          Record what you sent
-        </h2>
-        <p className={styles.intro}>
-          Recording a submission is your own note that you sent something. It
-          creates no message and confirms no delivery. Anything that comes back
-          is recorded against it on the report&rsquo;s timeline.
-        </p>
-        <div className={styles.actions}>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => setSubmissionOpen(true)}
-          >
-            Record that you sent it
-          </button>
-          <Link className={styles.btnQuiet} href={`/pilot/reports/${detail.report_id}`}>
-            Record a response on the timeline
-          </Link>
-        </div>
-        <p className={styles.small}>
-          {detail.submissions.filter((item) => item.channel === channel).length} submission
-          {detail.submissions.filter((item) => item.channel === channel).length === 1 ? "" : "s"}{" "}
-          recorded by you on this channel.
-        </p>
-      </section>
-
-      {submissionOpen ? (
-        <SubmissionDialog
-          report={detail}
-          channel={channel}
-          onClose={() => setSubmissionOpen(false)}
-          onSaved={reload}
-        />
+        </>
       ) : null}
     </section>
   );

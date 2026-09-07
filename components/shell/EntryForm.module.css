@@ -38,6 +38,8 @@
 
 .input {
   flex: 1 1 240px;
+  /* Outside a flex row (the email field) an input has no width of its own. */
+  width: 100%;
   min-width: 0;
   min-height: 48px;
   padding: 12px 14px;
@@ -62,6 +64,36 @@
 .inputInvalid {
   border-color: var(--color-error);
   border-width: 2px;
+}
+
+/*
+ * The owner-published demo code. Set in type at body size so it can be read
+ * and typed by hand; the button beside it fills the field for people who just
+ * want to see the flow.
+ */
+.demoCode {
+  margin: var(--space-sm) 0 0;
+  padding: var(--space-sm) 14px;
+  background: var(--color-tint);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-control);
+  color: var(--color-status-ink);
+  font-size: 15px;
+}
+
+.demoCode code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  color: var(--color-ink);
+  user-select: all;
+}
+
+.demoCodeRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-sm);
 }
 
 .reveal {

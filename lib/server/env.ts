@@ -79,6 +79,13 @@ const ServerEnvSchema = z.object({
   // every sign-in and re-checked on every request (lib/server/moderators.ts).
   // Unset or empty means no verified account is a reviewer.
   MODERATOR_EMAILS: ModeratorEmailsEnv,
+  // Optional. The raw code of ONE user-role invitation the owner chooses to
+  // publish on the entry page so any visitor can walk the demo without asking
+  // for a code. The row itself is created like any other invitation
+  // (scripts/create-invitations.mjs); this value only decides whether the entry
+  // page shows it. Anyone who can load the page can enter as that demo user, so
+  // set it only for a demo whose content is all sample or redacted material.
+  DEMO_PUBLIC_USER_CODE: optionalSecret,
 })
   // Enabling email sign-in without the publishable key would leave the routes
   // advertised but unable to reach the provider. Fail at startup with a
@@ -162,4 +169,15 @@ export function serverEnvStatus() {
     // alone never advertises a sign-in path the server cannot serve.
     email_sign_in: p.EMAIL_SIGN_IN === "true" && Boolean(p.SUPABASE_PUBLISHABLE_KEY),
   } as const;
+}
+
+/**
+ * The invitation code the owner has chosen to publish on the entry page, or
+ * null when none is. Read by the `/pilot` server component only; it is the one
+ * secret this application deliberately renders into a page, by the owner's
+ * explicit configuration.
+ */
+export function publicDemoUserCode(): string | null {
+  const value = getServerEnv().DEMO_PUBLIC_USER_CODE?.trim();
+  return value ? value : null;
 }

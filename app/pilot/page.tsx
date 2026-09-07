@@ -5,7 +5,7 @@ import { EmailSignInForm } from "@/components/shell/EmailSignInForm";
 import { EntryForm } from "@/components/shell/EntryForm";
 import { SkipLink } from "@/components/shell/SkipLink";
 import { LoadingBlock } from "@/components/shell/states";
-import { serverEnvStatus } from "@/lib/server/env";
+import { publicDemoUserCode, serverEnvStatus } from "@/lib/server/env";
 import styles from "@/components/shell/EntryPage.module.css";
 
 /**
@@ -60,6 +60,7 @@ function InvitationNotices({ scopedFootnote }: { scopedFootnote: boolean }) {
 
 export default function PilotEntryPage() {
   const emailSignIn = serverEnvStatus().email_sign_in;
+  const demoCode = publicDemoUserCode();
 
   return (
     <>
@@ -112,7 +113,7 @@ export default function PilotEntryPage() {
                   <Suspense
                     fallback={<LoadingBlock label="Loading the entry form…" lines={2} />}
                   >
-                    <EntryForm />
+                    <EntryForm demoCode={demoCode} />
                   </Suspense>
                 </section>
               </>
@@ -120,7 +121,7 @@ export default function PilotEntryPage() {
               <Suspense
                 fallback={<LoadingBlock label="Loading the entry form…" lines={2} />}
               >
-                <EntryForm />
+                <EntryForm demoCode={demoCode} />
               </Suspense>
             )}
           </div>
