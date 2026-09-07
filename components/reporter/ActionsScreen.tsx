@@ -216,7 +216,7 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
       current.subject,
     )}&body=${encodeURIComponent(current.body)}`;
     setHandoffNote(
-      "Your email app was asked to open a new message. Nothing has been sent, no file was attached, and FoodProof cannot tell whether the app opened.",
+      "Your email app should have opened with the message. That does not confirm it was sent.",
     );
     clientAnalytics.track("brand_email_opened", { report_id: detail.report_id });
     window.location.href = href;
@@ -225,7 +225,7 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
   const openOfficial = useCallback(() => {
     if (!detail || !officialPortal) return;
     setHandoffNote(
-      "The official portal was opened in a new tab. FoodProof sent nothing, filed no complaint, and attached no evidence — you complete and submit the form yourself on the government site.",
+      "The official portal should have opened in a new tab. FoodProof filed nothing. Opening it does not submit your complaint.",
     );
     // Client-owned event: fired only when a configured, allowlisted destination
     // was actually opened. The key identifies the destination without content.
@@ -270,8 +270,7 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
             Prepare a complaint
           </h1>
           <p className={styles.lede}>
-            Prepare the words here, then send them yourself through your own
-            channel. FoodProof never sends anything for you.
+            Prepare the message here, then send it yourself.
           </p>
         </div>
         <Link className={styles.btnSecondary} href={`/pilot/reports/${detail.report_id}`}>
@@ -490,9 +489,8 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
             ) : null}
             {draftMethod === "assisted" ? (
               <p className={styles.inset} role="status">
-                This draft was written with AI assistance from the facts you
-                confirmed. It is a suggestion — check every line, edit it, and
-                save it yourself. Nothing has been sent.
+                Written with AI assistance from your confirmed facts. Check
+                every line before you save or send it. Nothing has been sent.
               </p>
             ) : null}
             <SaveState state={saveState} />
@@ -543,8 +541,8 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
           Send it yourself
         </h2>
         <p className={styles.small}>
-          You send outside FoodProof. Opening a destination is not submission, and
-          any evidence must be attached by you where it is required.
+          You send this yourself, outside FoodProof. Opening a destination does
+          not submit it, and you attach any evidence yourself.
         </p>
 
         {channel === "brand" ? (
@@ -571,10 +569,9 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
               </button>
             </div>
             <p className={styles.small}>
-              This only asks your device to open a new message with the text
-              filled in. It attaches no files, sends nothing, and proves nothing
-              about delivery. If your email app opens empty, use Copy message and
-              paste it.
+              Opens your email app with the text filled in. No file is
+              attached, so add evidence yourself. If it opens empty, use Copy
+              message instead.
             </p>
           </>
         ) : (
@@ -591,18 +588,16 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
             </div>
             {officialPortal ? (
               <p className={styles.small}>
-                This opens the official government portal in a new tab. FoodProof
-                files nothing and attaches nothing — you complete and submit the
-                complaint yourself there, attaching any evidence where the form
-                asks for it. Use Copy message first to paste your prepared text.
+                Opens the official portal in a new tab. Complete and submit the
+                complaint yourself there, attaching evidence where the form
+                asks for it. Use Copy message first to paste your prepared
+                text.
               </p>
             ) : (
               <p className={styles.inset}>
-                Official destination not configured. The owner has to choose and
-                verify the real government destination before this button can
-                work, so it deliberately does nothing here and no government form
-                is opened. Use Copy message and go to the official portal
-                yourself.
+                Official destination not configured. This button stays off
+                until the owner adds a verified government destination. Use
+                Copy message, then go to the official portal yourself.
               </p>
             )}
           </>

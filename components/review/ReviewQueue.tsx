@@ -109,10 +109,10 @@ export function ReviewQueue() {
         <div>
           <h1 className={styles.title}>Review queue</h1>
           <p className={styles.lede}>
-            Review checks that the evidence supports the concern, that no personal
-            information is exposed, and that the wording states what was observed. Approving
-            makes a snapshot visible in the pilot community; it is not a safety verdict and
-            it files nothing with any authority.
+            Review checks that evidence supports the concern, no personal
+            information is exposed, and the wording matches what was
+            observed. Approving makes it visible in the pilot community. It
+            is not a safety verdict, and it files nothing with any authority.
           </p>
         </div>
         <button type="button" className={styles.secondaryButton} onClick={() => void load()}>

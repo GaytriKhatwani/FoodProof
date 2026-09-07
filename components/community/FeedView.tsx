@@ -131,9 +131,9 @@ export function FeedView() {
         <div>
           <h1 className={styles.title}>Community concerns</h1>
           <p className={styles.lede}>
-            Reviewed reports describe what a contributor documented. Review checks
-            evidence completeness, privacy and factual wording — it does not establish
-            that a product is safe, and FoodProof files nothing with any authority.
+            Reviewed reports describe what a contributor documented. Review
+            checks evidence, privacy and wording. It does not establish that a
+            product is safe.
           </p>
         </div>
         <Link className="btn-primary" href="/pilot/reports/new">

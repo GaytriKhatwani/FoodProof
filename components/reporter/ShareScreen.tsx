@@ -152,8 +152,7 @@ export function ShareScreen({ reportId }: { reportId: string }) {
             Preview community version
           </h1>
           <p className={styles.lede}>
-            Only what is shown below would be proposed for sharing inside this
-            pilot. Requesting a review sends nothing to a brand or an authority.
+            Only what is shown below would be shared with the pilot community.
           </p>
         </div>
         <Link className={styles.btnSecondary} href={`/pilot/reports/${detail.report_id}`}>
@@ -192,8 +191,7 @@ export function ShareScreen({ reportId }: { reportId: string }) {
 
       {sent ? (
         <p className={styles.okNote} role="status">
-          Sent for owner review. Nothing is published yet, and nothing was sent
-          outside FoodProof.
+          Sent for owner review. Nothing is published yet.
         </p>
       ) : null}
 

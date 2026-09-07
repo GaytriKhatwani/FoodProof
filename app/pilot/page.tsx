@@ -63,8 +63,8 @@ export default function PilotEntryPage() {
       <footer className="site-footer">
         <div className="container">
           <p>
-            FoodProof is an independent project with no government affiliation. It does not
-            file complaints, guarantee responses, or look up product safety.
+            FoodProof is an independent project, not affiliated with any
+            government agency.
           </p>
         </div>
       </footer>

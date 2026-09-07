@@ -38,8 +38,8 @@ test.describe("public home", () => {
     await expect(page.getByText(/illustrative example using sample or redacted/)).toBeVisible();
 
     const footer = page.getByRole("contentinfo");
-    await expect(footer).toContainText("independent project with no government affiliation");
-    await expect(footer).toContainText("does not file complaints");
+    await expect(footer).toContainText("independent project");
+    await expect(footer).toContainText("not affiliated with any government agency");
     // The contact route is the owner's to configure; the page never invents one.
     await expect(footer).toContainText("the same channel your invitation arrived on");
     await expect(footer.getByRole("link")).toHaveCount(0);
