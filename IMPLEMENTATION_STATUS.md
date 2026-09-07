@@ -104,6 +104,15 @@ printed); `npm run build` clean, both new routes present; `npx playwright test` 
 passed in the deployment-accurate configuration (flag off). The live email suite has
 NEVER run: it is blocked on step 1 above and must not be reported as passing.
 
+**Live verification after the owner applied 0006 (7 September 2026, merged `main`).**
+`fp_schema_version()` returned 6 on the demo project. `tests/integration/auth-email.test.ts`
+then ran for the first time: 9 passed, 0 failed (actor creation with the user role,
+same actor on a second sign-in, allowlist promotion and demotion, two-actor isolation,
+invitation entry unchanged, logout, wrong code, revoked actor). `npx playwright test` on
+the merged tree: 140 passed, 0 failed, 0 skipped, including the live email scenario on
+both projects. Codes were obtained through the admin `generateLink` API, so SMTP delivery
+itself is still unverified and remains an owner check after the dashboard setup.
+
 **What the UI slice adds.** See "Phase two — C.1 UI slice" immediately below: it is now
 built on this branch, on top of the server contract above.
 

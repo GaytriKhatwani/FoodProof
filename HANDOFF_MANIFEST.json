@@ -137,8 +137,8 @@
     },
     {
       "path": "IMPLEMENTATION_STATUS.md",
-      "bytes": 58770,
-      "sha256": "1d10ef034faf422ce8d823b0ed1059b5b725d806b2c41b69a33d48f244c3ef2e"
+      "bytes": 59468,
+      "sha256": "265bf358fdeadd408c291ea4e892e02016c98bc132654bac8307d57b16e6c61e"
     },
     {
       "path": "README.md",
@@ -147,5 +147,5 @@
     }
   ],
   "local_markdown_links": "passed",
-  "application_tests": "typecheck/lint/build pass; vitest 287 passed / 9 skipped live (Supabase, real AI provider, real Mixpanel) after migration 0005 — the 9 skipped are the C.1 email sign-in suite, BLOCKED until migration 0006 is applied; playwright 128 passed (desktop + 360 px); T0–T4 plus the pilot-integrity hardening pass (migration 0005) and T5 merged on main; the C.1 server slice is on feat/c1-email-sign-in, not merged"
+  "application_tests": "typecheck/lint/build pass; vitest 287 passed / 9 skipped live (Supabase, real AI provider, real Mixpanel) after migration 0005 \u2014 the 9 skipped are the C.1 email sign-in suite, BLOCKED until migration 0006 is applied; playwright 128 passed (desktop + 360 px); T0\u2013T4 plus the pilot-integrity hardening pass (migration 0005) and T5 merged on main; the C.1 server slice is on feat/c1-email-sign-in, not merged"
 }
