@@ -24,10 +24,17 @@
   --color-status-ink: #1c399d;
   --color-error: #a12c2a;
 
-  --font-display: "Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto,
-    Helvetica, Arial, sans-serif;
-  --font-body: "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto,
-    Helvetica, Arial, sans-serif;
+  /*
+   * `--font-display-face` and `--font-body-face` are declared by `next/font`
+   * in `app/layout.tsx`, which self-hosts Inter Tight and DM Sans and supplies
+   * a metric-compatible fallback for each. The literal family names stay in
+   * the stack so a locally installed copy still works if the hosted file is
+   * missing; both token names are unchanged.
+   */
+  --font-display: var(--font-display-face), "Inter Tight", system-ui,
+    -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-body: var(--font-body-face), "DM Sans", system-ui, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
   --space-sm: 12px;
   --space-md: 20px;
@@ -48,6 +55,16 @@ body {
   margin: 0;
 }
 
+html {
+  /*
+   * In-page anchors ("How it works") land below the sticky public header
+   * rather than under it. Smooth scrolling is cancelled with the rest of the
+   * motion under `prefers-reduced-motion` at the foot of this file.
+   */
+  scroll-behavior: smooth;
+  scroll-padding-top: 92px;
+}
+
 body {
   background: var(--color-paper);
   color: var(--color-ink);
@@ -55,6 +72,20 @@ body {
   font-size: 16px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * Browser surfaces belong to the design too: selection and the caret take the
+ * Clear Signal cobalt instead of the platform default blue.
+ */
+::selection {
+  background: var(--color-tint);
+  color: var(--color-ink);
+}
+
+input,
+textarea {
+  caret-color: var(--color-primary);
 }
 
 a {
@@ -89,19 +120,47 @@ a:hover {
   color: var(--color-primary);
 }
 
+/*
+ * The public header is a full-width band so its rule reaches both edges, with
+ * the row itself held to the container. It sticks: on a page this long the one
+ * way into the pilot should not scroll away. `.site-header-inner` carries the
+ * row so `.site-header` can own the band.
+ */
 .site-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--color-paper);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.site-header-inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-md);
-  padding: var(--space-md) 0;
-  border-bottom: 1px solid var(--color-rule);
+  padding-top: 14px;
+  padding-bottom: 14px;
 }
 
 .nav-links {
   display: flex;
   align-items: center;
-  gap: var(--space-lg);
+  gap: clamp(16px, 2.4vw, 32px);
+}
+
+/*
+ * Navigation anchors read as text, not as chrome: the underline appears on
+ * hover and focus only, so the row stays quiet beside the one filled action.
+ */
+.nav-links a:not(.btn-primary) {
+  color: var(--color-ink);
+  font-weight: 500;
+  text-underline-offset: 5px;
+}
+
+.nav-links a:not(.btn-primary):hover {
+  color: var(--color-primary);
 }
 
 .btn-primary {
@@ -118,12 +177,25 @@ a:hover {
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
 }
 
 .btn-primary:hover {
   background: var(--color-primary-hover);
   border-color: var(--color-primary-hover);
   text-decoration: none;
+}
+
+/* Physical acknowledgement of the press, one pixel, no colour change. */
+.btn-primary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* The header action stays on one line beside the wordmark at small widths. */
+.site-header-inner .btn-primary {
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 15px;
 }
 
 .link-cta {
@@ -210,13 +282,54 @@ a:hover {
 
 .site-footer {
   border-top: 1px solid var(--color-rule);
-  padding: var(--space-lg) 0;
+  padding: clamp(28px, 4vw, 44px) 0 clamp(32px, 5vw, 56px);
   color: var(--color-muted);
   font-size: 14px;
 }
 
+/*
+ * Wordmark on the left, the two standing statements beside it. The footer
+ * carries no links in phase one: the contact route is the channel an
+ * invitation arrived on, and this page never invents one.
+ */
+.site-footer-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 15ch) minmax(0, 68ch);
+  gap: var(--space-md) clamp(20px, 4vw, 56px);
+}
+
+.site-footer-inner p {
+  margin: 0 0 6px;
+}
+
+.site-footer-inner p:last-child {
+  margin-bottom: 0;
+}
+
+.site-footer-inner .wordmark {
+  font-size: 18px;
+  color: var(--color-muted);
+}
+
 .muted {
   color: var(--color-muted);
+}
+
+/*
+ * The route reveal DESIGN.md specifies: one restrained 260ms arrival for the
+ * page body, never a per-section scroll choreography. The default state is the
+ * finished state, so the reduced-motion block below (and any failure to run
+ * the animation) leaves the page fully visible.
+ */
+@keyframes route-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.route-reveal {
+  animation: route-reveal 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @media (max-width: 680px) {
@@ -236,9 +349,21 @@ a:hover {
   .nav-links {
     gap: var(--space-md);
   }
+
+  .site-footer-inner {
+    grid-template-columns: 1fr;
+  }
+
+  .wordmark {
+    font-size: 19px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
   * {
     animation: none !important;
     transition: none !important;
