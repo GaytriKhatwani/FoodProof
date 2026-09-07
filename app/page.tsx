@@ -100,8 +100,8 @@ export default function HomePage() {
             </div>
           </div>
           <p className="notice">
-            Publishing here does not file a government complaint, and FoodProof
-            does not certify that a product is safe.
+            Publishing here does not file a government complaint or certify a
+            product safe.
           </p>
         </section>
 
@@ -118,9 +118,8 @@ export default function HomePage() {
       <footer className="site-footer">
         <div className="container">
           <p>
-            FoodProof is an independent project with no government affiliation. It
-            does not file complaints, guarantee responses, or look up product
-            safety.
+            FoodProof is an independent project, not affiliated with any
+            government agency.
           </p>
           <p className="muted">
             Built for the celiac community in India. If you were invited to the
