@@ -811,19 +811,36 @@ decisions; not started:
 
 ## Exact next action (continuation prompt for the next session)
 
-1. **Phase one is complete** (T0–T5; deployed acceptance 16/16). Do not re-open T5 items or
-   re-ask the decisions in "Owner decisions (6 September 2026)".
-2. **Start Phase two C.1 — real sign-in** (`docs/FOODPROOF_BUILD_TICKETS.md` "Phase two",
-   decision D18) as a NEW ticket set on its own branch from `main`. First get from the owner:
-   which providers (email OTP / phone OTP / Google), account-linking rules, and how demo
-   records map to verified owners (never auto-claim). The `codex/otp-sign-in` branch
-   (`6477adc`, worktree `/private/tmp/foodproof-otp`) is a reference only — it predates the
-   hardening pass and A.3 and its `0005_verified_accounts.sql` collides with the applied
-   `0005`; any reuse means rebasing onto `main` and renumbering to `0006` (+ `fp_schema_version()`
-   → 6). Every migration is pasted by the owner into the SQL Editor.
-3. Carry-forward owner questions (non-blocking, from the session-end note): thumbnail
-   placeholder for pre-0005 concerns; DESIGN.md motion spec; `window.confirm` dialogs;
-   blocking-panel heading scale. Next.js 14 → 16 remains a pre-public-launch follow-up.
-4. Before any suite run, check `demo_access` holds only the two seed rows and
-   `fp_ai_spend_totals()` shows no `reserved_open` rows. Live suites share one demo project:
-   never run two concurrently (the agents in this session serialized them through a lock).
+1. **Phase two C.1 (email sign-in) is merged and deployed, switched OFF.** `main` ==
+   `origin/main` at the commit carrying this paragraph; `https://food-proof.vercel.app/api/health`
+   reports `email_sign_in: false`; the entry page shows invitation entry only. Migration 0006
+   is applied to the demo project (`fp_schema_version()` = 6); the live suites ran against it
+   (vitest auth-email 9/9, Playwright 140/140). Do not re-open C.1 code or re-ask the owner
+   decisions recorded in "Owner decisions (7 September 2026, C.1)" below.
+2. **Owner steps to switch it on** (in this order; detail in
+   `docs/FOODPROOF_SETUP_AND_OPERATIONS.md` "Phase two C.1"): (a) Supabase Authentication:
+   Email provider on with confirm email, `{{ .Token }}` in the Magic Link template, OTP
+   expiry one hour or less, custom SMTP; (b) Vercel: `EMAIL_SIGN_IN=true`,
+   `SUPABASE_PUBLISHABLE_KEY`, optional `MODERATOR_EMAILS`. The owner said the SMTP step
+   is pending for the next session.
+3. **Then verify end to end from a browser**: `/api/health` reports `email_sign_in: true`;
+   request a code to a real mailbox, sign in, `GET /api/me` shows `sign_in_method: "email"`
+   and the address; an invitation code still works in a second browser. Email delivery
+   through SMTP is the one thing no automated test has exercised.
+4. Carry-forward (unchanged): thumbnail placeholder for pre-0005 concerns; DESIGN.md motion
+   spec; `window.confirm` dialogs; blocking-panel heading scale; Next.js 14 to 16 before public
+   launch. Later Phase two tickets: production RBAC/RLS and storage tests, removing demo
+   mode, public approved-projection access, moderation operations and deletion policy.
+5. Before any suite run, check `demo_access` holds only the two seed rows and
+   `fp_ai_spend_totals()` shows no `reserved_open` rows. Never run two live suites at once,
+   and never pipe a live run through `head`: a closed pipe aborts vitest mid-suite and leaves
+   rows behind (it happened on 7 September 2026; cleaned child to parent).
+
+## Owner decisions (7 September 2026, C.1) — recorded, not to be re-asked
+
+1. Sign-in providers: **email one-time code only**. No phone, no Google.
+2. Account linking: provider default, one verified address = one account.
+3. Demo mode stays side by side behind the flag; verified accounts never claim demo records.
+4. Reviewer role for verified accounts: **`MODERATOR_EMAILS` allowlist**, no role table.
+5. Push of `main` after the C.1 merge authorised and done; SMTP configuration deferred to the
+   next session by the owner.
