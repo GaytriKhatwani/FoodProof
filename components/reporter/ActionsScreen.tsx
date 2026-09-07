@@ -216,7 +216,7 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
       current.subject,
     )}&body=${encodeURIComponent(current.body)}`;
     setHandoffNote(
-      "Email app opened. That does not confirm a message was sent.",
+      "Your email app should have opened with the message. That does not confirm it was sent.",
     );
     clientAnalytics.track("brand_email_opened", { report_id: detail.report_id });
     window.location.href = href;
@@ -225,7 +225,7 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
   const openOfficial = useCallback(() => {
     if (!detail || !officialPortal) return;
     setHandoffNote(
-      "Official portal opened. FoodProof filed nothing. Opening it does not submit your complaint.",
+      "The official portal should have opened in a new tab. FoodProof filed nothing. Opening it does not submit your complaint.",
     );
     // Client-owned event: fired only when a configured, allowlisted destination
     // was actually opened. The key identifies the destination without content.
