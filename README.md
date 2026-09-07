@@ -54,9 +54,10 @@ Against a **dedicated demo** Supabase project (never production):
 3. Create the private storage buckets: `node --env-file=.env.local scripts/setup-storage.mjs`.
 4. Generate invitation codes (shown once; distribute privately, never commit):
    `node --env-file=.env.local scripts/create-invitations.mjs --users 2`.
-5. Seed the fictional pilot example (run `npm run dev` first; it drives the real
-   API): `node --env-file=.env.local scripts/seed.mjs`. To replace the seeded
-   example, e.g. after this image fix, add `--reset`: it removes only the rows
+5. Seed the fictional pilot examples (run `npm run dev` first; it drives the real
+   API): `node --env-file=.env.local scripts/seed.mjs`. It creates four fictional
+   product records, three published concerns and one draft. To replace the seeded
+   examples add `--reset`: it removes only the rows
    and Storage objects owned by the seed's own two invitations before
    re-seeding, and never touches any other invitation.
 6. Integration tests self-skip without live credentials; with `.env.local` present

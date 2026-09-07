@@ -17,18 +17,24 @@ Implemented (T1):
   private distribution and are never written to a file, committed, or logged.
   Options: `--users <n>` (default 2), `--days <n>` (expiry, default 7),
   `--no-reviewer`.
-- **`seed.mjs`** — create the fictional published pilot example and its simulated
-  response through the same application API and publication services a reporter
-  uses (never raw inserts), plus a second unreported product as an unpublished
-  draft (`docs/FOODPROOF_TECHNICAL_SPEC.md` §5a, decision D25). Uploads the real
+- **`seed.mjs`** — create the fictional pilot examples through the same application
+  API and publication services a reporter uses (`docs/FOODPROOF_TECHNICAL_SPEC.md`
+  §5a, decision D25): four fictional product records (the one direct write, dataset
+  `seed`, because the application never creates catalogue records itself), three
+  fully published concerns with different histories (brand submission + simulated
+  response; brand + official submissions + response, follow-up closed; published
+  with no submission yet), and one unreported draft. Every report is linked to its
+  product record, so "Look for an existing product" in the editor finds a match
+  when the seeded identity is typed exactly. Uploads the real
   fictional label photograph (`design/assets/clear-signal-label-preview.jpg`,
   always labelled fictional/illustrative), not a stub image. Requires the app
   running (`npm run dev`). Idempotent: exits if the example is already published.
   Option `--reset`: before seeding, deletes ONLY the rows (and Storage objects in
   both private buckets) owned by demo_access rows labelled exactly
   `seed@foodproof` or `seed-reviewer@foodproof` — the same child→parent table
-  order as `teardown.mjs`, scoped to just those two labels. It never touches any
-  other invitation. Use it to replace an already-seeded example, e.g. after a
+  order as `teardown.mjs`, scoped to just those two labels, then the seed product
+  records that no other report still links to. It never touches any other
+  invitation. Use it to replace an already-seeded example, e.g. after a
   fixture fix. Prints row/object counts only, never ids or codes.
 - **`teardown.mjs`** — delete demo database records (every table in child→parent
   order) and both storage buckets' objects. DRY-RUN by default; to delete you must

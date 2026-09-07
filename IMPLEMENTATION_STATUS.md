@@ -877,6 +877,22 @@ the file. The taste skill install (`npx skills add Leonxlnx/taste-skill`) left
 `.agents/skills/`, `.claude/skills/` and `skills-lock.json` untracked at the repo root;
 owner to decide commit or gitignore.
 
+### Seed fixtures and the product catalogue (8 September 2026)
+
+Owner found that "Look for an existing product" could never match: the `products`
+table was empty, and nothing in the application creates a product record (the spec's
+"create or reuse the exact identity transactionally at readiness/publication time" was
+never implemented; reviewer relink also needs an existing record). `scripts/seed.mjs`
+now creates four fictional product records (dataset `seed`, the one direct write it
+makes) and links every seeded report to its record, and seeds three fully published
+concerns with different histories plus one draft, so the happy path can be tested end
+to end. `--reset` also removes seed products no other report links to. Applied to the
+demo project this session (3 visible publications). **Open gap:** the application still
+never creates a product record for a reporter's own new identity, so a fresh product
+gets no catalogue entry until someone adds one; the recommended fix is an upsert by
+canonical key on first publication approval, with a migration for the transactional
+function and seed parity.
+
 ## Exact next action (continuation prompt for the next session)
 
 1. **Pushed and deployed** on 8 September 2026 (`77274fc`; owner authorised after local

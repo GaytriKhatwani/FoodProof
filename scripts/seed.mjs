@@ -1,16 +1,22 @@
 // Operator seed script (FOODPROOF_TECHNICAL_SPEC.md §5a, decision D25).
 //
-// Creates the fictional published pilot example and its simulated response by
-// driving the SAME application API/publication services a real reporter uses —
-// never raw inserts that bypass invariants. It bootstraps a dedicated seed
-// reporter + reviewer (demo_access), then over HTTP: creates the report, uploads
-// label evidence, confirms facts, records a simulated brand submission, requests
-// the concern's publication (so its frozen external status correctly shows the
-// brand submission already reported), approves it as reviewer, records the
-// simulated brand response, and publishes + approves that response revision.
-// It also leaves a second, unreported fictional product as an unpublished draft.
+// Creates the fictional pilot examples by driving the SAME application API and
+// publication services a real reporter uses — never raw inserts that bypass
+// invariants. It bootstraps a dedicated seed reporter + reviewer (demo_access),
+// then over HTTP, for each fixture in SEED_CONCERNS: creates the report (linked
+// to its product record), uploads label evidence, confirms facts, records the
+// simulated submissions, requests the concern's publication (so its frozen
+// external status correctly shows what was already reported), approves it as
+// reviewer, records any simulated response and publishes + approves that
+// revision, and closes the reporter's follow-up where the fixture says so.
 //
-// Idempotent: if the seed example is already published, it exits without change.
+// The ONE direct write is the `products` catalogue (dataset 'seed'): the app
+// never creates product records itself, so the seed supplies the fictional
+// products that "Look for an existing product" can match. Every report is
+// linked to its record through the ordinary API (`product_id`).
+//
+// Three complete happy-path records, one unreported draft (SEED_CONCERNS).
+// Idempotent: if a seed example is already published, it exits without change.
 // Requires the app running at APP_ORIGIN.
 //
 // Usage:
@@ -126,7 +132,24 @@ async function resetSeed() {
   await del("demo_sessions", "access_id", ids);
   await del("demo_access", "id", ids);
 
-  console.log("--reset: removed the previously seeded example (counts only, never ids/codes):");
+  // Seed catalogue records, except any a non-seed report still links to
+  // (reports.product_id is a plain FK; that report keeps its record).
+  const { data: seedProducts } = await supabase.from("products").select("id").eq("dataset", "seed");
+  const seedProductIds = (seedProducts ?? []).map((p) => p.id);
+  let keptProducts = 0;
+  if (seedProductIds.length) {
+    const { data: stillLinked } = await supabase
+      .from("reports")
+      .select("product_id")
+      .in("product_id", seedProductIds);
+    const linked = new Set((stillLinked ?? []).map((r) => r.product_id));
+    keptProducts = linked.size;
+    await del("products", "id", seedProductIds.filter((id) => !linked.has(id)));
+  } else {
+    counts.products = 0;
+  }
+
+  console.log("--reset: removed the previously seeded examples (counts only, never ids/codes):");
   console.log(`  demo_access:            ${counts.demo_access}`);
   console.log(`  reports:                ${counts.reports}`);
   console.log(`  evidence:               ${counts.evidence}`);
@@ -140,6 +163,7 @@ async function resetSeed() {
   console.log(`  complaint_drafts:       ${counts.complaint_drafts}`);
   console.log(`  operation_receipts:     ${counts.operation_receipts}`);
   console.log(`  demo_sessions:          ${counts.demo_sessions}`);
+  console.log(`  products (seed):        ${counts.products}${keptProducts ? ` (kept ${keptProducts} still linked from other reports)` : ""}`);
   console.log(`  storage objects (both buckets): ${storageRemoved}`);
 }
 
@@ -220,6 +244,194 @@ async function version(cookie, reportId) {
   return json.data.version;
 }
 
+
+/**
+ * Fictional catalogue + concerns (FOODPROOF_MEASUREMENT_AND_PILOT.md: every
+ * product, brand, submission and response is sample material, never a real
+ * company). Each published fixture exercises one shape of the happy path:
+ *   1. brand submission + simulated brand response (follow-up still open)
+ *   2. brand AND official submissions + brand response, follow-up closed
+ *   3. published with no external submission yet
+ * plus one unreported draft that stays private for the pilot's second task.
+ */
+const SEED_PRODUCTS = [
+  { brand: "Testbrand Foods (fictional)", name: "Millet Cookies (sample)", variant: null },
+  { brand: "Northfield Naturals (fictional)", name: "Ragi Choco Puffs (sample)", variant: "Family pack" },
+  { brand: "Sample Pantry (fictional)", name: "Jowar Flakes (sample)", variant: "Honey" },
+  { brand: "Sample Pantry (fictional)", name: "Oat Bran Crackers (sample)", variant: "Classic" },
+];
+
+const SEED_CONCERNS = [
+  {
+    product: SEED_PRODUCTS[0],
+    concern_text: "SAMPLE: the front label reads gluten-free, but the ingredients list wheat flour.",
+    observation_date: daysAgo(14),
+    batch_number: "SAMPLE-B-2041",
+    claim_text: "Gluten-free (front of pack)",
+    ingredients_text: "Wheat flour, millet flour, sugar, salt",
+    submissions: [{ channel: "brand", recipient: "Testbrand Foods consumer care (sample)", submitted_at: daysAgo(10) }],
+    response: {
+      to: "brand",
+      sender: "Testbrand Foods (simulated)",
+      occurred_at: daysAgo(3),
+      summary: "SIMULATED: the brand acknowledges the labelling issue and is reviewing the pack.",
+    },
+    close: null,
+    publish: true,
+  },
+  {
+    product: SEED_PRODUCTS[1],
+    concern_text:
+      "SAMPLE: the pack carries a gluten-free badge, but the ingredient list names malt extract (barley) as a flavouring.",
+    observation_date: daysAgo(30),
+    batch_number: "SAMPLE-RC-0917",
+    claim_text: "Gluten-free badge (front of pack, top right)",
+    ingredients_text: "Ragi flour, rice flour, sugar, cocoa solids, malt extract (barley), salt",
+    submissions: [
+      { channel: "brand", recipient: "Northfield Naturals customer desk (sample)", submitted_at: daysAgo(26) },
+      { channel: "government", recipient: "FoSCoS consumer grievance portal (sample)", submitted_at: daysAgo(24), reference: "SAMPLE-GRV-000123" },
+    ],
+    response: {
+      to: "brand",
+      sender: "Northfield Naturals (simulated)",
+      occurred_at: daysAgo(12),
+      summary: "SIMULATED: the brand says the badge was printed in error and the next run drops it.",
+    },
+    close: "SAMPLE: the brand confirmed a label correction on the next print run; nothing further to pursue.",
+    publish: true,
+  },
+  {
+    product: SEED_PRODUCTS[2],
+    concern_text:
+      "SAMPLE: 'gluten-free' appears in the product name, while the allergen line says 'may contain wheat' and the list includes wheat bran.",
+    observation_date: daysAgo(5),
+    batch_number: null,
+    claim_text: "Gluten-free (part of the product name)",
+    ingredients_text: "Jowar flakes, honey, sunflower oil, wheat bran, salt",
+    submissions: [],
+    response: null,
+    close: null,
+    publish: true,
+  },
+  {
+    product: SEED_PRODUCTS[3],
+    concern_text: "SAMPLE: unreported practice product for the pilot's second task.",
+    observation_date: null,
+    batch_number: null,
+    claim_text: null,
+    ingredients_text: null,
+    submissions: [],
+    response: null,
+    close: null,
+    publish: false,
+  },
+];
+
+/** Same normalization as lib/server/products.ts and the SQL `norm()` index. */
+const norm = (v) => (v ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+
+/**
+ * Create or reuse the fictional product record for a fixture. Exact canonical
+ * key only (the uniqueness index), display text preserved, dataset 'seed'.
+ */
+async function ensureProduct(product) {
+  const { data: rows, error } = await supabase.from("products").select("id, brand, name, variant");
+  if (error) throw new Error(`read products: ${error.message}`);
+  const key = `${norm(product.brand)} ${norm(product.name)} ${norm(product.variant)}`;
+  const found = (rows ?? []).find((r) => `${norm(r.brand)} ${norm(r.name)} ${norm(r.variant)}` === key);
+  if (found) return found.id;
+  const { data, error: insErr } = await supabase
+    .from("products")
+    .insert({ brand: product.brand, name: product.name, variant: product.variant, dataset: "seed" })
+    .select("id")
+    .single();
+  if (insErr) throw new Error(`insert product ${product.name}: ${insErr.message}`);
+  return data.id;
+}
+
+async function seedConcern(user, reviewer, fixture) {
+  const productId = await ensureProduct(fixture.product);
+  const { json: created } = await call("POST", "/api/reports", {
+    cookie: user,
+    body: {
+      product_name: fixture.product.name,
+      brand: fixture.product.brand,
+      variant: fixture.product.variant,
+      observation_date: fixture.observation_date,
+      batch_number: fixture.batch_number,
+      product_id: productId,
+      concern_text: fixture.concern_text,
+      expected_version: null,
+    },
+  });
+  const reportId = created.data.report_id;
+  if (!fixture.publish) return reportId;
+
+  const evidenceId = await uploadLabel(user, reportId);
+  await call("POST", `/api/reports/${reportId}/confirm-facts`, {
+    cookie: user,
+    body: {
+      expected_version: await version(user, reportId),
+      claim_text: fixture.claim_text,
+      ingredients_text: fixture.ingredients_text,
+      method: "manual",
+    },
+  });
+
+  // Submissions are recorded BEFORE the publication request so the frozen
+  // external status on the published concern reflects what was reported.
+  const submissionIds = {};
+  for (const sub of fixture.submissions) {
+    const { json } = await call("POST", `/api/reports/${reportId}/submissions`, {
+      cookie: user,
+      body: { channel: sub.channel, recipient: sub.recipient, submitted_at: sub.submitted_at, reference: sub.reference },
+    });
+    submissionIds[sub.channel] = json.data.id;
+  }
+
+  const { json: pubReq } = await call("POST", `/api/reports/${reportId}/publication-requests`, {
+    cookie: user,
+    body: { expected_version: await version(user, reportId), consent: true, selected_evidence_ids: [evidenceId] },
+  });
+  await call("POST", `/api/review/${pubReq.data.publication_revision_id}/decision`, {
+    cookie: reviewer,
+    body: { expected_version: 0, action: "approve" },
+  });
+
+  // A response revision requires a visible published parent, so it follows
+  // the approval; its publication never changes the concern's frozen status.
+  if (fixture.response) {
+    const { json: update } = await call("POST", `/api/reports/${reportId}/updates`, {
+      cookie: user,
+      body: {
+        submission_id: submissionIds[fixture.response.to] ?? null,
+        kind: "response",
+        sender: fixture.response.sender,
+        occurred_at: fixture.response.occurred_at,
+        summary: fixture.response.summary,
+      },
+    });
+    const { json: respReq } = await call("POST", `/api/reports/${reportId}/publication-requests`, {
+      cookie: user,
+      body: {
+        expected_version: await version(user, reportId),
+        consent: true,
+        selected_evidence_ids: [evidenceId],
+        source_update_id: update.data.id,
+      },
+    });
+    await call("POST", `/api/review/${respReq.data.publication_revision_id}/decision`, {
+      cookie: reviewer,
+      body: { expected_version: 0, action: "approve" },
+    });
+  }
+
+  if (fixture.close) {
+    await call("POST", `/api/reports/${reportId}/close`, { cookie: user, body: { reason: fixture.close } });
+  }
+  return reportId;
+}
+
 async function main() {
   // Preflight: app reachable.
   await call("GET", "/api/health").catch(() => {
@@ -238,99 +450,19 @@ async function main() {
   const user = await login(userCode);
   const reviewer = await login(reviewerCode);
 
-  // 1) Fictional concern, with the brand submission recorded before the
-  // concern's publication is requested — so the frozen external status on the
-  // published concern correctly reads submission_reported for brand (and
-  // no_submission_recorded for government, since none is recorded).
-  const { json: created } = await call("POST", "/api/reports", {
-    cookie: user,
-    body: {
-      product_name: "Millet Cookies (sample)",
-      brand: "Testbrand Foods (fictional)",
-      variant: null,
-      concern_text:
-        "SAMPLE: the front label reads gluten-free, but the ingredients list wheat flour.",
-      expected_version: null,
-    },
-  });
-  const reportId = created.data.report_id;
+  const published = [];
+  let drafts = 0;
+  for (const fixture of SEED_CONCERNS) {
+    const reportId = await seedConcern(user, reviewer, fixture);
+    if (fixture.publish) published.push(reportId);
+    else drafts += 1;
+    console.log(`  ${fixture.publish ? "published" : "draft    "}  ${fixture.product.brand} · ${fixture.product.name}`);
+  }
 
-  const evidenceId = await uploadLabel(user, reportId);
-  await call("POST", `/api/reports/${reportId}/confirm-facts`, {
-    cookie: user,
-    body: {
-      expected_version: await version(user, reportId),
-      claim_text: "Gluten-free (front of pack)",
-      ingredients_text: "Wheat flour, millet flour, sugar, salt",
-      method: "manual",
-    },
-  });
-
-  const { json: submission } = await call("POST", `/api/reports/${reportId}/submissions`, {
-    cookie: user,
-    body: {
-      channel: "brand",
-      recipient: "Testbrand Foods consumer care (sample)",
-      submitted_at: daysAgo(10),
-    },
-  });
-
-  const { json: pubReq } = await call("POST", `/api/reports/${reportId}/publication-requests`, {
-    cookie: user,
-    body: {
-      expected_version: await version(user, reportId),
-      consent: true,
-      selected_evidence_ids: [evidenceId],
-    },
-  });
-  await call("POST", `/api/review/${pubReq.data.publication_revision_id}/decision`, {
-    cookie: reviewer,
-    body: { expected_version: 0, action: "approve" },
-  });
-
-  // 2) Simulated brand response, published and approved. This runs after the
-  // concern is approved: a response revision requires a visible published
-  // parent, and its own publication does not add or change concern revisions —
-  // the concern's frozen status stays what step 1 recorded (per §5, "as
-  // recorded in this published update").
-  const { json: update } = await call("POST", `/api/reports/${reportId}/updates`, {
-    cookie: user,
-    body: {
-      submission_id: submission.data.id,
-      kind: "response",
-      sender: "Testbrand Foods (simulated)",
-      occurred_at: daysAgo(3),
-      summary: "SIMULATED: the brand acknowledges the labelling issue and is reviewing the pack.",
-    },
-  });
-  const { json: respReq } = await call("POST", `/api/reports/${reportId}/publication-requests`, {
-    cookie: user,
-    body: {
-      expected_version: await version(user, reportId),
-      consent: true,
-      selected_evidence_ids: [evidenceId],
-      source_update_id: update.data.id,
-    },
-  });
-  await call("POST", `/api/review/${respReq.data.publication_revision_id}/decision`, {
-    cookie: reviewer,
-    body: { expected_version: 0, action: "approve" },
-  });
-
-  // 3) Second, unreported fictional product left as an unpublished draft.
-  await call("POST", "/api/reports", {
-    cookie: user,
-    body: {
-      product_name: "Oat Bran Crackers (sample)",
-      brand: "Sample Pantry (fictional)",
-      variant: "Classic",
-      concern_text: "SAMPLE: unreported practice product for the pilot's second task.",
-      expected_version: null,
-    },
-  });
-
-  console.log("Seeded: 1 published fictional concern + simulated response, and 1 unpublished draft.");
-  console.log(`Published report id: ${reportId}`);
+  console.log(
+    `Seeded: ${SEED_PRODUCTS.length} fictional product records, ${published.length} published fictional concerns, ${drafts} unpublished draft.`,
+  );
+  console.log(`Published report ids: ${published.join(", ")}`);
 }
 
 main().catch((e) => {
