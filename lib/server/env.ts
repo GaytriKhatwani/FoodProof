@@ -27,6 +27,19 @@ const AnalyticsAudienceEnv = z.preprocess(
   Audience.default("invited_pilot"),
 );
 
+/**
+ * Reviewer allowlist for verified accounts (phase two C.1). Read through
+ * `moderatorEmailsEnv()` rather than the memoised `getServerEnv()`, for the same
+ * reason as `analyticsAudience()`: it is the SAME schema field, but the
+ * allowlist must be re-read rather than frozen at first use, so
+ * `lib/server/session.ts` can self-heal a role the moment the deployed value
+ * changes.
+ */
+const ModeratorEmailsEnv = z.preprocess(
+  (v) => (v === "" ? undefined : v),
+  z.string().optional(),
+);
+
 const ServerEnvSchema = z.object({
   SUPABASE_URL: z.string().url(),
   SUPABASE_SECRET_KEY: z.string().min(1),
@@ -48,24 +61,78 @@ const ServerEnvSchema = z.object({
   // Optional until T5 owner configuration; NOT a URL — an unknown or empty value
   // leaves the "Open official portal" action disabled rather than opening it.
   OFFICIAL_PORTAL_KEY: optionalSecret,
-});
+  // --- Phase two C.1: email sign-in (docs/FOODPROOF_DECISIONS.md D18) ---
+  // `EMAIL_SIGN_IN=true` enables the ADDITIONAL email sign-in path. Anything
+  // else (including empty) leaves it off, and invitation entry behaves exactly
+  // as in phase one. The two paths run side by side.
+  EMAIL_SIGN_IN: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.literal("true").optional(),
+  ),
+  // The Supabase publishable key: the key a browser would hold. The server uses
+  // it for the per-request auth client that sends and verifies one-time codes,
+  // so a user's token never touches the service client. It is still never sent
+  // to the browser by this application and never prefixed NEXT_PUBLIC_.
+  SUPABASE_PUBLISHABLE_KEY: optionalSecret,
+  // Comma-separated reviewer allowlist for VERIFIED accounts only. There is no
+  // role table: the role of a verified actor is computed from this value on
+  // every sign-in and re-checked on every request (lib/server/moderators.ts).
+  // Unset or empty means no verified account is a reviewer.
+  MODERATOR_EMAILS: ModeratorEmailsEnv,
+})
+  // Enabling email sign-in without the publishable key would leave the routes
+  // advertised but unable to reach the provider. Fail at startup with a
+  // readable message instead of at the first sign-in attempt.
+  .refine(
+    (env) => env.EMAIL_SIGN_IN !== "true" || Boolean(env.SUPABASE_PUBLISHABLE_KEY),
+    {
+      path: ["SUPABASE_PUBLISHABLE_KEY"],
+      message:
+        "EMAIL_SIGN_IN=true requires SUPABASE_PUBLISHABLE_KEY (the per-request auth client uses it).",
+    },
+  );
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;
 
 let cached: ServerEnv | null = null;
 
-/** Validate and return the server env, throwing a readable error if invalid. */
-export function getServerEnv(): ServerEnv {
-  if (cached) return cached;
-  const parsed = ServerEnvSchema.safeParse(process.env);
+/**
+ * Pure validation of one environment source. Exported so the refinement rules
+ * can be unit tested without mutating (and caching) the real process env.
+ */
+export function parseServerEnv(source: NodeJS.ProcessEnv): ServerEnv {
+  const parsed = ServerEnvSchema.safeParse(source);
   if (!parsed.success) {
     const missing = parsed.error.issues.map((i) => i.path.join(".")).join(", ");
     throw new Error(
       `Invalid or missing server environment: ${missing}. See .env.example.`,
     );
   }
-  cached = parsed.data;
+  return parsed.data;
+}
+
+/** Validate and return the server env, throwing a readable error if invalid. */
+export function getServerEnv(): ServerEnv {
+  if (cached) return cached;
+  cached = parseServerEnv(process.env);
   return cached;
+}
+
+/** The reviewer allowlist as configured right now (see `ModeratorEmailsEnv`). */
+export function moderatorEmailsEnv(): string | undefined {
+  return ModeratorEmailsEnv.parse(process.env.MODERATOR_EMAILS);
+}
+
+/**
+ * Whether the email sign-in path is enabled on this deployment: the flag AND
+ * the publishable key the per-request auth client needs. It reports the same
+ * fact as `serverEnvStatus().email_sign_in` — one definition — so a server
+ * component and the sign-in service can never disagree about whether the path
+ * exists. The startup refinement above makes "flag without key" a loud error,
+ * so this only ever reads false in a deployment that never enabled the flag.
+ */
+export function emailSignInEnabled(): boolean {
+  return serverEnvStatus().email_sign_in;
 }
 
 /**
@@ -91,5 +158,8 @@ export function serverEnvStatus() {
     rate_limit_key: Boolean(p.RATE_LIMIT_HMAC_KEY),
     demo_mode: p.DEMO_MODE === "true",
     ai: Boolean(p.AI_PROVIDER && p.AI_PROVIDER_API_KEY),
+    // Both halves are required, matching the schema refinement above: the flag
+    // alone never advertises a sign-in path the server cannot serve.
+    email_sign_in: p.EMAIL_SIGN_IN === "true" && Boolean(p.SUPABASE_PUBLISHABLE_KEY),
   } as const;
 }

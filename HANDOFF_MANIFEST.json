@@ -62,8 +62,8 @@
     },
     {
       "path": "docs/FOODPROOF_API_DETAILS.md",
-      "bytes": 8923,
-      "sha256": "a4fa1759b7bb673b3ae975e7da4d951aea781f376684b4782c8878245784c93a"
+      "bytes": 12191,
+      "sha256": "68b35dcaef0f8d54d5bb4a59701c03a06c40bbc78727c17657fcaff0294c6124"
     },
     {
       "path": "docs/FOODPROOF_BUILD_HANDOFF.md",
@@ -107,18 +107,18 @@
     },
     {
       "path": "docs/FOODPROOF_SCREENS.md",
-      "bytes": 17776,
-      "sha256": "6655e53e565eb55c32ff1c2f95d6793d5e402795691e4efff5d65bb12b9153db"
+      "bytes": 18982,
+      "sha256": "24d7603a7d7747018f67f17cd738f236739134710d96add4091f6d97c0b9f9d9"
     },
     {
       "path": "docs/FOODPROOF_SETUP_AND_OPERATIONS.md",
-      "bytes": 12215,
-      "sha256": "d8d5642ba2a8aaed157c1a11eed086947d801d4816c0cc59a409bde796510947"
+      "bytes": 17987,
+      "sha256": "d00469ef13736fa74d1d470eb5be35a15bc365a435aff6810e4d7df8a6b3a4b4"
     },
     {
       "path": "docs/FOODPROOF_TECHNICAL_SPEC.md",
-      "bytes": 26624,
-      "sha256": "11a41bf35f573bbf5c8ce99904afba2ef2ff41ec47b12091a13794b86afebc2c"
+      "bytes": 29445,
+      "sha256": "1164f7c93f32bca79ae1e48c17d7c49ba627e4d1fb59aeddd8d06fc93eb1ccda"
     },
     {
       "path": "docs/FOODPROOF_UI_AUDIT.md",
@@ -137,8 +137,8 @@
     },
     {
       "path": "IMPLEMENTATION_STATUS.md",
-      "bytes": 48854,
-      "sha256": "9fb0c8a27b558fd53c2d823f1fb6f09cc31af0bf29ca5e52ff2c63725def2325"
+      "bytes": 58770,
+      "sha256": "1d10ef034faf422ce8d823b0ed1059b5b725d806b2c41b69a33d48f244c3ef2e"
     },
     {
       "path": "README.md",
@@ -147,5 +147,5 @@
     }
   ],
   "local_markdown_links": "passed",
-  "application_tests": "typecheck/lint/build pass; vitest 228/228 live (Supabase, real AI provider, real Mixpanel) after migration 0005; playwright green (desktop + 360 px); T0–T4 plus the pilot-integrity hardening pass (migration 0005) merged; T5 not started"
+  "application_tests": "typecheck/lint/build pass; vitest 287 passed / 9 skipped live (Supabase, real AI provider, real Mixpanel) after migration 0005 — the 9 skipped are the C.1 email sign-in suite, BLOCKED until migration 0006 is applied; playwright 128 passed (desktop + 360 px); T0–T4 plus the pilot-integrity hardening pass (migration 0005) and T5 merged on main; the C.1 server slice is on feat/c1-email-sign-in, not merged"
 }

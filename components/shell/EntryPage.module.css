@@ -20,6 +20,33 @@
   margin: 0 0 var(--space-lg);
 }
 
+/*
+ * Each sign-in path (phase two C.1) gets its own labelled section; a thin
+ * rule divides them the way DESIGN.md divides records elsewhere, rather than
+ * a decorative card.
+ */
+.pathSection {
+  margin-bottom: var(--space-lg);
+}
+
+.pathSection + .pathSection {
+  border-top: 1px solid var(--color-rule);
+  padding-top: var(--space-lg);
+}
+
+.pathHeading {
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  margin: 0 0 6px;
+}
+
+.pathIntro {
+  max-width: 56ch;
+  margin: 0 0 var(--space-md);
+  color: var(--color-muted);
+}
+
 .identities {
   max-width: 560px;
 }

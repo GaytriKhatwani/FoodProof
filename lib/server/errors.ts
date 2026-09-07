@@ -41,6 +41,7 @@ const RPC_ERROR_CODES: Record<string, ErrorCode> = {
 export const MIGRATION_0003 = "supabase/migrations/0003_transactional_operations.sql";
 export const MIGRATION_0004 = "supabase/migrations/0004_publication_atomicity_and_ai_spend.sql";
 export const MIGRATION_0005 = "supabase/migrations/0005_pilot_integrity_hardening.sql";
+export const MIGRATION_0006 = "supabase/migrations/0006_verified_accounts.sql";
 
 /** The shape supabase-js returns for a failed PostgREST/RPC call. */
 export interface RpcErrorLike {
@@ -71,6 +72,30 @@ export function mapRpcError(fn: string, error: unknown, migration: string = MIGR
     return new ApiError(
       "DEPENDENCY_UNAVAILABLE",
       `The database function ${fn}() is missing. Apply ${migration} to this Supabase project.`,
+    );
+  }
+  return error;
+}
+
+/**
+ * The same "fail loud, never silently degrade" rule for a COLUMN a later
+ * migration adds. A deployment that switched `EMAIL_SIGN_IN` on without applying
+ * 0006 must say so, rather than answering an opaque 503 on every request.
+ */
+export function mapMissingColumn(
+  columns: string,
+  error: unknown,
+  migration: string,
+): unknown {
+  const e = (error ?? {}) as RpcErrorLike;
+  const missing =
+    e.code === "42703" ||
+    e.code === "PGRST204" ||
+    /column .* does not exist|could not find the .* column/i.test(e.message ?? "");
+  if (missing) {
+    return new ApiError(
+      "DEPENDENCY_UNAVAILABLE",
+      `The database is missing ${columns}. Apply ${migration} to this Supabase project.`,
     );
   }
   return error;

@@ -1,13 +1,13 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useId, useRef, useState } from "react";
 import { api, ClientApiError } from "@/lib/client/api";
-import { clientAnalytics, setClientAnalyticsConsent } from "@/lib/analytics";
 import type { DemoRole } from "@/lib/contracts";
+import { ConsentStep } from "./ConsentStep";
+import { destinationFor, safeNext } from "./entry-flow";
 import { failureKind, formatWait, retryAfterSeconds } from "./errors";
-import { InlineNote, StateBlock } from "./states";
+import { StateBlock } from "./states";
 import styles from "./EntryForm.module.css";
 
 /**
@@ -16,16 +16,18 @@ import styles from "./EntryForm.module.css";
  * Phase one has no login: a masked invitation code is exchanged for a demo
  * session, and the invitation alone decides the role. There is deliberately no
  * email/password form, no OTP, no provider button, no "authenticated" wording
- * and no reviewer toggle.
+ * and no reviewer toggle. Phase two C.1 adds a separate, additional email
+ * sign-in path (`EmailSignInForm`) beside this one; this form and its failure
+ * copy are unchanged by that addition.
  *
  * Failure copy is generic on purpose: an unknown, expired and revoked code all
  * produce the same message, so this screen cannot be used to test which codes
  * exist. Rate limiting shows the wait the server asked for, and an unreachable
  * backend is stated explicitly instead of falling back to local demo data.
  *
- * Analytics consent is asked AFTER the session exists, because the consent
- * route needs it. Allow and decline are equally available choices; declining is
- * a real answer that is recorded, not a dismissal.
+ * The post-entry analytics-consent step is shared with email sign-in — see
+ * `ConsentStep` — so both paths ask the same question and emit `demo_entered`
+ * the same way.
  */
 
 type Phase = "code" | "consent";
@@ -35,17 +37,7 @@ interface Failure {
   message: string;
 }
 
-function entryRole(role: DemoRole): "reporter" | "reviewer" {
-  return role === "reviewer" ? "reviewer" : "reporter";
-}
-
-/** Only ever follow a `next` that stays inside the pilot section. */
-function safeNext(raw: string | null): string | null {
-  return raw && raw.startsWith("/pilot/") ? raw : null;
-}
-
 export function EntryForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const codeFieldId = useId();
   const codeErrorId = useId();
@@ -58,14 +50,8 @@ export function EntryForm() {
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [role, setRole] = useState<DemoRole | null>(null);
-  const [consentError, setConsentError] = useState<string | null>(null);
 
   const requestedNext = safeNext(searchParams.get("next"));
-
-  function destinationFor(sessionRole: DemoRole): string {
-    if (requestedNext) return requestedNext;
-    return sessionRole === "reviewer" ? "/pilot/review" : "/pilot/feed";
-  }
 
   function describeFailure(error: unknown): Failure {
     switch (failureKind(error)) {
@@ -128,71 +114,8 @@ export function EntryForm() {
     }
   }
 
-  async function handleConsent(allowed: boolean) {
-    if (!role) return;
-    setConsentError(null);
-    setBusy(true);
-    try {
-      await api.me.setAnalyticsConsent(allowed);
-      // This screen sits outside the session provider, so it is the one place
-      // that has to tell the analytics adapter the answer itself. Recorded
-      // whichever way it went: declining must gate the adapter too.
-      setClientAnalyticsConsent(allowed);
-      if (allowed) {
-        // Only emitted for a consented session, and only with the one
-        // allowlisted property for this event.
-        clientAnalytics.track("demo_entered", { entry_role: entryRole(role) });
-      }
-      router.push(destinationFor(role));
-    } catch {
-      setConsentError(
-        "Couldn't record that choice. Nothing is being collected. Try again, or continue — you can set this at any time from the pilot header.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
   if (phase === "consent" && role) {
-    return (
-      <section className={styles.panel} aria-labelledby="consent-heading">
-        <h2 id="consent-heading" className={styles.heading}>
-          Usage analytics
-        </h2>
-        <p>
-          FoodProof can record which screens and actions you use, to improve this demo.
-          It never records report contents, evidence, search text or your invitation code.
-        </p>
-        <p className="muted">
-          Both choices give you exactly the same pilot. You can change this later from the
-          pilot header.
-        </p>
-        <div className={styles.consentChoices}>
-          <button
-            type="button"
-            className={styles.choiceButton}
-            onClick={() => handleConsent(true)}
-            disabled={busy}
-          >
-            Allow usage analytics
-          </button>
-          <button
-            type="button"
-            className={styles.choiceButton}
-            onClick={() => handleConsent(false)}
-            disabled={busy}
-          >
-            Continue without analytics
-          </button>
-        </div>
-        {consentError ? (
-          <InlineNote tone="error" role="alert">
-            {consentError}{" "}
-            <Link href={destinationFor(role)}>Continue to the pilot</Link>
-          </InlineNote>
-        ) : null}
-      </section>
-    );
+    return <ConsentStep role={role} destination={destinationFor(role, requestedNext)} />;
   }
 
   if (failure?.kind === "unavailable") {

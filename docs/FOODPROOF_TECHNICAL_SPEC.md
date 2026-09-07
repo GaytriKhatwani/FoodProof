@@ -26,6 +26,20 @@ This basic pilot gate is essential to keep the public landing page separate from
 
 Require same-origin checks for cookie-authenticated mutations; no GET route may mutate data. Set `Cache-Control: private, no-store` for pilot data and evidence responses. No service worker in phase one.
 
+### Phase two C.1 — verified accounts beside demo entry
+
+D18 moves real sign-in to phase two. C.1 delivers the first half of it: a one-time code sent to an address the person controls. It is **additive**. Invitation entry is unchanged, both paths produce the same session cookie, the same eight-hour expiry and the same ownership rules, and removing demo mode is a separate later ticket.
+
+**Actor mapping.** `demo_access` becomes an actor table with two identity kinds. An invitation actor has a `token_hash` and no account; a verified actor has an `auth_user_id` and no `token_hash`. A check constraint makes "exactly one of the two" a database rule. Every foreign key that points at `demo_access` is unchanged, so ownership, reviewer checks, publications and audit rows work identically for both kinds. The identity provider maps one verified address to one account, and one account to one actor row; signing in again returns the same actor, never a duplicate.
+
+**No claiming.** A verified account never inherits, adopts or merges an invitation actor's reports, evidence, drafts or publications, and there is no interface that offers to. This is the deliberate mapping §10 requires, not an automatic migration. Two people who shared an invitation code stay two separate invitation actors, and their verified accounts are two further separate actors.
+
+**Where identity lives.** The address is held only by the identity provider. Application tables store a keyed HMAC of it as pseudonymous operational metadata plus a fixed label; the address appears in exactly one response, the signed-in person's own profile read, and in no analytics event, log line or export.
+
+**Roles.** A verified account is a reviewer only if its address is on a server-side deployment allowlist. There is no role table, no role field in any request, and no way to obtain a role from the browser. The expected role is recomputed from the deployed allowlist on every request and written back when it differs, so the database-side reviewer check and the allowlist can never disagree. Invitation actors keep the role their invitation carries.
+
+**Boundaries.** Codes are sent and verified through a per-request client holding only the publishable key, never the server secret; the provider session created by verification is revoked immediately and never used; the browser receives only the usual HttpOnly session cookie. Both endpoints require same-origin, count every attempt against a persistent limiter keyed by both the originating address and the destination before the provider is contacted, and answer every failure with one generic message that reveals nothing about whether an address has an account. The whole path is behind a deployment flag; with it unset the endpoints answer the standard unavailable error and nothing else changes.
+
 ## 3. Supabase access boundary
 
 Use a dedicated demo project. The browser never receives a privileged Supabase key. All database and Storage operations pass through `server-only` data-access modules after session, demo-role, ownership, and input checks. Revoke `anon` and `authenticated` grants on phase-one application tables, enable RLS, and create no direct-client allow policies for these tables. Storage buckets are private with no direct-client write policy.

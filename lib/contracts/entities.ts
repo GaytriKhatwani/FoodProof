@@ -9,6 +9,7 @@ import {
   Lifecycle,
   Preparation,
   RevisionState,
+  SignInMethod,
   UpdateKind,
   UploadState,
 } from "./enums";
@@ -40,6 +41,19 @@ export const Me = z.object({
   official_portal: z
     .object({ key: z.string().min(1), url: z.string().url() })
     .nullable(),
+  /**
+   * How this session was opened (phase two C.1). `invitation` is the phase-one
+   * demo path; `email` is a verified account. The two run side by side and this
+   * field is descriptive only — it confers no authority, and `role` is still
+   * resolved from stored records and deployment configuration alone.
+   */
+  sign_in_method: SignInMethod,
+  /**
+   * The verified address of an email sign-in, or null for an invitation actor.
+   * It is read from the auth provider for this response only; the application
+   * tables never store it (FOODPROOF_TECHNICAL_SPEC.md §2 "Phase two C.1").
+   */
+  email: z.string().nullable(),
 });
 export type Me = z.infer<typeof Me>;
 

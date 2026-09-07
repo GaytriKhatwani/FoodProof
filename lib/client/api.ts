@@ -15,6 +15,8 @@ import {
   type PublicFeedItem,
   type PublicReport,
   type SessionCreateRequest,
+  type EmailSignInRequest,
+  type EmailSignInVerifyRequest,
   type AnalyticsConsentRequest,
   type ReportWriteRequest,
   type ConfirmFactsRequest,
@@ -286,6 +288,18 @@ export interface SessionDestroyResponse {
   ended: true;
 }
 
+/** POST /api/auth/email/request — see app/api/auth/email/request/route.ts. */
+export interface EmailRequestResponse {
+  requested: true;
+}
+
+/**
+ * POST /api/auth/email/verify — see app/api/auth/email/verify/route.ts. Same
+ * three fields as `SessionCreateResponse` (FOODPROOF_API_DETAILS.md), so both
+ * entry paths hand the UI an identical shape.
+ */
+export type EmailVerifyResponse = SessionCreateResponse;
+
 /** PUT /api/me/analytics-consent — see app/api/me/analytics-consent/route.ts. */
 export interface AnalyticsConsentResponse {
   analytics_consent: boolean;
@@ -463,6 +477,28 @@ export const api = {
     /** DELETE /api/demo/session — no Idempotency-Key. */
     destroy(): Promise<SessionDestroyResponse> {
       return apiFetch<SessionDestroyResponse>("/api/demo/session", { method: "DELETE" });
+    },
+  },
+
+  /** Phase two C.1 email sign-in (FOODPROOF_TECHNICAL_SPEC.md §2, FOODPROOF_API_DETAILS.md). */
+  auth: {
+    email: {
+      /** POST /api/auth/email/request — no Idempotency-Key (sending is never idempotent). */
+      request(email: string): Promise<EmailRequestResponse> {
+        const body: EmailSignInRequest = { email };
+        return apiFetch<EmailRequestResponse>("/api/auth/email/request", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+      },
+      /** POST /api/auth/email/verify — no Idempotency-Key. */
+      verify(email: string, code: string): Promise<EmailVerifyResponse> {
+        const body: EmailSignInVerifyRequest = { email, code };
+        return apiFetch<EmailVerifyResponse>("/api/auth/email/verify", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+      },
     },
   },
 

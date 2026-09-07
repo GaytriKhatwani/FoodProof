@@ -10,6 +10,15 @@ import { z } from "zod";
 export const DemoRole = z.enum(["user", "reviewer"]);
 export type DemoRole = z.infer<typeof DemoRole>;
 
+/**
+ * How a session was opened (phase two C.1, docs/FOODPROOF_DECISIONS.md D18).
+ * `invitation` is the phase-one demo code path; `email` is a verified account.
+ * Descriptive only: it never confers authority, and both kinds resolve their
+ * role from stored records and deployment configuration.
+ */
+export const SignInMethod = z.enum(["invitation", "email"]);
+export type SignInMethod = z.infer<typeof SignInMethod>;
+
 /** Analytics-facing actor role (database `user` maps to `reporter`). */
 export const ActorRole = z.enum(["visitor", "reporter", "reviewer"]);
 export type ActorRole = z.infer<typeof ActorRole>;
