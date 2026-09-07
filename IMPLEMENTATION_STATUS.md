@@ -896,9 +896,9 @@ function and seed parity.
 ## Session end (8 September 2026, UI pass + local testing + seed)
 
 - Pushed to `main` and deployed: the UI pass (`77274fc`), the local-test fixes, and the
-  seed rewrite (`24eed2b`). One commit is local only: `a96ac8a` (server log now records
-  the provider's status and message when a sign-in code request fails; unit auth-email
-  48/48). Push it at the start of the next session.
+  seed rewrite (`24eed2b`), and at close `a96ac8a` (server log now records the
+  provider's status and message when a sign-in code request fails; unit auth-email
+  48/48) plus this handoff. Nothing is local only.
 - Owner completed this session: Vercel `EMAIL_SIGN_IN=true`, `SUPABASE_PUBLISHABLE_KEY`,
   `DEMO_PUBLIC_USER_CODE`, `MODERATOR_EMAILS`; Supabase Email provider on, OTP expiry,
   custom SMTP, rate limits, Magic Link template edited; demo cleanup script run (it also
@@ -922,8 +922,8 @@ function and seed parity.
 
 ## Exact next action (continuation prompt for the next session)
 
-1. **Push `a96ac8a`** (owner authorised pushes for this work; every push deploys), then
-   confirm `/pilot` live shows "Use the demo code".
+1. **Everything is pushed and deployed** (owner authorised; every push deploys).
+   Confirm `/pilot` live shows "Use the demo code" if not already checked.
 2. **Fix SMTP with the owner.** Ask which provider they configured, read the
    `auth_logs` line above, correct host/port/TLS, credentials and verified sender in
    Supabase Authentication, Emails, SMTP Settings. Retest with one request to the
