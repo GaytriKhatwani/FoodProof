@@ -5,7 +5,7 @@ import { useCallback, useId, useMemo, useRef, useState } from "react";
 import type { EvidenceMeta, EvidenceRole, ReportDetail } from "@/lib/contracts";
 import { api, evidenceMediaUrl } from "@/lib/client/api";
 import { toFailure, trackFlowError, useIdempotencyKeys, type Failure } from "./failure";
-import { FailureNotice } from "./ui";
+import { FailureNotice, cx } from "./ui";
 import styles from "./reporter.module.css";
 
 /**
@@ -22,6 +22,18 @@ export const ROLE_LABEL: Record<EvidenceRole, string> = {
   identity: "Product identity",
   claim: "Gluten-free claim",
   ingredients: "Ingredient list",
+};
+
+/**
+ * Why each of the three roles is asked for. A reporter should be able to tell
+ * from this screen alone what a useful set of photographs looks like, without
+ * reading a document — and why the ingredient list is the one that makes the
+ * claim checkable at all.
+ */
+const ROLE_WHY: Record<EvidenceRole, string> = {
+  identity: "The front of the pack, so the product can be recognised later.",
+  claim: "The exact place the pack says gluten-free.",
+  ingredients: "The full list. Without it a gluten-free claim cannot be checked.",
 };
 
 const ROLES: EvidenceRole[] = ["identity", "claim", "ingredients"];
@@ -253,10 +265,34 @@ export function EvidenceSection({
     void remove(lastRowAction.evidence);
   }, [lastRowAction, remove, toggleRole]);
 
+  const covered = coveredRoles(report);
+
   return (
     <div>
+      {/*
+        The three roles, what each one is for, and whether a stored photo
+        already covers it. One photo can carry several roles, so this is a
+        coverage list rather than a list of three required files.
+      */}
+      <ul className={styles.roleGuide}>
+        {ROLES.map((role) => (
+          <li
+            key={role}
+            className={cx(
+              styles.roleGuideItem,
+              covered.has(role) && styles.roleGuideCovered,
+            )}
+          >
+            <span className={styles.roleGuideName}>{ROLE_LABEL[role]}</span>
+            <span className={styles.roleGuideWhy}>{ROLE_WHY[role]}</span>
+            <span className={styles.roleGuideState}>
+              {covered.has(role) ? "Covered by a stored photo" : "Not covered yet"}
+            </span>
+          </li>
+        ))}
+      </ul>
+
       <p className={styles.small}>
-        Show the product identity, the gluten-free claim and the ingredient list.
         One photo can cover more than one of them. JPEG, PNG or WebP, up to 3 MB
         each, one file at a time. Use sample or redacted images only.
       </p>

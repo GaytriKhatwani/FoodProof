@@ -26,7 +26,6 @@ import {
   StatusChips,
   TextAreaField,
   TextField,
-  cx,
   formatDateTime,
   todayIso,
 } from "./ui";
@@ -49,6 +48,39 @@ import styles from "./reporter.module.css";
  */
 
 const STEPS = ["Product", "Evidence", "Concern", "Review"] as const;
+
+/**
+ * Each step opens with its own heading and one sentence saying what is needed
+ * and why. A celiac who has never seen this screen should not have to guess why
+ * a photograph of the ingredient list matters — the reason is on the step that
+ * asks for it, not in a document.
+ */
+const STEP_INTRO: readonly { heading: string; why: string }[] = [
+  {
+    heading: "Start with the product",
+    why: "Name the product and brand exactly as they appear on the pack, so this record still identifies the same label weeks from now.",
+  },
+  {
+    heading: "Photograph the label",
+    why: "Your photos have to show three things: what the product is, where the pack says gluten-free, and the full ingredient list. The ingredient list is what makes a gluten-free claim checkable, so a concern without it cannot be reviewed.",
+  },
+  {
+    heading: "What doesn’t add up?",
+    why: "Explain in your own words what you saw, then type the label wording exactly and confirm you checked it against your own photo. Every fact in a complaint draft comes from here.",
+  },
+  {
+    heading: "Check what you recorded",
+    why: "Read it back before you save. Saving keeps this record to yourself — it publishes nothing and contacts nobody.",
+  },
+];
+
+/**
+ * `step` is always a valid index, but the fallback keeps a heading in the
+ * document outline rather than dropping it if that ever stops being true.
+ */
+function stepIntro(index: number): { heading: string; why: string } {
+  return STEP_INTRO[index] ?? { heading: "Your report", why: "" };
+}
 
 /** Image types the assisted reading path accepts (lib/server/ai/limits.ts). */
 const AI_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -573,7 +605,7 @@ export function ReportEditorScreen({
   if (loadStatus === "loading") {
     return (
       <section className={styles.screen}>
-        <h1 className={styles.title}>Edit report</h1>
+        <h1 className={styles.title}>Edit your report</h1>
         <Loading what="this report" />
       </section>
     );
@@ -582,7 +614,7 @@ export function ReportEditorScreen({
   if (loadStatus === "failed" && loadFailure) {
     return (
       <section className={styles.screen}>
-        <h1 className={styles.title}>Edit report</h1>
+        <h1 className={styles.title}>Edit your report</h1>
         <FailureNotice failure={loadFailure} onRetry={() => void loadDetail()} />
         <p className={styles.actions}>
           <Link className={styles.btnSecondary} href="/pilot/reports">
@@ -602,9 +634,17 @@ export function ReportEditorScreen({
             {detail ? "Edit your report" : "Raise a concern"}
           </h1>
           <p className={styles.lede}>
-            A private record of what you saw. Saving keeps it to yourself —
-            sharing with the community and sending a complaint are separate steps
-            you take later.
+            {detail ? (
+              <>
+                <strong className={styles.ledeStrong}>
+                  {detail.product_name}
+                  {detail.variant ? ` · ${detail.variant}` : ""} · {detail.brand}
+                </strong>
+              </>
+            ) : null}
+            A private record of what you saw on one packaged label. Saving keeps
+            it to yourself — sharing with the community and sending a complaint
+            are separate steps you take later.
           </p>
         </div>
         {detail ? (
@@ -649,6 +689,15 @@ export function ReportEditorScreen({
         the first render, so entering the editor is unaffected.
       */}
       <div className={styles.section} ref={stepPanelRef} tabIndex={-1}>
+        {/*
+          One heading and one sentence per step, rendered here rather than
+          inside each step so the four steps cannot drift apart, and so the
+          heading is the first thing a screen reader reaches after focus lands
+          on this panel.
+        */}
+        <h2 className={styles.sectionTitle}>{stepIntro(step).heading}</h2>
+        <p className={styles.intro}>{stepIntro(step).why}</p>
+
         {step === 0 ? (
           <ProductStep
             form={form}
@@ -671,7 +720,6 @@ export function ReportEditorScreen({
             <EvidenceSection report={detail} onChanged={() => refreshDetailOnly()} />
           ) : (
             <div>
-              <h2 className={styles.sectionTitle}>Evidence</h2>
               <p className={styles.inset}>
                 Files attach to a saved report. Save this private draft first —
                 you only need a product name and brand — then add your label
@@ -693,11 +741,9 @@ export function ReportEditorScreen({
 
         {step === 2 ? (
           <div>
-            <h2 className={styles.sectionTitle}>What doesn’t add up?</h2>
             <p className={styles.small}>
-              Describe what you can see on the label. You do not need to make a
-              legal claim, and FoodProof does not decide whether a product is
-              safe.
+              You do not need to make a legal claim, and FoodProof does not
+              decide whether a product is safe.
             </p>
             <TextAreaField
               id="concern-text"
@@ -842,7 +888,6 @@ export function ReportEditorScreen({
 
         {step === 3 ? (
           <div>
-            <h2 className={styles.sectionTitle}>Keep the facts together</h2>
             <dl className={styles.defs}>
               <div className={styles.defRow}>
                 <dt>Product</dt>
@@ -873,14 +918,15 @@ export function ReportEditorScreen({
               <ReadinessPanel report={detail} />
             ) : (
               <p className={styles.inset}>
-                Nothing is saved yet. Save this draft to see the checklist below.
+                Nothing is saved yet. Save this private draft to see what the
+                pilot still needs before you can request a community review.
               </p>
             )}
           </div>
         ) : null}
       </div>
 
-      <div className={cx(styles.actions, styles.spread)}>
+      <div className={styles.stepBar}>
         <div className={styles.actions}>
           <button
             type="button"
@@ -988,7 +1034,7 @@ function SuggestionsPanel({
 
   return (
     <div className={styles.panel}>
-      <h4 className={styles.subTitle}>Suggested text — check against your photo</h4>
+      <h4 className={styles.minorTitle}>Suggested text — check against your photo</h4>
       <p className={styles.small}>
         Read from the label photos on this report. Nothing here is saved and
         nothing is confirmed. Compare each line with your photo, then use it or
@@ -1092,10 +1138,8 @@ function ProductStep({
 
   return (
     <div>
-      <h2 className={styles.sectionTitle}>Start with the product</h2>
       <p className={styles.small}>
-        Enough detail to recognise the label you saw. Use a sample or redacted
-        product for this demo.
+        Use a sample or redacted product for this demo.
       </p>
 
       <TextField
