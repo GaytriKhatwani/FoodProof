@@ -104,14 +104,82 @@ printed); `npm run build` clean, both new routes present; `npx playwright test` 
 passed in the deployment-accurate configuration (flag off). The live email suite has
 NEVER run: it is blocked on step 1 above and must not be reported as passing.
 
-**What the UI slice adds.** The `/pilot` entry screen gains an email path beside the
-invitation field, shown only when `serverEnvStatus().email_sign_in` is true (a server
-component can read it directly): an address field posting to
-`/api/auth/email/request`, then a code field posting to `/api/auth/email/verify`, which
-returns the same `{ label, role, expires_at }` the invitation exchange returns and
-therefore joins the existing consent step unchanged. No new analytics event: email entry
-emits the existing `demo_entered` with the same `entry_role` mapping and no address in
-any property.
+**What the UI slice adds.** See "Phase two — C.1 UI slice" immediately below: it is now
+built on this branch, on top of the server contract above.
+
+### Phase two — C.1 UI slice (this branch, 7 September 2026)
+
+The UI half of "real sign-in" (D18), built on the server slice's contract directly above
+— no contract change and no server file touched. Still branch only: NOT merged, NOT
+deployed, migration 0006 still NOT applied.
+
+**Done.**
+
+- `lib/client/api.ts`: `auth.email.request(email)` and `auth.email.verify(email, code)`,
+  following the existing typed-adapter pattern — envelope parsing, `ClientApiError`, and
+  `Retry-After` surfaced the same way the invitation exchange already does.
+- `components/shell/entry-flow.ts` and `components/shell/ConsentStep.tsx`: the
+  role-to-destination mapping and the analytics-consent step were extracted from
+  `EntryForm`'s own consent phase (unchanged behaviour) so email sign-in reuses them
+  instead of copying them; both paths emit the identical `demo_entered` event with the
+  same `entry_role` mapping and no address in any property.
+- `components/shell/EmailSignInForm.tsx`: two steps — send a code, then enter it —
+  reusing `EntryForm.module.css`. Inline validation on the address; the code field is
+  `inputMode="numeric"`, `autoComplete="one-time-code"`, 6 to 8 digits; a "Use a
+  different address" link returns to the first step; "Send a new code" carries a
+  60-second client-side resend cooldown with a visible, `aria-live` countdown (a UI
+  courtesy only — it does not relax the server's own five-per-15-minute limiter). Every
+  sign-in failure renders the one generic message FOODPROOF_API_DETAILS.md specifies for
+  its code (401/403/429/503), announced via `role="alert"`.
+- `app/pilot/page.tsx`: a server component reads `serverEnvStatus().email_sign_in`
+  directly and never probes the endpoints. With the flag on, the screen presents email
+  sign-in first ("Sign in with your email") and the invitation code second ("Have an
+  invitation code?"), each with one explanatory line; the existing "these are test
+  labels, not verified identities" statement stays attached to the invitation path only,
+  and the closing footnote is reworded to name the invitation path specifically now that
+  email sign-in does create or reuse an account. With the flag off the screen renders
+  exactly as phase one — verified by running the flag-off Playwright configuration
+  unchanged (see Checks below).
+- `components/shell/PilotShell.tsx`: the identity chip reads `me.sign_in_method` — a
+  verified account shows its email and "Signed in with email"; an invitation actor keeps
+  its existing label and "Test identity" wording. The reviewer nav link is untouched: it
+  still depends only on `me.role`.
+- Docs: `docs/FOODPROOF_SCREENS.md` §2 and its shared-shell paragraph gained short C.1
+  notes; this subsection.
+
+**Checks (7 September 2026, this branch).** `npm run typecheck` clean; `npm run lint`
+clean; `npx vitest run tests/unit tests/contracts.test.ts` 217 passed, 0 failed
+(unchanged by this slice — no server or contract file was touched); `npm run build`
+clean, both routes still present. `npx playwright test` — the FULL suite, one worker,
+both `desktop` and `mobile` projects, flag ON and migration 0006 absent: **140 total,
+138 passed, 0 failed, 2 skipped**, 8.2 minutes; `community-detail.spec.ts` ran clean on
+this pass and needed no re-run. The 2 skipped are the one new live email scenario × 2
+projects, each reporting **BLOCKED: migration 0006 not applied** — confirmed from the
+JSON reporter's own skip annotation, not merely observed on the console — and never
+claimed as passing. `tests/e2e/entry-email.spec.ts` (new, 6 scenarios × 2 projects = 12):
+the 5 mocked scenarios pass on both projects (10/10 — flag-on rendering of both paths,
+the happy path via a mocked `verify` + mocked `GET /api/me`, an invalid code, a
+rate-limited attempt, the resend cooldown); the 6th is the live scenario above.
+`tests/e2e/entry-session.spec.ts` (phase-one invitation entry) is unchanged and its 14
+tests still pass on both projects (re-confirmed after a later copy fix, see below); no
+selector needed updating because no phase-one heading or label changed.
+
+**What was verified live before this run.** `demo_access` on the shared demo project was
+confirmed to hold only the two seed rows; migration 0006 is confirmed still absent (a
+direct `select` on `auth_user_id` returns `42703 column does not exist`), so
+`fp_schema_version()` stays below 6 and the live email suite (both the server slice's
+vitest suite and this slice's Playwright scenario) correctly cannot run yet.
+
+**Owner-blocked.** Unchanged from the server slice above (migration 0006, the Supabase
+Email provider/SMTP configuration, and the three Vercel variables). This UI slice adds no
+new owner step.
+
+**Uncertain / left out.** The 60-second resend cooldown is a client-side convenience
+only, exactly as scoped: it does not read the server's own limiter state, so a caller
+could still receive `RATE_LIMITED` immediately after the button re-enables. No contract
+problem was found — the UI-facing shapes (`{ requested: true }`, `{ label, role,
+expires_at }`, `Me.sign_in_method`/`Me.email`) were sufficient as specified, and nothing
+here forks the API contract.
 
 ## Pilot integrity hardening (recorded 6 September 2026, migration 0005)
 
