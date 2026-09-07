@@ -1,34 +1,452 @@
 /*
- * Public home figure. The approved Clear Signal photograph carries the page's
- * depth (docs/DESIGN.md: surfaces stay flat, photography does the work), and it
- * always travels with its illustrative caption and provenance.
+ * Public home composition (docs/DESIGN.md — Clear Signal).
+ *
+ * Three ideas hold the page together:
+ *   1. The approved photograph is IN the hero, running off the right edge of
+ *      the page, so the first screen is the argument rather than text beside
+ *      empty paper. It keeps its illustrative caption and provenance.
+ *   2. Section rhythm comes from space, not from rules. A rule means "new
+ *      chapter" (the walk-through) or "one row of a sequence" (each step);
+ *      nothing else is ruled, so the page stops reading as bands and gaps.
+ *   3. Every measure is deliberate: 12ch for the headline, ~40ch for the hero
+ *      sub, 58-64ch for reading copy.
+ *
+ * `--page-inset` aligns a full-width section's content with the 1200px
+ * container. It is local to this file on purpose: it is a composition detail
+ * of the public page, not a shared token.
  */
+
+.main {
+  /*
+   * The hero photograph bleeds past the container to the right edge. `clip`
+   * (not `hidden`) guarantees that can never produce sideways scroll without
+   * turning the page into a scroll container.
+   */
+  overflow-x: clip;
+  --page-inset: max(
+    var(--gutter),
+    calc((100% - var(--container-max)) / 2 + var(--gutter))
+  );
+}
+
+/* ---------------------------------------------------------------- hero --- */
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 0.78fr) minmax(0, 1fr);
+  align-items: center;
+  column-gap: clamp(28px, 3.4vw, 56px);
+  padding: clamp(28px, 3.6vw, 56px) 0 clamp(36px, 4vw, 56px) var(--page-inset);
+}
+
+.heroCopy {
+  padding-bottom: clamp(4px, 1vw, 12px);
+}
+
+.heroTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  /*
+   * DESIGN.md's display step. The 12ch measure is what holds the approved
+   * three-line break ("Food labels / deserve a / closer look.") at every width
+   * instead of a hard <br>, which would reflow badly at 390px.
+   */
+  font-size: clamp(44px, 5.4vw, 82px);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  max-width: 12ch;
+  margin: 0;
+  padding-bottom: 0.08em;
+}
+
+/*
+ * The one-time headline underline from DESIGN.md. The resting state is the
+ * finished state, so the reduced-motion rule in globals.css (and any failure
+ * to run the animation at all) leaves the mark drawn rather than invisible.
+ */
+.mark {
+  position: relative;
+  display: inline-block;
+}
+
+.mark::after {
+  content: "";
+  position: absolute;
+  left: 0.02em;
+  right: 0.05em;
+  bottom: 0.02em;
+  height: 0.065em;
+  background: var(--color-primary);
+  transform-origin: 0 50%;
+  animation: mark-draw 620ms cubic-bezier(0.16, 1, 0.3, 1) 300ms both;
+}
+
+@keyframes mark-draw {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.heroSub {
+  font-size: clamp(18px, 1.4vw, 22px);
+  line-height: 1.45;
+  color: var(--color-ink);
+  max-width: 40ch;
+  margin: clamp(20px, 2vw, 28px) 0 0;
+}
+
+.heroActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-md) clamp(20px, 2.4vw, 32px);
+  margin-top: clamp(24px, 2.6vw, 36px);
+}
+
+.heroLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+/* A drawn chevron rather than a text glyph, so it matches the type weight. */
+.heroLink::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translate(-1px, -1px);
+  transition: transform 160ms ease;
+}
+
+.heroLink:hover::after {
+  transform: rotate(45deg) translate(1px, 1px);
+}
+
+.heroNote {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-muted);
+  max-width: 38ch;
+  margin: clamp(26px, 3vw, 40px) 0 0;
+}
 
 .figure {
   margin: 0;
-  padding-bottom: var(--space-lg);
+  min-width: 0;
 }
 
 .image {
   display: block;
   width: 100%;
   height: auto;
-  border: 1px solid var(--color-rule);
-  border-radius: var(--radius-control);
 }
 
 .caption {
   margin: var(--space-sm) 0 0;
+  padding-right: var(--gutter);
   color: var(--color-muted);
   font-size: 13px;
-  max-width: 68ch;
+  line-height: 1.5;
+  max-width: 64ch;
 }
 
 .captionTag {
+  display: inline-block;
   color: var(--color-status-ink);
   background: var(--color-tint);
   border: 1px solid var(--color-rule);
   border-radius: var(--radius-control);
   padding: 1px 6px;
-  margin-right: 6px;
+  margin-right: 8px;
+  font-weight: 500;
+}
+
+/* ------------------------------------------------------------- explain --- */
+
+.explain {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: clamp(48px, 6.5vw, 96px) var(--gutter) 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.06fr);
+  gap: clamp(20px, 3.4vw, 64px);
+  align-items: start;
+}
+
+.explainTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(26px, 3.2vw, 44px);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  margin: 0;
+  /* Sized so the statement and the paragraphs beside it end together. */
+  max-width: 17ch;
+}
+
+/* Keeps "gluten-free." whole: the hyphen is part of the claim, not a break. */
+.nowrap {
+  white-space: nowrap;
+}
+
+.explainBody {
+  display: grid;
+  gap: var(--space-md);
+  max-width: 62ch;
+  /* Optical alignment: body x-height sits with the first display line. */
+  padding-top: clamp(4px, 0.6vw, 10px);
+}
+
+.explainBody p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 17px;
+  text-wrap: pretty;
+}
+
+.explainBody p:first-child {
+  color: var(--color-ink);
+}
+
+/* ----------------------------------------------------------------- how --- */
+
+.how {
+  max-width: var(--container-max);
+  margin: clamp(48px, 6.5vw, 96px) auto 0;
+  padding: clamp(40px, 4.5vw, 64px) var(--gutter) 0;
+  border-top: 1px solid var(--color-rule);
+}
+
+.howTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-wrap: balance;
+  font-size: clamp(24px, 2.4vw, 34px);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 0 0 clamp(20px, 2.4vw, 32px);
+}
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/*
+ * Numeral, title, description: a ruled sequence, not a row of cards. The
+ * numerals carry information here (the journey is ordered), and the <ol> is
+ * what announces the order to a screen reader, so the drawn numeral is
+ * decorative and hidden from the accessibility tree.
+ */
+.step {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  column-gap: clamp(16px, 2.2vw, 36px);
+  padding: clamp(20px, 2.4vw, 30px) 0;
+  border-top: 1px solid var(--color-rule);
+}
+
+.step:last-child {
+  padding-bottom: 0;
+}
+
+.stepIndex {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(30px, 3.4vw, 48px);
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  color: var(--color-primary);
+  min-width: clamp(32px, 4vw, 62px);
+}
+
+.stepBody {
+  display: grid;
+  grid-template-columns: minmax(0, 22ch) minmax(0, 58ch);
+  column-gap: clamp(20px, 3vw, 48px);
+  align-items: start;
+}
+
+.stepBody h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-wrap: balance;
+  font-size: clamp(19px, 1.5vw, 22px);
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  margin: 0;
+  padding-top: 2px;
+}
+
+.stepBody p {
+  margin: 0;
+  color: var(--color-muted);
+  text-wrap: pretty;
+}
+
+/* ------------------------------------------------------------ boundary --- */
+
+/*
+ * What FoodProof is and is not, as ONE composed block: the comparison and the
+ * sentence that limits it live on the same surface instead of floating in two
+ * separate tinted boxes.
+ */
+.boundary {
+  margin-top: clamp(36px, 4.5vw, 64px);
+  background: var(--color-surface);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-control);
+  padding: clamp(24px, 3vw, 40px);
+}
+
+.boundaryTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-wrap: balance;
+  font-size: clamp(20px, 1.8vw, 26px);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: 0 0 clamp(18px, 2vw, 26px);
+  max-width: 26ch;
+}
+
+.boundaryList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md) clamp(24px, 4vw, 64px);
+  margin: 0;
+}
+
+.boundaryRow dt {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--color-status-ink);
+  margin-bottom: 4px;
+}
+
+.boundaryRow dd {
+  margin: 0;
+  color: var(--color-muted);
+  max-width: 46ch;
+}
+
+/*
+ * The rule runs the full width of the block, so the sentence reads as the
+ * block's conclusion rather than as a third, half-width column.
+ */
+.boundaryNote {
+  margin: clamp(20px, 2.4vw, 28px) 0 0;
+  padding-top: clamp(16px, 2vw, 22px);
+  border-top: 1px solid var(--color-rule);
+  color: var(--color-status-ink);
+  font-weight: 500;
+}
+
+/* ----------------------------------------------------------- pilot band --- */
+
+/*
+ * The pilot notice closes the page as a band that runs edge to edge, rather
+ * than as one more tinted box inside an empty ruled section.
+ */
+.pilotBand {
+  margin-top: clamp(48px, 6vw, 88px);
+  background: var(--color-tint);
+  border-top: 1px solid var(--color-rule);
+  color: var(--color-status-ink);
+}
+
+.pilotBandInner {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: clamp(26px, 3.4vw, 44px) var(--gutter);
+  display: grid;
+  grid-template-columns: minmax(0, 15ch) minmax(0, 68ch);
+  gap: var(--space-sm) clamp(20px, 4vw, 56px);
+  align-items: start;
+}
+
+.pilotBandTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(19px, 1.5vw, 22px);
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.pilotBandText {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+/* ---------------------------------------------------------- responsive --- */
+
+@media (max-width: 1000px) {
+  .stepBody {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 6px;
+  }
+
+  .stepBody p {
+    max-width: 62ch;
+  }
+}
+
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: clamp(28px, 4vw, 40px);
+    padding-left: var(--gutter);
+    padding-right: var(--gutter);
+  }
+
+  /* Below the split, the photograph runs the full width of the screen. */
+  .figure {
+    margin-left: calc(-1 * var(--gutter));
+    margin-right: calc(-1 * var(--gutter));
+  }
+
+  .caption {
+    padding: 0 var(--gutter);
+    max-width: none;
+  }
+
+  .explain {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .explainTitle {
+    max-width: 24ch;
+  }
+
+  .explainBody {
+    padding-top: 0;
+  }
+
+  .pilotBandInner {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 680px) {
+  .heroTitle {
+    font-size: 52px;
+  }
+
+  .boundaryList {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .step {
+    column-gap: var(--space-md);
+  }
 }
