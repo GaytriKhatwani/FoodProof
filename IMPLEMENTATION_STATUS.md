@@ -893,35 +893,62 @@ gets no catalogue entry until someone adds one; the recommended fix is an upsert
 canonical key on first publication approval, with a migration for the transactional
 function and seed parity.
 
+## Session end (8 September 2026, UI pass + local testing + seed)
+
+- Pushed to `main` and deployed: the UI pass (`77274fc`), the local-test fixes, and the
+  seed rewrite (`24eed2b`). One commit is local only: `a96ac8a` (server log now records
+  the provider's status and message when a sign-in code request fails; unit auth-email
+  48/48). Push it at the start of the next session.
+- Owner completed this session: Vercel `EMAIL_SIGN_IN=true`, `SUPABASE_PUBLISHABLE_KEY`,
+  `DEMO_PUBLIC_USER_CODE`, `MODERATOR_EMAILS`; Supabase Email provider on, OTP expiry,
+  custom SMTP, rate limits, Magic Link template edited; demo cleanup script run (it also
+  removed three of the owner's own local test reports that were owned by an agent-minted
+  code); taste skill moved to a global install, project copies deleted, nothing committed.
+- Live state at close: `/api/health` reports `email_sign_in: true`; `/pilot` shows the
+  email form. The shared demo code was NOT visible live at last check: if
+  `DEMO_PUBLIC_USER_CODE` was set after the last deploy, the next push shows it.
+- Demo project: 4 seed product records, 3 visible publications, 1 seed draft, the
+  owner's own remaining test rows, `demo_access` = seed pair + owner's user/reviewer codes
+  + the published demo-code row.
+- **Blocking issue found, not resolved: email sign-in fails at the SMTP handoff.** A
+  request to `/api/auth/email/request` (local and live) gets Supabase
+  `status 500, "Error sending confirmation email"` after about five seconds. Verified
+  NOT the cause: the flag, the publishable key, migration 0006, the Email provider
+  (public auth settings show it enabled with sign-ups allowed). The cause is in the
+  owner's SMTP settings (host/port/TLS pairing, credentials, unverified sender) or the
+  provider's own rate limit; the SMTP transcript is in Supabase Logs Explorer:
+  `select timestamp, event_message from auth_logs where timestamp > '<time>' and
+  event_message ilike '%mail%' order by timestamp desc`.
+
 ## Exact next action (continuation prompt for the next session)
 
-1. **Pushed and deployed** on 8 September 2026 (`77274fc`; owner authorised after local
-   testing). Local-test fixes included: full-width email field; optional
-   `DEMO_PUBLIC_USER_CODE` publishes one user invitation on `/pilot` (set on Vercel to show
-   it live; documented in `.env.example` and the operations doc); the actions screen hides
-   its send stages until label facts are confirmed and deep-links to the editor's Concern
-   step (`/edit?step=concern`). Owner still to run `scripts/_cleanup.tmp.mjs` (untracked)
-   and delete it, and to decide on the untracked taste-skill folders.
-2. **Owner steps to switch on email sign-in** (unchanged; detail in
-   `docs/FOODPROOF_SETUP_AND_OPERATIONS.md` "Phase two C.1"): Supabase Authentication
-   (Email provider with confirm email, `{{ .Token }}` in the Magic Link template, OTP expiry
-   one hour or less, custom SMTP) and Vercel `EMAIL_SIGN_IN=true`,
-   `SUPABASE_PUBLISHABLE_KEY`, optional `MODERATOR_EMAILS`.
-3. **Then verify from a browser**: `/api/health` reports `email_sign_in: true`; request a
-   code to a real mailbox, sign in, `GET /api/me` shows `sign_in_method: "email"`; an
-   invitation code still works in a second browser. SMTP delivery is the one untested piece.
-4. **UI follow-ups** (small, optional): review screens were out of scope for the UI pass
-   and still use the older rhythm and `#f7ecec` error tint; "Record a response" cannot be
-   offered on My reports until `ReportSummary` carries a submission count; C1
-   (`window.confirm` ×3, needs tests) and C4 (per-photo legend names) stay deferred; footer
-   does not pin to the bottom of short viewports.
-5. Carry-forward (unchanged): Next.js 14 to 16 before public launch; later Phase two
+1. **Push `a96ac8a`** (owner authorised pushes for this work; every push deploys), then
+   confirm `/pilot` live shows "Use the demo code".
+2. **Fix SMTP with the owner.** Ask which provider they configured, read the
+   `auth_logs` line above, correct host/port/TLS, credentials and verified sender in
+   Supabase Authentication, Emails, SMTP Settings. Retest with one request to the
+   owner's mailbox `gaytrikhatwani.r@gmail.com` (owner consented to test sends this
+   session); with `a96ac8a` deployed the Vercel function log names the provider error.
+3. **Then the live browser verification**: enter with the shared demo code; request a
+   real code, sign in, `GET /api/me` shows `sign_in_method: "email"` and the address; an
+   invitation code still works in a second browser; `MODERATOR_EMAILS` promotes the
+   owner's address to reviewer if listed.
+4. **Product catalogue gap (decision pending):** the application never creates a
+   product record for a new identity, so only seeded products match in "Look for an
+   existing product" and reviewer relink. Recommended: upsert by canonical key on first
+   publication approval (migration for a transactional function + seed parity). About a
+   half-day slice with tests. Offer it; do not start unasked.
+5. **UI follow-ups, optional:** reviewer screens still on the older rhythm and `#f7ecec`
+   error tint; "Record a response" on My reports needs a submission count in
+   `ReportSummary`; audit C1 (`window.confirm` ×3) and C4 (per-photo legend names) stay
+   deferred; footer does not pin to the bottom of short viewports.
+6. Carry-forward (unchanged): Next.js 14 to 16 before public launch; later Phase two
    tickets: production RBAC/RLS and storage tests, removing demo mode, public approved
    projection, moderation operations and deletion policy.
-6. Before any suite run, check `demo_access` holds only the two seed rows and
-   `fp_ai_spend_totals()` shows no `reserved_open` rows. Never run two live suites at once,
-   never pipe a live run through `head`, and on this 16 GB machine run Playwright in
-   foreground chunks of a few spec files, not one background run.
+7. Before any suite run, check `demo_access` and `fp_ai_spend_totals()` (no
+   `reserved_open` rows). Never run two live suites at once, never pipe a live run
+   through `head`, and on this 16 GB machine run Playwright in foreground chunks of a
+   few spec files; background full runs get killed for memory.
 
 ## Owner decisions (7 September 2026, C.1) — recorded, not to be re-asked
 
