@@ -10,6 +10,32 @@ Use the technical specification's success/error envelope, UUID identifiers, UTC 
 
 `POST /api/demo/session`: `{ invitation_code }`; sets cookie and returns `{ label, role, expires_at }`. No raw invitation/session token in response JSON. `GET /api/me` returns `{ label, role, analytics_consent }` — the current consent state for the withdraw control — and never returns invitation or session secrets. `PUT /api/me/analytics-consent`: `{ allowed: boolean }`; server controls analytics identifiers. `/pilot` entry is public; all nested application routes are guarded.
 
+### Email sign-in (phase two C.1)
+
+Two additional endpoints run **alongside** invitation entry, behind the `EMAIL_SIGN_IN` deployment flag. They never replace `POST /api/demo/session`, and a verified account never claims a demo actor's records.
+
+- `POST /api/auth/email/request`: `{ email }` (strict; trimmed, at most 254 characters, address shape). Answers `{ requested: true }`. The answer is identical whether or not that address already has an account, so the endpoint cannot be used to discover who has one. The one-time code travels only by email; it is never in a response, a log line or an analytics property.
+- `POST /api/auth/email/verify`: `{ email, code }` (strict; `code` is a six to eight digit string, trimmed). On success it sets the same HttpOnly session cookie as invitation entry and returns `{ label, role, expires_at }`, the same three fields, so one client path handles both. `label` for a verified account is the constant `"Verified account"`; `role` comes from stored records and the deployed moderator allowlist, never from the body.
+- Logout is `DELETE /api/demo/session` for **both** kinds of session. There is no separate email logout.
+
+Error behaviour on these two routes:
+
+| Situation | Code | HTTP | Message |
+|---|---|---|---|
+| `EMAIL_SIGN_IN` unset, or migration 0006 not applied | `DEPENDENCY_UNAVAILABLE` | 503 | Email sign-in is not enabled. |
+| Malformed body, address or code | `VALIDATION_FAILED` | 422 | Validation failed. (with `fields`) |
+| Cross-origin request | `FORBIDDEN` | 403 | Cross-origin request rejected. |
+| Over the attempt limit | `RATE_LIMITED` | 429 | Too many sign-in attempts. Please wait and try again. (with `Retry-After`) |
+| Provider could not send a code | `DEPENDENCY_UNAVAILABLE` | 503 | Could not send a sign-in code right now. Please try again shortly. |
+| Wrong code, expired code, unconfirmed account, address does not match the code | `UNAUTHENTICATED` | 401 | That code is not valid. Request a new code and try again. |
+| Actor revoked or expired | `FORBIDDEN` | 403 | This account cannot sign in. |
+
+Every failed sign-in is one message: the four distinct causes of the 401 are deliberately indistinguishable. Both routes require same-origin, like every other cookie-authenticated mutation, and neither ever returns a provider token, a one-time code or a key.
+
+Rate limits: each route counts **every** attempt against two independent buckets, the originating address and the destination address, in the existing persistent limiter (five per fifteen-minute window per bucket, 429 with `Retry-After`). Counting happens before the identity provider is contacted, so a capped caller never reaches it. A completed sign-in clears the verification counters; sending is never cleared, because sending is the thing being capped.
+
+`GET /api/me` gains two fields, present for both kinds of session: `sign_in_method` (`"invitation" | "email"`) and `email` (the verified address, or `null` for an invitation actor). The address is read from the identity provider for that one response; no application table stores it, and `/api/me` is the only route that reads it. If the provider no longer accepts that account (deleted, or currently banned) the session is ended and the request answers `UNAUTHENTICATED`.
+
 ## Read models
 
 - `GET /api/reports`: own-report summaries with report ID, product fields, preparation/lifecycle, visibility, version and updated time; cursor pagination, 20 per page.

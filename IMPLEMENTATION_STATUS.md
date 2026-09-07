@@ -35,6 +35,84 @@ stop point; Phase two (C.1 real sign-in) starts in the next session.**
      label photos in the report editor and assisted drafting on the actions screen, with the
      manual/template path unchanged.
 
+## Phase two — C.1 server slice (branch `feat/c1-email-sign-in`, 7 September 2026)
+
+The server half of "real sign-in" (D18). Branch only: NOT merged, NOT deployed, and
+migration 0006 is NOT applied. A separate UI slice builds the sign-in screen on the
+contracts below.
+
+**Owner decisions this slice implements** (settled; do not re-ask): Supabase email
+one-time code only, no phone and no social provider; provider-default account linking
+(one verified address = one account); demo mode stays side by side, with invitation-code
+entry unchanged and email sign-in an additional flag-enabled path; a verified account
+NEVER auto-claims demo records; the reviewer role for verified accounts comes from a
+`MODERATOR_EMAILS` environment allowlist enforced server-side, with no role table.
+
+**Done.**
+
+- `supabase/migrations/0006_verified_accounts.sql`: `demo_access` becomes an actor table
+  with two identity kinds (`token_hash` XOR `auth_user_id`, enforced by a check
+  constraint); `auth_user_id` is unique and references `auth.users` ON DELETE RESTRICT;
+  `email_hmac` holds a keyed HMAC of the address. `fp_verified_actor(uuid, text,
+  demo_role)` is `security definer`, granted to `service_role` only, refuses an
+  unconfirmed, banned, revoked or expired actor with FP403, and upserts on
+  `auth_user_id` so a returning person keeps the same actor id. `fp_schema_version()`
+  returns 6. Written to be safe to re-run.
+- `lib/server/auth-email.ts`: `requestEmailCode` and `verifyEmailCode`. Codes are sent
+  and verified through a per-request client built from the publishable key, so a user
+  token never touches the service client; the provider session is revoked the moment it
+  exists and is never used; the browser only ever receives the ordinary HttpOnly session
+  cookie. Both count every attempt in two limiter buckets (originating address and
+  destination) BEFORE contacting the provider, and every failure is one generic message.
+- `lib/server/moderators.ts`: one canonical address normalisation, the keyed email HMAC,
+  and the reviewer allowlist compared as HMACs so no plaintext address is retained.
+- `lib/server/session.ts`: `startSession` is now shared by both entry paths;
+  `ResolvedActor` carries `authUserId`/`emailHmac`; `SessionContext` carries
+  `signInMethod`; a verified actor's role is recomputed from the deployed allowlist on
+  every request and healed in place, so the database-side reviewer check always agrees
+  with the allowlist that is live.
+- `lib/server/env.ts`: `EMAIL_SIGN_IN`, `SUPABASE_PUBLISHABLE_KEY` and
+  `MODERATOR_EMAILS`, with a startup refinement that the flag requires the key;
+  `serverEnvStatus()` gains `email_sign_in`, which `GET /api/health` reports.
+- Routes `POST /api/auth/email/request` and `POST /api/auth/email/verify`; `GET /api/me`
+  gains `sign_in_method` and `email`. Logout stays `DELETE /api/demo/session` for both
+  kinds of session. Middleware is unchanged.
+- `scripts/teardown.mjs` counts and deletes verified accounts, after their actor rows.
+
+**Graceful degradation, deliberate.** Session resolution is the query every request
+makes. If a deployment sets `EMAIL_SIGN_IN` before applying 0006, the application logs
+one loud line naming the migration, keeps invitation entry working unchanged, and
+refuses email sign-in until the migration lands. It never silently hides a verified
+actor, because none can exist while the column identifying one does not.
+
+**Owner-blocked (nothing here can be done from the build machine).**
+
+1. Paste `supabase/migrations/0006_verified_accounts.sql` into the Supabase SQL Editor.
+2. Supabase dashboard: enable the Email provider with confirmation, add `{{ .Token }}` to
+   the Magic Link template, shorten the OTP expiry, configure custom SMTP (the built-in
+   relay reaches only project team members), and set the auth rate limits.
+3. Vercel: `EMAIL_SIGN_IN`, `SUPABASE_PUBLISHABLE_KEY`, `MODERATOR_EMAILS`.
+
+All three are written out step by step in `docs/FOODPROOF_SETUP_AND_OPERATIONS.md`,
+"Phase two C.1 - email sign-in operations", along with revocation and account-deletion
+order.
+
+**Checks (7 September 2026, this branch).** `npm run typecheck` clean; `npm run lint`
+clean; `npx vitest run` 287 passed, 9 skipped, 0 failed with the flag ON and 0006 absent
+(the 9 skipped are `tests/integration/auth-email.test.ts`, BLOCKED with the reason
+printed); `npm run build` clean, both new routes present; `npx playwright test` 128
+passed in the deployment-accurate configuration (flag off). The live email suite has
+NEVER run: it is blocked on step 1 above and must not be reported as passing.
+
+**What the UI slice adds.** The `/pilot` entry screen gains an email path beside the
+invitation field, shown only when `serverEnvStatus().email_sign_in` is true (a server
+component can read it directly): an address field posting to
+`/api/auth/email/request`, then a code field posting to `/api/auth/email/verify`, which
+returns the same `{ label, role, expires_at }` the invitation exchange returns and
+therefore joins the existing consent step unchanged. No new analytics event: email entry
+emits the existing `demo_entered` with the same `entry_role` mapping and no address in
+any property.
+
 ## Pilot integrity hardening (recorded 6 September 2026, migration 0005)
 
 A focused adversarial-review pass after T4, merged as one integration branch
