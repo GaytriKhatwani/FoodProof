@@ -126,9 +126,9 @@ export function FeedView() {
           }.`;
 
   return (
-    <>
+    <div className={styles.page}>
       <div className={styles.pageHead}>
-        <div>
+        <div className={styles.pageHeadText}>
           <h1 className={styles.title}>Community concerns</h1>
           <p className={styles.lede}>
             Reviewed reports describe what a contributor documented. Review
@@ -180,7 +180,7 @@ export function FeedView() {
       </p>
 
       {status === "loading" ? (
-        <LoadingBlock label="Loading reviewed concerns…" lines={4} />
+        <LoadingBlock label="Loading reviewed concerns…" shape="feed" />
       ) : null}
 
       {status === "error" ? (
@@ -316,17 +316,19 @@ export function FeedView() {
           ) : null}
 
           {nextCursor ? (
-            <button
-              type="button"
-              className={styles.secondaryButton}
-              onClick={handleShowMore}
-              disabled={loadingMore}
-            >
-              {loadingMore ? "Loading…" : "Show more concerns"}
-            </button>
+            <div className={styles.more}>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={handleShowMore}
+                disabled={loadingMore}
+              >
+                {loadingMore ? "Loading…" : "Show more concerns"}
+              </button>
+            </div>
           ) : null}
         </>
       ) : null}
-    </>
+    </div>
   );
 }
