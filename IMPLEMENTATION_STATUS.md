@@ -809,6 +809,27 @@ decisions; not started:
 
 - Reminders and translations, as separately scoped tickets.
 
+## Session end (7 September 2026, Phase two C.1)
+
+- Merged and pushed to `main` this session, in order: `copy/user-facing-clarity`
+  (`f2e2227`, copy clarity pass, e2e 128/128), `feat/c1-email-sign-in` (`d97e0b6`, server
+  and UI slices), live-verification note (`af02e75`), this handoff. `main` == `origin/main`.
+  Worktrees removed; the two merged branches still exist locally. `codex/otp-sign-in*`
+  branches were reference only and remain unmerged; their prunable worktrees were pruned.
+- Migration 0006 applied by the owner and verified live (`fp_schema_version()` = 6).
+- Final checks on the merged tree: typecheck, lint, build clean; vitest unit + contracts
+  217/217; live auth-email 9/9; Playwright 140/140, 0 skipped.
+- Deployment redeployed from `main`; `/api/health` reports every group present and
+  `email_sign_in: false`; `/pilot` renders invitation entry only. Nothing user-visible
+  changed except the tightened copy.
+- Demo project at seed baseline: `demo_access` = 2 seed rows, 2 reports, 0 auth users,
+  no open AI reservations. Stray rows from one aborted local vitest run were removed by an
+  owner-run script, child to parent.
+- Local `.env.local` now also carries `EMAIL_SIGN_IN=true` and an empty `MODERATOR_EMAILS`
+  (gitignored) so local live suites exercise the email path.
+- Owner deferred the Supabase SMTP and provider configuration to the next session. No
+  Vercel variable for email sign-in has been set. Nothing is half-done in code.
+
 ## Exact next action (continuation prompt for the next session)
 
 1. **Phase two C.1 (email sign-in) is merged and deployed, switched OFF.** `main` ==
