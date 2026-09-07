@@ -23,6 +23,8 @@
   --color-tint: #e6ebff;
   --color-status-ink: #1c399d;
   --color-error: #a12c2a;
+  /* Ground behind error text and destructive hover states (DESIGN.md error-tint). */
+  --color-error-tint: #fbf1f1;
 
   /*
    * `--font-display-face` and `--font-body-face` are declared by `next/font`
@@ -198,79 +200,6 @@ a:hover {
   font-size: 15px;
 }
 
-.link-cta {
-  font-weight: 600;
-}
-
-.hero {
-  padding: clamp(40px, 8vw, 88px) 0 var(--space-lg);
-}
-
-.hero h1 {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(44px, 6.6vw, 88px);
-  line-height: 1.03;
-  letter-spacing: -0.025em;
-  margin: 0 0 var(--space-md);
-  max-width: 14ch;
-}
-
-.hero-sub {
-  font-size: 20px;
-  color: var(--color-ink);
-  max-width: 46ch;
-  margin: 0 0 var(--space-lg);
-}
-
-.hero-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-lg);
-  flex-wrap: wrap;
-}
-
-.section {
-  padding: var(--space-lg) 0;
-  border-top: 1px solid var(--color-rule);
-}
-
-.section h2 {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(24px, 3vw, 34px);
-  letter-spacing: -0.02em;
-  margin: 0 0 var(--space-md);
-}
-
-.pillars {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-lg);
-}
-
-/*
- * The three pillars are the top-level content of their section, so they are
- * `h2` — an `h3` here would jump a level down from the page `h1`. They keep the
- * smaller display size on purpose; heading LEVEL is structure, size is emphasis.
- */
-.pillar h2 {
-  font-family: var(--font-display);
-  font-size: 19px;
-  margin: 0 0 4px;
-}
-
-.pillar p {
-  margin: 0;
-  color: var(--color-muted);
-}
-
-.compare {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-lg);
-}
-
 .notice {
   background: var(--color-tint);
   color: var(--color-status-ink);
@@ -335,15 +264,6 @@ a:hover {
 @media (max-width: 680px) {
   :root {
     --gutter: 20px;
-  }
-
-  .hero h1 {
-    font-size: 52px;
-  }
-
-  .pillars,
-  .compare {
-    grid-template-columns: 1fr;
   }
 
   .nav-links {

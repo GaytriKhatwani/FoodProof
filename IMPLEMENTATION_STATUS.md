@@ -830,32 +830,78 @@ decisions; not started:
 - Owner deferred the Supabase SMTP and provider configuration to the next session. No
   Vercel variable for email sign-in has been set. Nothing is half-done in code.
 
+## Session (8 September 2026, UI improvement pass) — merged to local `main`, NOT pushed
+
+Owner's brief: "random white spaces and multiple UI issues; modern, not AI slop; a celiac
+should understand what the site is for, how it helps, how to use it, then raise a complaint
+and track its status." Decision taken for the pass: **refine Clear Signal** (the approved
+D22/D23 world in `docs/DESIGN.md`), not replace it. Three parallel streams, each in its own
+worktree, merged in order with no conflicts:
+
+- `ui/home-entry` (`a3012e2`): **Inter Tight and DM Sans were declared in the tokens but
+  never loaded**, so every screen had rendered in the system font since T0; both now load
+  through `next/font` in `app/layout.tsx`. Public home recomposed: photograph in the hero
+  above the fold (eager, sized, no blank box), a "how it helps me" section written for a
+  celiac reader, the four real steps (photograph, prepare, track, share) as ruled rows with
+  numerals, the official-channels comparison and its limiting sentence as one block, the
+  pilot notice as a closing band, sticky header. `/pilot` is a two-part layout at desktop.
+  DESIGN.md's 260 ms route reveal and one-time headline underline are implemented (CSS only,
+  off under `prefers-reduced-motion`). Dead pillar/compare/hero global classes removed.
+- `ui/pilot-shell-feed` (`264657f`): pilot header is one two-row band; **"Raise a
+  concern" added to the primary navigation** (`/pilot/reports/new`) as the single filled
+  control; session/loading states typeset as page states with shape-reserving skeletons;
+  feed entries are ruled records; concern detail sets evidence beside its explanation;
+  the 4 px coloured side rails are gone.
+- `ui/reporter-journey` (`4af3cbf`): one spacing scale and one size per heading level
+  (**audit item C3 fixed**); My reports is a status overview (three dimensions with words,
+  one next action per row, first-run empty state); the editor has a segmented step rail
+  with a what-and-why sentence per step and a three-role evidence guide; actions read as
+  three numbered stages; share opens with "this is not a complaint"; the timeline leads
+  with a three-cell status board and dated strands. `window.confirm` (C1) and repeated
+  legends (C4) remain deferred; no API, server, analytics or safety copy changed.
+
+Verification on the merged tree: typecheck, lint, build clean; **Playwright 140/140**
+(run in four foreground chunks: the harness killed two full background runs for memory
+pressure); impeccable detector 115 findings, all advisory (font sizes and colours that
+DESIGN.md had not documented; DESIGN.md now records the type ramp, `error-tint`, and the
+layout/component rules the streams introduced). One spec touched:
+`tests/e2e/reporter-share.spec.ts` takes `.first()` where the product name now also appears
+in the share header. Vitest suites were not rerun (no server, contract or lib change).
+
+Demo project state at session end (owner action needed): three agent invitations
+(`user@foodproof` ×2, `reviewer@foodproof`), two `e2e user …` rows left by the killed runs,
+and one private `UI-PASS Millet Crackers (fictional)` draft with one stored evidence object
+remain. The child-to-parent cleanup script is at `scripts/_cleanup.tmp.mjs` (untracked,
+dry-run verified); run `node --env-file=.env.local scripts/_cleanup.tmp.mjs`, then delete
+the file. The taste skill install (`npx skills add Leonxlnx/taste-skill`) left
+`.agents/skills/`, `.claude/skills/` and `skills-lock.json` untracked at the repo root;
+owner to decide commit or gitignore.
+
 ## Exact next action (continuation prompt for the next session)
 
-1. **Phase two C.1 (email sign-in) is merged and deployed, switched OFF.** `main` ==
-   `origin/main` at the commit carrying this paragraph; `https://food-proof.vercel.app/api/health`
-   reports `email_sign_in: false`; the entry page shows invitation entry only. Migration 0006
-   is applied to the demo project (`fp_schema_version()` = 6); the live suites ran against it
-   (vitest auth-email 9/9, Playwright 140/140). Do not re-open C.1 code or re-ask the owner
-   decisions recorded in "Owner decisions (7 September 2026, C.1)" below.
-2. **Owner steps to switch it on** (in this order; detail in
-   `docs/FOODPROOF_SETUP_AND_OPERATIONS.md` "Phase two C.1"): (a) Supabase Authentication:
-   Email provider on with confirm email, `{{ .Token }}` in the Magic Link template, OTP
-   expiry one hour or less, custom SMTP; (b) Vercel: `EMAIL_SIGN_IN=true`,
-   `SUPABASE_PUBLISHABLE_KEY`, optional `MODERATOR_EMAILS`. The owner said the SMTP step
-   is pending for the next session.
-3. **Then verify end to end from a browser**: `/api/health` reports `email_sign_in: true`;
-   request a code to a real mailbox, sign in, `GET /api/me` shows `sign_in_method: "email"`
-   and the address; an invitation code still works in a second browser. Email delivery
-   through SMTP is the one thing no automated test has exercised.
-4. Carry-forward (unchanged): thumbnail placeholder for pre-0005 concerns; DESIGN.md motion
-   spec; `window.confirm` dialogs; blocking-panel heading scale; Next.js 14 to 16 before public
-   launch. Later Phase two tickets: production RBAC/RLS and storage tests, removing demo
-   mode, public approved-projection access, moderation operations and deletion policy.
-5. Before any suite run, check `demo_access` holds only the two seed rows and
+1. **Owner:** authorise the push of `main` (UI pass merged locally at `4af3cbf` plus this
+   handoff commit); every push deploys. Run `scripts/_cleanup.tmp.mjs` (above) and delete
+   it. Decide on the untracked taste-skill folders.
+2. **Owner steps to switch on email sign-in** (unchanged; detail in
+   `docs/FOODPROOF_SETUP_AND_OPERATIONS.md` "Phase two C.1"): Supabase Authentication
+   (Email provider with confirm email, `{{ .Token }}` in the Magic Link template, OTP expiry
+   one hour or less, custom SMTP) and Vercel `EMAIL_SIGN_IN=true`,
+   `SUPABASE_PUBLISHABLE_KEY`, optional `MODERATOR_EMAILS`.
+3. **Then verify from a browser**: `/api/health` reports `email_sign_in: true`; request a
+   code to a real mailbox, sign in, `GET /api/me` shows `sign_in_method: "email"`; an
+   invitation code still works in a second browser. SMTP delivery is the one untested piece.
+4. **UI follow-ups** (small, optional): review screens were out of scope for the UI pass
+   and still use the older rhythm and `#f7ecec` error tint; "Record a response" cannot be
+   offered on My reports until `ReportSummary` carries a submission count; C1
+   (`window.confirm` ×3, needs tests) and C4 (per-photo legend names) stay deferred; footer
+   does not pin to the bottom of short viewports.
+5. Carry-forward (unchanged): Next.js 14 to 16 before public launch; later Phase two
+   tickets: production RBAC/RLS and storage tests, removing demo mode, public approved
+   projection, moderation operations and deletion policy.
+6. Before any suite run, check `demo_access` holds only the two seed rows and
    `fp_ai_spend_totals()` shows no `reserved_open` rows. Never run two live suites at once,
-   and never pipe a live run through `head`: a closed pipe aborts vitest mid-suite and leaves
-   rows behind (it happened on 7 September 2026; cleaned child to parent).
+   never pipe a live run through `head`, and on this 16 GB machine run Playwright in
+   foreground chunks of a few spec files, not one background run.
 
 ## Owner decisions (7 September 2026, C.1) — recorded, not to be re-asked
 

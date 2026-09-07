@@ -232,7 +232,7 @@
 }
 
 .btnDanger:hover {
-  background: #fbf1f1;
+  background: var(--color-error-tint);
 }
 
 .btnSecondary:disabled,
@@ -425,7 +425,7 @@
 .alert {
   border: 1px solid var(--color-error);
   border-radius: var(--radius-control);
-  background: #fbf1f1;
+  background: var(--color-error-tint);
   color: var(--color-error);
   padding: var(--space-sm) var(--space-md);
   margin: 0 0 var(--space-md);

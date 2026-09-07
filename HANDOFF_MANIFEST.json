@@ -42,8 +42,8 @@
     },
     {
       "path": "docs/DESIGN.md",
-      "bytes": 3533,
-      "sha256": "f31ab77f9b7caeb6d61618138934b6712000024f901f65339d7b74f277452c49"
+      "bytes": 5573,
+      "sha256": "ea00f3cd5e3e03813d1523693cad8d5ea52eff8fe2c9e1c36ab9064b61dfcb39"
     },
     {
       "path": "docs/evidence/A17-deployed-acceptance-2026-09-06.md",
@@ -137,8 +137,8 @@
     },
     {
       "path": "IMPLEMENTATION_STATUS.md",
-      "bytes": 62088,
-      "sha256": "d540f352ccab1ec47da9a59d5de95bdc8ab2a57cdc8377841142584c6a2afbea"
+      "bytes": 65455,
+      "sha256": "5fb56ae95460daa87f8dac6e2dfee5e1978bd2c48632b9a695bf94bd13a4963e"
     },
     {
       "path": "README.md",
