@@ -20,6 +20,12 @@ import styles from "./PilotShell.module.css";
  * non-reviewer invitation (the API refuses the route regardless). When the
  * session is missing or the backend cannot be reached, children are NOT
  * rendered and the shell says so explicitly — it never substitutes local data.
+ *
+ * The identity shown here (phase two C.1) reads `me.sign_in_method`: a
+ * verified account shows its email and "Signed in with email"; an invitation
+ * actor keeps the existing demo label and "Test identity" wording. Either
+ * way the reviewer nav link and every server-enforced check still derive from
+ * `me.role` alone, never from `sign_in_method`.
  */
 
 interface NavItem {
@@ -207,8 +213,17 @@ export function PilotShell({ children }: { children: ReactNode }) {
             {status === "ready" && me ? (
               <>
                 <span className={styles.identity}>
-                  <span className={styles.identityLabel}>{me.label}</span>
-                  <span className={styles.identityMarker}>Test identity · not an email account</span>
+                  {me.sign_in_method === "email" ? (
+                    <>
+                      <span className={styles.identityLabel}>{me.email ?? me.label}</span>
+                      <span className={styles.identityMarker}>Signed in with email</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className={styles.identityLabel}>{me.label}</span>
+                      <span className={styles.identityMarker}>Test identity · not an email account</span>
+                    </>
+                  )}
                 </span>
 
                 <AnalyticsPreference
