@@ -8,11 +8,10 @@ import { toFailure, trackFlowError, type Failure } from "./failure";
 import {
   DemoDataNote,
   FailureNotice,
-  LIFECYCLE_LABEL,
   Loading,
-  PREPARATION_LABEL,
-  VISIBILITY_LABEL,
+  StatusChips,
   formatDateTime,
+  nextStepFor,
 } from "./ui";
 import styles from "./reporter.module.css";
 
@@ -73,6 +72,8 @@ export function MyReportsScreen() {
     }
   }, [cursor]);
 
+  const empty = status === "ready" && items.length === 0;
+
   return (
     <section className={styles.screen} aria-labelledby="my-reports-title">
       <div className={styles.head}>
@@ -81,13 +82,15 @@ export function MyReportsScreen() {
             My reports
           </h1>
           <p className={styles.lede}>
-            Every report starts private. Sharing with the community and sending a
-            complaint outside FoodProof are separate, deliberate steps.
+            Where every concern you have raised stands: how ready it is, whether
+            the community can see it, and whether you are still following it up.
           </p>
         </div>
-        <Link className="btn-primary" href="/pilot/reports/new">
-          Start a report
-        </Link>
+        {empty ? null : (
+          <Link className="btn-primary" href="/pilot/reports/new">
+            Raise a concern
+          </Link>
+        )}
       </div>
 
       <DemoDataNote />
@@ -98,16 +101,40 @@ export function MyReportsScreen() {
         <FailureNotice failure={failure} onRetry={() => void load()} />
       ) : null}
 
-      {status === "ready" && items.length === 0 ? (
-        <div className={styles.panel}>
-          <h2 className={styles.subTitle}>No reports yet</h2>
-          <p className={styles.small}>
-            Nothing has been saved under this invitation. Start a report to
-            document a label concern with sample or redacted evidence.
+      {empty ? (
+        <div className={styles.callout}>
+          <h2 className={styles.sectionTitle}>Nothing recorded yet</h2>
+          <p className={styles.intro}>
+            A concern starts with one packaged food whose gluten-free claim does
+            not match its ingredient list. Photograph the pack, say what you saw,
+            and FoodProof keeps it as a private record you can build a complaint
+            from later.
           </p>
+          <ol className={styles.timeline}>
+            <li className={styles.timelineItem}>
+              <p className={styles.timelineText}>
+                <strong>Photograph the label.</strong> Three things have to be
+                visible across your photos: what the product is, where it says
+                gluten-free, and the full ingredient list.
+              </p>
+            </li>
+            <li className={styles.timelineItem}>
+              <p className={styles.timelineText}>
+                <strong>Write what does not add up</strong> and confirm the label
+                wording against your own photo.
+              </p>
+            </li>
+            <li className={styles.timelineItem}>
+              <p className={styles.timelineText}>
+                <strong>Prepare a complaint and send it yourself</strong> by
+                email or through the official portal, then record what you sent
+                and anything that came back.
+              </p>
+            </li>
+          </ol>
           <div className={styles.actions}>
             <Link className="btn-primary" href="/pilot/reports/new">
-              Start a report
+              Raise a concern
             </Link>
           </div>
         </div>
@@ -115,56 +142,55 @@ export function MyReportsScreen() {
 
       {items.length > 0 ? (
         <>
-          <ul className={styles.rows}>
-            {items.map((item) => (
-              <li className={styles.row} key={item.report_id}>
-                <div className={styles.rowMain}>
-                  <h2 className={styles.rowTitle}>
-                    <Link href={`/pilot/reports/${item.report_id}`}>
-                      {item.product_name}
-                      {item.variant ? ` · ${item.variant}` : ""}
-                    </Link>
-                  </h2>
-                  <p className={styles.small}>
-                    {item.brand} · updated {formatDateTime(item.updated_at)}
-                  </p>
-                  <ul className={styles.chips}>
-                    <li className={styles.chip}>
-                      <span className={styles.chipLabel}>Preparation</span>{" "}
-                      <span className={styles.chipValue}>
-                        {PREPARATION_LABEL[item.preparation]}
-                      </span>
-                    </li>
-                    <li className={styles.chip}>
-                      <span className={styles.chipLabel}>Community</span>{" "}
-                      <span className={styles.chipValue}>
-                        {VISIBILITY_LABEL[item.community_visibility]}
-                      </span>
-                    </li>
-                    <li className={styles.chip}>
-                      <span className={styles.chipLabel}>Follow-up</span>{" "}
-                      <span className={styles.chipValue}>
-                        {LIFECYCLE_LABEL[item.lifecycle]}
-                      </span>
-                    </li>
-                  </ul>
-                </div>
-                <div className={styles.actions}>
-                  <Link
-                    className={styles.btnSecondary}
-                    href={`/pilot/reports/${item.report_id}`}
-                  >
-                    Open record
-                  </Link>
-                  <Link
-                    className={styles.btnQuiet}
-                    href={`/pilot/reports/${item.report_id}/edit`}
-                  >
-                    Edit
-                  </Link>
-                </div>
-              </li>
-            ))}
+          <ul className={styles.reportList}>
+            {items.map((item) => {
+              const next = nextStepFor(
+                item.report_id,
+                item.preparation,
+                item.community_visibility,
+                item.lifecycle,
+              );
+              const record = `/pilot/reports/${item.report_id}`;
+              return (
+                <li className={styles.reportRow} key={item.report_id}>
+                  <div className={styles.reportIdentity}>
+                    <h2 className={styles.rowTitle}>
+                      <Link href={record}>
+                        {item.product_name}
+                        {item.variant ? ` · ${item.variant}` : ""}
+                      </Link>
+                    </h2>
+                    <p className={styles.reportBrand}>{item.brand}</p>
+                    <p className={styles.reportWhen}>
+                      Last saved {formatDateTime(item.updated_at)}
+                    </p>
+                  </div>
+                  <StatusChips
+                    layout="stack"
+                    preparation={item.preparation}
+                    visibility={item.community_visibility}
+                    lifecycle={item.lifecycle}
+                  />
+                  <div className={styles.reportNext}>
+                    <p className={styles.reportNextWhy}>{next.why}</p>
+                    <div className={styles.reportActions}>
+                      <Link className={styles.btnSecondary} href={next.href}>
+                        {next.label}
+                      </Link>
+                      {next.href === record ? (
+                        <Link className={styles.btnQuiet} href={`${record}/edit`}>
+                          Edit this report
+                        </Link>
+                      ) : (
+                        <Link className={styles.btnQuiet} href={record}>
+                          View the timeline
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
           {/*
             A failed "show older" used to set `failure` while `status` stayed

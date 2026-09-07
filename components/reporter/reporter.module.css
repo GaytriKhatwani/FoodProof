@@ -4,40 +4,103 @@
  * global class. Flat surfaces, thin rules, almost-square controls, status words
  * always paired with colour. Everything works at 360 px with no horizontal
  * scroll; motion is already disabled globally under prefers-reduced-motion.
+ *
+ * ONE vertical rhythm, smallest to largest, used everywhere below:
+ *   6–8px            a label to the control it names
+ *   var(--space-sm)  12px — inside one group
+ *   var(--space-md)  20px — between groups
+ *   var(--space-lg)  32px — between the sections of a screen
+ *   var(--band)      48px — between the major parts of a screen
+ *
+ * HEADING SCALE — one size per level, so a heading's weight never contradicts
+ * its importance (UI audit C3). `.title` is the screen's single h1;
+ * `.sectionTitle` is every h2 that opens a region, including a blocking
+ * instruction; `.subTitle` is an h3 inside a section; `.minorTitle` is an h4.
+ * `.rowTitle` is a different job — the name of one record inside a list — and
+ * is deliberately smaller than a section heading.
  */
 
 .screen {
-  padding: var(--space-lg) 0 calc(var(--space-lg) * 2);
+  --band: calc(var(--space-lg) * 1.5);
+  /*
+   * The pilot shell's <main> already supplies the page's top and bottom air
+   * (PilotShell.module.css .main). This element used to add 32 px and 64 px of
+   * its own on top of it, so every screen opened with a 64 px band of nothing
+   * above the h1 and closed with 128 px below the last line.
+   */
+  padding: 0;
 }
+
+/*
+ * Paragraph rhythm. Without this, user-agent margins (1em top AND bottom,
+ * collapsing unpredictably against the explicit margins below) were the reason
+ * the gaps between blocks never repeated. Zero specificity, so every class
+ * below still wins.
+ */
+.screen :where(p) {
+  margin: 0 0 var(--space-sm);
+}
+
+.screen > :first-child,
+.section > :first-child,
+.panel > :first-child,
+.callout > :first-child {
+  margin-top: 0;
+}
+
+.screen > :last-child,
+.section > :last-child,
+.panel > :last-child,
+.callout > :last-child {
+  margin-bottom: 0;
+}
+
+/* --------------------------------------------------------------- headings */
 
 .head {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: space-between;
   gap: var(--space-md);
   padding-bottom: var(--space-md);
+  margin-bottom: var(--space-md);
   border-bottom: 1px solid var(--color-rule);
 }
 
 .headMain {
   min-width: 0;
+  flex: 1 1 26rem;
 }
 
 .title {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(30px, 5vw, 46px);
-  line-height: 1.05;
+  font-size: clamp(28px, 3.2vw, 36px);
+  line-height: 1.06;
   letter-spacing: -0.025em;
   margin: 0 0 8px;
   overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .lede {
   margin: 0;
   color: var(--color-muted);
-  max-width: 62ch;
+  font-size: 17px;
+  max-width: 58ch;
+  text-wrap: pretty;
+}
+
+/* Which record this screen is about, above the sentence explaining the screen. */
+.ledeStrong {
+  display: block;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  margin-bottom: 4px;
+  overflow-wrap: anywhere;
 }
 
 .section {
@@ -47,32 +110,67 @@
 
 .section:last-child {
   border-bottom: 0;
+  padding-bottom: 0;
 }
 
 .sectionTitle {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(20px, 2.6vw, 27px);
+  font-size: 24px;
+  line-height: 1.15;
   letter-spacing: -0.02em;
   margin: 0 0 var(--space-sm);
+  text-wrap: balance;
+}
+
+/* A section heading with the one control that belongs to the whole section. */
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-sm);
+}
+
+.sectionHead .sectionTitle {
+  margin-bottom: 0;
 }
 
 .subTitle {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 18px;
-  margin: 0 0 8px;
+  line-height: 1.25;
+  margin: var(--space-md) 0 8px;
+}
+
+.minorTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.3;
+  margin: var(--space-md) 0 6px;
+}
+
+/* One sentence under a heading saying what this step or section is for. */
+.intro {
+  margin: 0 0 var(--space-md);
+  max-width: 68ch;
+  text-wrap: pretty;
 }
 
 .small {
   font-size: 14px;
   color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+  max-width: 72ch;
 }
 
 .footnote {
   font-size: 13px;
   color: var(--color-muted);
-  margin: var(--space-sm) 0 0;
+  margin: var(--space-md) 0 0;
   max-width: 68ch;
 }
 
@@ -106,6 +204,10 @@
   background: var(--color-surface);
   color: var(--color-primary);
   border: 1px solid var(--color-primary);
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
 }
 
 .btnSecondary:hover {
@@ -116,7 +218,12 @@
   border-color: transparent;
   background: transparent;
   text-decoration: underline;
+  text-underline-offset: 3px;
   padding: 12px 4px;
+}
+
+.btnQuiet:hover {
+  color: var(--color-primary-hover);
 }
 
 .btnDanger {
@@ -135,6 +242,16 @@
   border-color: var(--color-rule);
   background: var(--color-surface);
   cursor: not-allowed;
+}
+
+/* A press is state, not decoration; it is suppressed with every other motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .btnSecondary:active:not(:disabled),
+  .btnDanger:active:not(:disabled),
+  .stepButton:active,
+  .tab:active {
+    transform: translateY(1px);
+  }
 }
 
 .field {
@@ -162,6 +279,13 @@
   background: var(--color-surface);
   border: 1px solid var(--color-control-border);
   border-radius: var(--radius-control);
+  transition: border-color 160ms ease;
+}
+
+.input:hover,
+.textarea:hover,
+.select:hover {
+  border-color: var(--color-ink);
 }
 
 .textarea {
@@ -180,6 +304,7 @@
   font-size: 13px;
   color: var(--color-muted);
   margin-top: 4px;
+  max-width: 68ch;
 }
 
 .fieldError {
@@ -214,23 +339,31 @@
   flex: 0 0 auto;
 }
 
+/*
+ * A role fieldset groups three checkboxes that belong to the photo above them.
+ * It used to draw its own border inside a bordered card inside a bordered
+ * panel; proximity and a quiet legend do the same grouping with no box.
+ */
 .roleSet {
-  border: 1px solid var(--color-rule);
-  border-radius: var(--radius-control);
-  padding: var(--space-sm);
-  margin: 0 0 var(--space-sm);
+  border: 0;
+  padding: 0;
+  margin: var(--space-sm) 0 0;
+  min-width: 0;
 }
 
 .roleSet legend {
+  display: block;
+  width: 100%;
+  padding: 0;
+  font-size: 13px;
   font-weight: 600;
-  font-size: 14px;
-  padding: 0 6px;
+  color: var(--color-muted);
 }
 
 .roleOptions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-md);
+  gap: 4px var(--space-md);
 }
 
 .roleOption {
@@ -253,7 +386,31 @@
   border-radius: var(--radius-control);
   background: var(--color-surface);
   padding: var(--space-md);
-  margin: 0 0 var(--space-md);
+  margin: var(--space-md) 0;
+  /* Same reading measure as the form fields it sits beside. */
+  max-width: 48rem;
+}
+
+/*
+ * A blocking instruction: the thing that has to happen before the rest of the
+ * screen can do its job. The cobalt top edge and the section-sized heading
+ * inside it make it the heaviest element on the screen, which is what it is.
+ */
+.callout {
+  border: 1px solid var(--color-rule);
+  border-top: 3px solid var(--color-primary);
+  /*
+   * Square, not the 1px control radius: an accent edge and a rounded corner
+   * fight each other, and squared is the direction docs/DESIGN.md already
+   * takes ("controls have almost square corners"). The cobalt top edge is the
+   * priority marker this block exists for, not decoration — it appears only
+   * where something must happen before the rest of the screen can work.
+   */
+  border-radius: 0;
+  background: var(--color-surface);
+  padding: var(--space-md);
+  margin: 0 0 var(--space-lg);
+  max-width: 48rem;
 }
 
 .inset {
@@ -261,17 +418,16 @@
   color: var(--color-status-ink);
   border: 1px solid var(--color-rule);
   border-radius: var(--radius-control);
-  padding: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
   margin: 0 0 var(--space-md);
 }
 
 .alert {
   border: 1px solid var(--color-error);
-  border-left-width: 4px;
   border-radius: var(--radius-control);
   background: #fbf1f1;
   color: var(--color-error);
-  padding: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
   margin: 0 0 var(--space-md);
   font-weight: 600;
 }
@@ -285,21 +441,12 @@
 }
 
 .okNote {
-  border: 1px solid var(--color-rule);
-  border-left: 4px solid var(--color-primary);
-  border-radius: var(--radius-control);
-  background: var(--color-surface);
+  border-top: 2px solid var(--color-primary);
   color: var(--color-status-ink);
-  padding: var(--space-sm) var(--space-md);
+  padding: var(--space-sm) 0 0;
   margin: 0 0 var(--space-md);
   font-weight: 600;
-}
-
-.split {
-  display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-  gap: var(--space-lg);
-  align-items: start;
+  max-width: 68ch;
 }
 
 .rows {
@@ -320,12 +467,14 @@
 
 .rowMain {
   min-width: 0;
+  flex: 1 1 22rem;
 }
 
 .rowTitle {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 19px;
+  font-size: 20px;
+  line-height: 1.2;
   margin: 0 0 4px;
   overflow-wrap: anywhere;
 }
@@ -336,10 +485,15 @@
 
 .defRow {
   display: grid;
-  grid-template-columns: minmax(9rem, 14rem) minmax(0, 1fr);
-  gap: var(--space-sm);
+  grid-template-columns: minmax(9rem, 13rem) minmax(0, 1fr);
+  gap: var(--space-sm) var(--space-md);
+  align-items: baseline;
   padding: 10px 0;
   border-top: 1px solid var(--color-rule);
+}
+
+.defs > .defRow:last-child {
+  border-bottom: 1px solid var(--color-rule);
 }
 
 .defRow dt {
@@ -350,14 +504,7 @@
 .defRow dd {
   margin: 0;
   overflow-wrap: anywhere;
-}
-
-.quote {
-  border-left: 3px solid var(--color-primary);
-  padding: 4px 0 4px var(--space-md);
-  margin: 0 0 var(--space-md);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  max-width: 68ch;
 }
 
 .pre {
@@ -368,30 +515,38 @@
 
 /* ------------------------------------------------------------------ status */
 
+/*
+ * Preparation, community visibility and personal follow-up are three separate
+ * dimensions and are never merged into one bar. Inline metadata treatment,
+ * used wherever status accompanies something else.
+ */
 .chips {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-sm);
+  gap: 6px var(--space-lg);
   margin: var(--space-md) 0 0;
   padding: 0;
   list-style: none;
 }
 
+.chipsStack {
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
 .chip {
-  border: 1px solid var(--color-rule);
-  border-radius: var(--radius-control);
-  padding: 6px 10px;
-  font-size: 14px;
-  background: var(--color-surface);
+  font-size: 15px;
+  min-width: 0;
 }
 
 .chipLabel {
   color: var(--color-muted);
-  margin-right: 6px;
+  font-size: 14px;
 }
 
 .chipValue {
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .chipAttention .chipValue {
@@ -402,20 +557,35 @@
   color: var(--color-status-ink);
 }
 
+/*
+ * The status board on the private record. Three cells divided by hairlines:
+ * separate dimensions, read separately, with no arrow, bar or arithmetic
+ * between them that could suggest a government process moving forward.
+ */
 .statusStrip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-md);
   border-top: 1px solid var(--color-rule);
   border-bottom: 1px solid var(--color-rule);
-  padding: var(--space-md) 0;
-  margin: var(--space-md) 0;
+  margin: 0 0 var(--space-md);
+}
+
+.statusCell {
+  padding: var(--space-md) var(--space-md) var(--space-md) 0;
+  min-width: 0;
+}
+
+.statusCell + .statusCell {
+  border-left: 1px solid var(--color-rule);
+  padding-left: var(--space-md);
 }
 
 .statusCell dt {
-  font-size: 13px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--color-muted);
-  margin-bottom: 2px;
+  margin-bottom: 6px;
 }
 
 .statusCell dd {
@@ -423,25 +593,86 @@
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 19px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.statusMeaning {
+  display: block;
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-muted);
+  margin-top: 6px;
+}
+
+/* The single next thing worth doing, stated in words rather than a badge. */
+.nextStep {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm) var(--space-md);
+  padding: 0 0 var(--space-md);
+  margin: 0 0 var(--space-lg);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.nextStepText {
+  margin: 0;
+  min-width: 0;
+  flex: 1 1 24rem;
+  max-width: 68ch;
+}
+
+.nextStepActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.nextStepLead {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  margin-bottom: 4px;
 }
 
 .checklist {
   list-style: none;
-  margin: 0;
+  margin: 0 0 var(--space-sm);
   padding: 0;
+  max-width: 52rem;
 }
 
 .checkItem {
-  display: flex;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: var(--space-sm);
   align-items: baseline;
-  padding: 8px 0;
+  padding: 10px 0;
   border-top: 1px solid var(--color-rule);
+}
+
+.checklist > .checkItem:last-child {
+  border-bottom: 1px solid var(--color-rule);
 }
 
 .checkMark {
   font-weight: 700;
-  min-width: 5.5rem;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+/* The one sentence naming what stands between this record and the next step. */
+.blocker {
+  font-weight: 600;
+  color: var(--color-error);
+  max-width: 68ch;
 }
 
 .checkDone .checkMark {
@@ -470,14 +701,22 @@
   padding: 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: var(--space-md);
+  gap: var(--space-lg) var(--space-md);
 }
 
+/*
+ * A stored photo is a record, and records are divided by a thin rule
+ * (docs/DESIGN.md Shapes) — not wrapped in a card that then holds a second
+ * bordered image and a third bordered fieldset.
+ */
+/*
+ * No frame of its own: with an auto-fill grid a per-card rule draws a short
+ * line under the section heading whenever one photo is stored, which reads as
+ * a stray underline rather than a divider. The bordered photograph is the
+ * record's edge; the caption and roles group to it by proximity.
+ */
 .evidenceCard {
-  border: 1px solid var(--color-rule);
-  border-radius: var(--radius-control);
-  background: var(--color-surface);
-  padding: var(--space-sm);
+  min-width: 0;
 }
 
 .thumb {
@@ -497,6 +736,54 @@
   object-fit: cover;
   background: var(--color-tint);
   border: 1px solid var(--color-rule);
+}
+
+/* What the three label photographs have to show, and what is covered so far. */
+.roleGuide {
+  list-style: none;
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0;
+  border-top: 1px solid var(--color-rule);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.roleGuideItem {
+  padding: var(--space-sm) var(--space-md) var(--space-sm) 0;
+  min-width: 0;
+}
+
+.roleGuideItem + .roleGuideItem {
+  border-left: 1px solid var(--color-rule);
+  padding-left: var(--space-md);
+}
+
+.roleGuideName {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.roleGuideWhy {
+  display: block;
+  font-size: 13px;
+  color: var(--color-muted);
+  margin-top: 2px;
+}
+
+.roleGuideState {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 6px;
+  color: var(--color-muted);
+}
+
+.roleGuideCovered .roleGuideState {
+  color: var(--color-status-ink);
 }
 
 /* Upload progress. The bar is only an accent: the sentence under it carries the
@@ -524,62 +811,121 @@
   background: var(--color-error);
 }
 
-.fileRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-sm);
-}
-
 /* ------------------------------------------------------------------- steps */
 
+/*
+ * The four editor steps, as one segmented rail rather than four loose chips.
+ * Every button keeps a 3:1 boundary (UI audit A1); the current step is named
+ * by aria-current and shown by a cobalt fill on its number and a cobalt bottom
+ * edge, so the state never rests on colour alone.
+ */
 .steps {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   list-style: none;
   margin: var(--space-md) 0 0;
   padding: 0;
 }
 
+.steps li {
+  display: flex;
+  min-width: 0;
+}
+
 .stepButton {
-  display: inline-flex;
+  flex: 1 1 auto;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 8px 12px;
+  gap: 10px;
+  min-height: 52px;
+  padding: 10px 12px;
   background: var(--color-surface);
   border: 1px solid var(--color-control-border);
+  border-bottom-width: 3px;
   border-radius: var(--radius-control);
   font-family: var(--font-body);
   font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
   color: var(--color-ink);
+  text-align: left;
   cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.stepButton:hover {
+  background: var(--color-tint);
 }
 
 .stepButton[aria-current="step"] {
   border-color: var(--color-primary);
   color: var(--color-primary);
   font-weight: 700;
-  box-shadow: inset 0 -3px 0 var(--color-primary);
 }
 
 .stepNum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
   font-family: var(--font-display);
   font-weight: 700;
+  font-size: 14px;
+  color: var(--color-ink);
 }
 
-.tabs {
+.stepButton[aria-current="step"] .stepNum {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-surface);
+}
+
+/* The step's Back / Save / Continue bar, pinned under the panel it belongs to. */
+.stepBar {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding-top: var(--space-md);
+  margin-top: var(--space-lg);
+  border-top: 1px solid var(--color-rule);
+}
+
+.stepBar .actions {
+  margin-top: 0;
+}
+
+/*
+ * The step panel's own separation comes from the bar below it, so it must not
+ * also draw `.section`'s bottom rule: the two used to render 50 px apart as a
+ * pair of parallel lines under every step.
+ */
+.stepPanel {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+/* One segmented control, not two adjacent cards. */
+.tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0;
   margin: 0 0 var(--space-md);
 }
 
 .tab {
   min-height: 48px;
-  padding: 12px 18px;
+  padding: 12px 20px;
   background: var(--color-surface);
   border: 1px solid var(--color-control-border);
   border-radius: var(--radius-control);
@@ -587,13 +933,55 @@
   font-size: 16px;
   color: var(--color-ink);
   cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.tab + .tab {
+  margin-left: -1px;
+}
+
+.tab:hover {
+  background: var(--color-tint);
 }
 
 .tab[aria-pressed="true"] {
+  position: relative;
+  z-index: 1;
+  background: var(--color-tint);
   border-color: var(--color-primary);
   color: var(--color-primary);
   font-weight: 700;
-  box-shadow: inset 0 -3px 0 var(--color-primary);
+}
+
+/* A numbered act in a sequence the reporter has to perform in order. */
+.stageTitle {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin: 0 0 var(--space-sm);
+  text-wrap: balance;
+}
+
+.stageNum {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-control);
+  background: var(--color-primary);
+  color: var(--color-surface);
+  font-size: 15px;
+  line-height: 1;
 }
 
 /* ------------------------------------------------------------------ modals */
@@ -624,6 +1012,7 @@
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 22px;
+  letter-spacing: -0.02em;
   margin: 0 0 var(--space-sm);
 }
 
@@ -644,30 +1033,136 @@
 .saveState {
   font-weight: 600;
   color: var(--color-status-ink);
+  margin: var(--space-sm) 0 0;
 }
+
+/* ---------------------------------------------------------------- timeline */
 
 .timeline {
   list-style: none;
-  margin: 0;
+  margin: var(--space-sm) 0 0;
   padding: 0;
 }
 
 .timelineItem {
-  padding: var(--space-sm) 0 var(--space-sm) var(--space-md);
-  border-left: 2px solid var(--color-rule);
+  position: relative;
+  padding: 0 0 var(--space-md) var(--space-md);
+  border-left: 1px solid var(--color-rule);
+}
+
+.timelineItem:last-child {
+  padding-bottom: 0;
+}
+
+.timelineItem::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 7px;
+  width: 7px;
+  height: 7px;
+  background: var(--color-primary);
+  border-radius: var(--radius-control);
 }
 
 .timelineWhere {
   display: block;
   font-size: 12px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--color-muted);
 }
 
+.timelineWhen {
+  display: block;
+  font-size: 13px;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+  margin: 0 0 2px;
+}
+
+.timelineText {
+  margin: 0 0 4px;
+  max-width: 68ch;
+}
+
+/* ------------------------------------------------------------- my reports */
+
+.reportList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--color-rule);
+}
+
+/*
+ * One row = what it is · where it stands · the one thing worth doing next.
+ * Three zones, not a card: the rules line the columns up so a person can read
+ * one dimension down the whole list.
+ */
+.reportRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: var(--space-lg);
+  align-items: start;
+  padding: var(--space-md) 0;
+  border-top: 1px solid var(--color-rule);
+}
+
+.reportIdentity {
+  min-width: 0;
+}
+
+.reportBrand {
+  margin: 0;
+  font-weight: 600;
+}
+
+.reportWhen {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.reportNext {
+  min-width: 0;
+}
+
+.reportNextWhy {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.reportActions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: var(--space-sm);
+}
+
+@media (max-width: 1000px) {
+  .reportRow {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-md) var(--space-lg);
+  }
+
+  .reportNext {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (max-width: 860px) {
-  .split {
+  .roleGuide {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .roleGuideItem + .roleGuideItem {
+    border-left: 0;
+    border-top: 1px solid var(--color-rule);
+    padding-left: 0;
   }
 }
 
@@ -677,12 +1172,50 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .statusCell {
+    padding: var(--space-sm) 0;
+  }
+
+  .statusCell + .statusCell {
+    border-left: 0;
+    border-top: 1px solid var(--color-rule);
+    padding-left: 0;
+  }
+
   .defRow {
     grid-template-columns: minmax(0, 1fr);
     gap: 2px;
   }
 
-  .row {
+  .checkItem {
+    grid-template-columns: 5rem minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .row,
+  .reportRow {
+    grid-template-columns: minmax(0, 1fr);
     flex-direction: column;
+  }
+
+  .sectionTitle,
+  .stageTitle {
+    font-size: 21px;
+  }
+
+  .tabs {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .tab + .tab {
+    margin-left: 0;
+    margin-top: -1px;
   }
 }

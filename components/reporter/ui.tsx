@@ -46,6 +46,86 @@ export const REVISION_STATE_LABEL: Record<RevisionState, string> = {
   removed: "Removed by the owner",
 };
 
+/**
+ * One plain sentence per status value, so the three dimensions are readable by
+ * someone who has never seen the app. They explain what the word means for the
+ * reporter — never what a brand or an authority is doing about it.
+ */
+export const PREPARATION_MEANING: Record<Preparation, string> = {
+  draft: "Something the pilot needs is still missing from this record.",
+  ready: "This record has the facts and label photos the pilot needs.",
+};
+
+export const VISIBILITY_MEANING: Record<CommunityVisibility, string> = {
+  private: "Only you can see this. Nothing has been proposed for the community.",
+  pending_review: "Waiting with the owner. Nothing is visible to the community yet.",
+  changes_requested: "The owner asked for changes before this version can be published.",
+  rejected: "The owner did not approve this version for the pilot community.",
+  published: "An anonymous version is in the pilot feed. This is not a safety finding.",
+  withdrawn: "You withdrew it. Your private record is unchanged.",
+  removed: "The owner removed the community version. Your private record is unchanged.",
+};
+
+export const LIFECYCLE_MEANING: Record<Lifecycle, string> = {
+  open: "You are still following this up yourself.",
+  closed_by_reporter:
+    "You stopped following this up. It does not mean the concern was resolved.",
+};
+
+/**
+ * The one thing worth doing next on a report, derived only from the three
+ * status dimensions the API returns. It is a suggestion about this record
+ * inside FoodProof — never a claim that anything was filed, delivered or
+ * answered outside it.
+ */
+export interface NextStep {
+  label: string;
+  href: string;
+  why: string;
+}
+
+export function nextStepFor(
+  reportId: string,
+  preparation: Preparation,
+  visibility: CommunityVisibility,
+  lifecycle: Lifecycle,
+): NextStep {
+  const base = `/pilot/reports/${reportId}`;
+  if (visibility === "changes_requested" || visibility === "rejected") {
+    return {
+      label: "Continue editing",
+      href: `${base}/edit`,
+      why: "The owner asked for changes before this version can be shared.",
+    };
+  }
+  if (preparation === "draft") {
+    return {
+      label: "Continue editing",
+      href: `${base}/edit`,
+      why: "Add what is still missing before you can prepare a complaint or ask for a community review.",
+    };
+  }
+  if (visibility === "pending_review") {
+    return {
+      label: "View the timeline",
+      href: base,
+      why: "Your community version is with the owner. There is nothing to do until they answer.",
+    };
+  }
+  if (lifecycle === "closed_by_reporter") {
+    return {
+      label: "View the timeline",
+      href: base,
+      why: "You closed your follow-up. Reopen it from the record if something changes.",
+    };
+  }
+  return {
+    label: "Prepare a complaint",
+    href: `${base}/actions`,
+    why: "The facts and photos are in place. Prepare a message, then send it yourself.",
+  };
+}
+
 /** Join class names, dropping the empty ones (CSS-module lookups are optional). */
 export function cx(...parts: (string | undefined | false | null)[]): string {
   return parts.filter(Boolean).join(" ");
@@ -62,13 +142,16 @@ export function StatusChips({
   preparation,
   visibility,
   lifecycle,
+  layout = "row",
 }: {
   preparation: Preparation;
   visibility: CommunityVisibility;
   lifecycle: Lifecycle;
+  /** `stack` lists the same three dimensions down a column of a list row. */
+  layout?: "row" | "stack";
 }) {
   return (
-    <ul className={styles.chips}>
+    <ul className={cx(styles.chips, layout === "stack" && styles.chipsStack)}>
       <li className={chipTone(preparation === "ready" ? "active" : "plain")}>
         <span className={styles.chipLabel}>Preparation</span>{" "}
         <span className={styles.chipValue}>{PREPARATION_LABEL[preparation]}</span>

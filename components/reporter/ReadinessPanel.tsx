@@ -53,10 +53,20 @@ export function ReadinessPanel({
 
   return (
     <div className={styles.panel}>
-      <h2 className={styles.subTitle}>Preparation</h2>
+      <h2 className={styles.sectionTitle}>Preparation</h2>
       <p>
         The demo service reports this record as{" "}
         <strong>{PREPARATION_LABEL[report.preparation]}</strong>.
+      </p>
+      {/*
+        What blocks the next step, said plainly before the list of inputs. The
+        STATUS above stays the server's; this line only counts the entries the
+        list below already shows.
+      */}
+      <p className={missing.length > 0 ? styles.blocker : styles.small}>
+        {missing.length > 0
+          ? `${missing.length} ${missing.length === 1 ? "entry is" : "entries are"} still needed before you can request a community review.`
+          : "Everything the pilot asks for before a community review is on this record."}
       </p>
       <ul className={styles.checklist}>
         {items.map((item) => (

@@ -270,7 +270,13 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
             Prepare a complaint
           </h1>
           <p className={styles.lede}>
-            Prepare the message here, then send it yourself.
+            <strong className={styles.ledeStrong}>
+              {detail.product_name}
+              {detail.variant ? ` · ${detail.variant}` : ""} · {detail.brand}
+            </strong>
+            Three things happen here, in order: FoodProof prepares a factual
+            message, you copy it and send it yourself, and then you record what
+            you sent. FoodProof sends nothing.
           </p>
         </div>
         <Link className={styles.btnSecondary} href={`/pilot/reports/${detail.report_id}`}>
@@ -284,6 +290,27 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
         This is a fictional pilot exercise. Do not send these practice messages to
         a real brand or a real authority.
       </p>
+
+      {/*
+        A blocking instruction, so it comes before the controls it blocks and
+        carries the same weight as a section heading (UI audit C3): it used to
+        render at the smaller sub-heading scale underneath full-size headings.
+      */}
+      {!factsConfirmed ? (
+        <div className={styles.callout}>
+          <h2 className={styles.sectionTitle}>Confirm your label facts first</h2>
+          <p>
+            The draft is built only from facts you have checked against your own
+            photo, so nothing in it is invented. Confirm the label wording in the
+            editor and this screen will prepare the message.
+          </p>
+          <div className={styles.actions}>
+            <Link className="btn-primary" href={`/pilot/reports/${detail.report_id}/edit`}>
+              Confirm the label facts
+            </Link>
+          </div>
+        </div>
+      ) : null}
 
       <div className={styles.tabs} role="group" aria-label="Message channel">
         {(["brand", "government"] as const).map((option) => (
@@ -307,27 +334,22 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
         ))}
       </div>
 
-      {!factsConfirmed ? (
-        <div className={styles.panel}>
-          <h2 className={styles.subTitle}>Confirm your label facts first</h2>
-          <p>
-            The draft is built only from facts you have checked against your own
-            photo, so nothing in it is invented. Confirm the label wording in the
-            editor and this screen will prepare the message.
-          </p>
-          <div className={styles.actions}>
-            <Link className="btn-primary" href={`/pilot/reports/${detail.report_id}/edit`}>
-              Confirm the label facts
-            </Link>
-          </div>
-        </div>
-      ) : null}
-
-      <section className={styles.section} aria-labelledby="facts-title">
-        <h2 className={styles.sectionTitle} id="facts-title">
-          What the draft is built from
+      <section className={styles.section} aria-labelledby="draft-title">
+        <h2 className={styles.stageTitle} id="draft-title">
+          <span className={styles.stageNum} aria-hidden="true">
+            1
+          </span>
+          {CHANNEL_LABEL[channel]}
         </h2>
-        <ul className={styles.checklist}>
+        <p className={styles.intro}>
+          FoodProof fills this in from the facts you confirmed. Edit anything you
+          want, then save it. Saving a draft sends nothing.
+        </p>
+
+        <h3 className={styles.subTitle} id="facts-title">
+          What the draft is built from
+        </h3>
+        <ul className={styles.checklist} aria-labelledby="facts-title">
           {[
             { label: "Product and brand", value: `${detail.brand} · ${detail.product_name}`, done: true },
             { label: "Label claim you confirmed", value: detail.claim_text, done: Boolean(detail.claim_text) },
@@ -366,12 +388,6 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
           Missing information is named in the draft rather than guessed. Add it in
           the editor if you want it included.
         </p>
-      </section>
-
-      <section className={styles.section} aria-labelledby="draft-title">
-        <h2 className={styles.sectionTitle} id="draft-title">
-          {CHANNEL_LABEL[channel]}
-        </h2>
 
         {preparing ? <Loading what="the template" /> : null}
         {prepareFailure ? (
@@ -384,6 +400,7 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
 
         {current ? (
           <>
+            <h3 className={styles.subTitle}>The message</h3>
             <TextField
               id={`draft-subject-${channel}`}
               label="Subject"
@@ -431,9 +448,6 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
                 disabled={saveState === "saving" || refreshing}
               >
                 Save draft
-              </button>
-              <button type="button" className={styles.btnSecondary} onClick={() => void copy()}>
-                Copy message
               </button>
               {savedDraft ? (
                 <button
@@ -512,18 +526,6 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
                 onReload={saveFailure.kind === "stale" ? () => void reload() : undefined}
               />
             ) : null}
-            {copyState === "copied" ? (
-              <p className={styles.okNote} role="status">
-                Copied to your clipboard. Copying is not sending — nothing has left
-                FoodProof.
-              </p>
-            ) : null}
-            {copyState === "blocked" ? (
-              <p className={styles.alert} role="alert">
-                Your browser blocked the copy. The message above is selected —
-                copy it by hand. Nothing was sent.
-              </p>
-            ) : null}
           </>
         ) : null}
 
@@ -537,13 +539,45 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
       </section>
 
       <section className={styles.section} aria-labelledby="handoff-title">
-        <h2 className={styles.sectionTitle} id="handoff-title">
+        <h2 className={styles.stageTitle} id="handoff-title">
+          <span className={styles.stageNum} aria-hidden="true">
+            2
+          </span>
           Send it yourself
         </h2>
-        <p className={styles.small}>
-          You send this yourself, outside FoodProof. Opening a destination does
-          not submit it, and you attach any evidence yourself.
+        <p className={styles.intro}>
+          You send this yourself, outside FoodProof. Take the text with you,
+          then open your own email app or the official portal. Opening a
+          destination does not submit anything, and you attach any evidence
+          yourself.
         </p>
+
+        <div className={styles.actions}>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => void copy()}
+            disabled={!current}
+          >
+            Copy message
+          </button>
+        </div>
+        {copyState === "copied" ? (
+          <p className={styles.okNote} role="status">
+            Copied to your clipboard. Copying is not sending — nothing has left
+            FoodProof.
+          </p>
+        ) : null}
+        {copyState === "blocked" ? (
+          <p className={styles.alert} role="alert">
+            Your browser blocked the copy. The message above is selected —
+            copy it by hand. Nothing was sent.
+          </p>
+        ) : null}
+
+        <h3 className={styles.subTitle}>
+          {channel === "brand" ? "Then open your email app" : "Then open the official portal"}
+        </h3>
 
         {channel === "brand" ? (
           <>
@@ -611,23 +645,27 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
       </section>
 
       <section className={styles.section} aria-labelledby="record-title">
-        <h2 className={styles.sectionTitle} id="record-title">
-          After you have sent it
+        <h2 className={styles.stageTitle} id="record-title">
+          <span className={styles.stageNum} aria-hidden="true">
+            3
+          </span>
+          Record what you sent
         </h2>
-        <p className={styles.small}>
+        <p className={styles.intro}>
           Recording a submission is your own note that you sent something. It
-          creates no message and confirms no delivery.
+          creates no message and confirms no delivery. Anything that comes back
+          is recorded against it on the report&rsquo;s timeline.
         </p>
         <div className={styles.actions}>
           <button
             type="button"
-            className={styles.btnSecondary}
+            className="btn-primary"
             onClick={() => setSubmissionOpen(true)}
           >
             Record that you sent it
           </button>
           <Link className={styles.btnQuiet} href={`/pilot/reports/${detail.report_id}`}>
-            See the recorded history
+            Record a response on the timeline
           </Link>
         </div>
         <p className={styles.small}>
