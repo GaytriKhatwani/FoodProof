@@ -1,32 +1,41 @@
-/* Shared state blocks. Flat surfaces, thin rules, words before colour. */
+/*
+ * Shared state blocks. Flat surfaces, thin rules, words before colour
+ * (docs/DESIGN.md). The inline block is a bordered note inside a screen that
+ * has other content; the `page` placement is the screen itself, so it drops
+ * the box and is typeset as the page's own headline instead of floating in the
+ * corner of an empty one.
+ *
+ * One vertical rhythm runs through both: 8px inside a text group, 20px between
+ * groups, 32px before an action row. Nothing here adds a margin that another
+ * rule already paid for.
+ */
 
 .block {
   border: 1px solid var(--color-rule);
-  border-left-width: 4px;
   border-radius: var(--radius-control);
   background: var(--color-surface);
   padding: var(--space-md);
-  margin: var(--space-md) 0;
   max-width: 68ch;
 }
 
 .neutral {
-  border-left-color: var(--color-rule);
+  border-color: var(--color-rule);
 }
 
 .warning {
-  border-left-color: var(--color-status-ink);
+  border-color: var(--color-status-ink);
   background: var(--color-tint);
   color: var(--color-status-ink);
 }
 
 .error {
-  border-left-color: var(--color-error);
+  border-color: var(--color-error);
 }
 
 .title {
   font-family: var(--font-display);
   font-size: 20px;
+  line-height: 1.2;
   letter-spacing: -0.01em;
   margin: 0;
 }
@@ -55,14 +64,75 @@
   margin-top: var(--space-md);
 }
 
+/* A note inside a screen that has its own content: it needs its own air. */
+.placementInline {
+  margin: var(--space-md) 0;
+}
+
+/*
+ * The block that IS the screen. No border and no fill: at this size the words
+ * are the page, and a bordered card in an otherwise empty viewport reads as a
+ * fragment of a layout that failed to arrive.
+ */
+.placementPage {
+  border: 0;
+  background: none;
+  padding: clamp(20px, 6vh, 56px) 0 0;
+  margin: 0;
+  max-width: none;
+}
+
+.placementPage .title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(30px, 4vw, 44px);
+  line-height: 1.06;
+  letter-spacing: -0.025em;
+  max-width: 20ch;
+  text-wrap: balance;
+}
+
+.placementPage .body {
+  margin-top: var(--space-md);
+  max-width: 52ch;
+  font-size: 18px;
+}
+
+.placementPage .actions {
+  margin-top: var(--space-lg);
+}
+
+/*
+ * Loading placeholders. No animation at all, so they are already correct under
+ * `prefers-reduced-motion`, and each composed shape reserves the layout that
+ * is about to replace it rather than a generic stack of bars.
+ */
 .loading {
   padding: var(--space-md) 0;
+}
+
+.loading_lines {
   min-height: 160px;
+}
+
+.loading_page {
+  padding-top: clamp(20px, 6vh, 56px);
+  max-width: 52ch;
+}
+
+/* The composed shapes carry their own rules and padding. */
+.loading_feed,
+.loading_record {
+  padding: 0;
 }
 
 .loadingLabel {
   margin: 0 0 var(--space-sm);
   color: var(--color-muted);
+}
+
+.loading_page .loadingLabel {
+  font-size: 18px;
 }
 
 .loadingLine {
@@ -79,6 +149,64 @@
 
 .loadingLine:nth-child(3n) {
   width: 62%;
+}
+
+/* Feed shape: the ruled records of `/pilot/feed`, same columns and rhythm. */
+.skeletonList {
+  display: flex;
+  flex-direction: column;
+}
+
+.skeletonItem {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr) minmax(0, 250px);
+  gap: var(--space-lg);
+  padding: var(--space-md) 0;
+  border-top: 1px solid var(--color-rule);
+}
+
+.skeletonItem:last-child {
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.skeletonThumb {
+  display: block;
+  width: 132px;
+  height: 99px;
+  background: var(--color-tint);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-control);
+}
+
+.skeletonMain,
+.skeletonAside {
+  min-width: 0;
+}
+
+.skeletonHeading {
+  display: block;
+  height: 22px;
+  width: 58%;
+  margin-bottom: 14px;
+  background: var(--color-tint);
+  border-radius: var(--radius-control);
+}
+
+/* Record shape: the concern detail's explanation-beside-evidence band. */
+.skeletonRecord {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 40%);
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+.skeletonEvidence {
+  display: block;
+  width: 100%;
+  height: 240px;
+  background: var(--color-tint);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-control);
 }
 
 .inline {
@@ -98,4 +226,24 @@
   border: 0;
   padding: 0;
   background: none;
+}
+
+@media (max-width: 900px) {
+  .skeletonItem {
+    grid-template-columns: 1fr;
+    gap: var(--space-sm);
+  }
+
+  .skeletonThumb {
+    width: 100%;
+    height: 160px;
+  }
+
+  .skeletonRecord {
+    grid-template-columns: 1fr;
+  }
+
+  .skeletonEvidence {
+    height: 200px;
+  }
 }
