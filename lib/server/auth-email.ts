@@ -12,7 +12,12 @@ import {
   normaliseEmailOrNull,
   roleForEmailHmac,
 } from "./moderators";
-import { startSession, type ResolvedActor, type StartedSession } from "./session";
+import {
+  startSession,
+  verifiedAccountsReady,
+  type ResolvedActor,
+  type StartedSession,
+} from "./session";
 
 /**
  * Email sign-in — phase two C.1 server slice (FOODPROOF_TECHNICAL_SPEC.md §2
@@ -89,9 +94,14 @@ export interface EmailSignInDeps {
  * Refuse both endpoints when the deployment has not enabled email sign-in. The
  * message is the same one the routes advertise, so an unset flag reads as
  * "this deployment does not offer it", never as "your address is wrong".
+ *
+ * The same refusal covers a deployment that set the flag but has not applied
+ * migration 0006 yet: `verifiedAccountsReady()` is false once a session read has
+ * proved the columns are missing, and the missing `fp_verified_actor` function
+ * names the migration loudly on the server side either way.
  */
 export function assertEmailSignInEnabled(): void {
-  if (!emailSignInEnabled()) {
+  if (!emailSignInEnabled() || !verifiedAccountsReady()) {
     throw new ApiError("DEPENDENCY_UNAVAILABLE", DISABLED_MESSAGE);
   }
 }

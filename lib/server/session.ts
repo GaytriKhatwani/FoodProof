@@ -119,6 +119,73 @@ interface AccessRow {
   email_hmac?: string | null;
 }
 
+/**
+ * Whether migration 0006 is applied, as observed by the first actor read of
+ * this process. `null` means "not yet observed".
+ *
+ * A deployment that switches `EMAIL_SIGN_IN` on BEFORE applying 0006 must not
+ * take the invitation path down with it: session resolution is the one query
+ * every request makes, so an ordering mistake by the operator would otherwise
+ * lock every existing tester out. Instead the missing columns are reported once,
+ * loudly, on the server log, invitation sessions keep resolving exactly as
+ * before, and the email sign-in path stays refused (`verifiedAccountsReady()`
+ * below, plus the loud `fp_verified_actor` error from lib/server/errors.ts).
+ * This fallback can never hide a verified actor, because no verified actor can
+ * exist while the column that identifies one does not.
+ */
+let verifiedColumns: boolean | null = null;
+
+/** False only once a read has PROVED migration 0006 is missing. */
+export function verifiedAccountsReady(): boolean {
+  return verifiedColumns !== false;
+}
+
+/** Test seam: forget what the last read observed about migration 0006. */
+export function resetVerifiedColumnProbe(): void {
+  verifiedColumns = null;
+}
+
+/**
+ * Read the actor row, asking for the migration-0006 columns only where email
+ * sign-in is enabled and they have not already been proved absent.
+ */
+async function readActorRow(
+  supabase: ReturnType<typeof getServiceClient>,
+  accessId: string,
+): Promise<AccessRow | null> {
+  const wantVerified = emailSignInEnabled() && verifiedColumns !== false;
+  const { data, error } = await supabase
+    .from("demo_access")
+    .select(wantVerified ? VERIFIED_COLUMNS : ACTOR_COLUMNS)
+    .eq("id", accessId)
+    .maybeSingle<AccessRow>();
+
+  if (!error) {
+    if (wantVerified) verifiedColumns = true;
+    return data;
+  }
+  const missing =
+    wantVerified &&
+    mapMissingColumn("", error, MIGRATION_0006) instanceof ApiError;
+  if (!missing) throw error;
+
+  if (verifiedColumns !== false) {
+    verifiedColumns = false;
+    console.error(
+      "[foodproof] EMAIL_SIGN_IN is on but demo_access has no verified-account " +
+        `columns. Apply ${MIGRATION_0006} to this Supabase project. Email ` +
+        "sign-in stays refused; invitation entry is unaffected.",
+    );
+  }
+  const retry = await supabase
+    .from("demo_access")
+    .select(ACTOR_COLUMNS)
+    .eq("id", accessId)
+    .maybeSingle<AccessRow>();
+  if (retry.error) throw retry.error;
+  return retry.data;
+}
+
 function actorFrom(access: AccessRow): ResolvedActor {
   return {
     accessId: access.id,
@@ -215,22 +282,9 @@ export const sessionService: SessionService = {
     if (Date.parse(session.expires_at) <= now) return null;
 
     // The two C.1 columns exist only after migration 0006, so they are read
-    // only where email sign-in is enabled — a deployment with the flag off is
-    // byte-for-byte the phase-one query. With the flag ON and 0006 missing,
-    // `mapMissingColumn` says exactly that instead of an opaque 503.
-    const emailSignIn = emailSignInEnabled();
-    const { data: access, error: accErr } = await supabase
-      .from("demo_access")
-      .select(emailSignIn ? VERIFIED_COLUMNS : ACTOR_COLUMNS)
-      .eq("id", session.access_id)
-      .maybeSingle<AccessRow>();
-    if (accErr) {
-      throw mapMissingColumn(
-        "the verified-account columns on demo_access",
-        accErr,
-        MIGRATION_0006,
-      );
-    }
+    // only where email sign-in is enabled — a deployment with the flag off runs
+    // byte-for-byte the phase-one query.
+    const access = await readActorRow(supabase, session.access_id);
     if (!access) return null;
     if (access.revoked_at) return null;
     if (access.expires_at && Date.parse(access.expires_at) <= now) return null;

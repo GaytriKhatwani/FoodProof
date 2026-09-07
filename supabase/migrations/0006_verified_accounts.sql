@@ -60,6 +60,19 @@
 -- it is applied; tests that need it report BLOCKED (skipped, never passed) until
 -- it is.
 --
+-- IF `fp_verified_actor` REPORTS "permission denied for table users": the role
+-- that owns the function cannot read `auth.users`. Run, once, as the SQL Editor's
+-- own role:
+--     grant usage on schema auth to postgres;
+--     grant select on table auth.users to postgres;
+-- and then re-run this file. The function is deliberately strict: it refuses the
+-- sign-in rather than trusting the caller's word that an account is confirmed.
+--
+-- ORDER MATTERS. Apply this file BEFORE setting `EMAIL_SIGN_IN=true`. If the flag
+-- is set first, the application keeps invitation entry working, logs one loud
+-- line naming this file, and refuses email sign-in until it is applied
+-- (lib/server/session.ts).
+--
 -- ERROR CONTRACT. Typed SQLSTATEs mapped by lib/server/errors.ts, unchanged from
 -- 0004/0005 (FP402/FP403/FP404/FP409/FP422/FP429).
 
