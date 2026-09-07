@@ -387,6 +387,8 @@
   background: var(--color-surface);
   padding: var(--space-md);
   margin: var(--space-md) 0;
+  /* Same reading measure as the form fields it sits beside. */
+  max-width: 48rem;
 }
 
 /*
@@ -397,10 +399,18 @@
 .callout {
   border: 1px solid var(--color-rule);
   border-top: 3px solid var(--color-primary);
-  border-radius: var(--radius-control);
+  /*
+   * Square, not the 1px control radius: an accent edge and a rounded corner
+   * fight each other, and squared is the direction docs/DESIGN.md already
+   * takes ("controls have almost square corners"). The cobalt top edge is the
+   * priority marker this block exists for, not decoration — it appears only
+   * where something must happen before the rest of the screen can work.
+   */
+  border-radius: 0;
   background: var(--color-surface);
   padding: var(--space-md);
   margin: 0 0 var(--space-lg);
+  max-width: 48rem;
 }
 
 .inset {
@@ -453,10 +463,6 @@
   align-items: flex-start;
   padding: var(--space-md) 0;
   border-top: 1px solid var(--color-rule);
-}
-
-.rows > .row:last-child {
-  border-bottom: 1px solid var(--color-rule);
 }
 
 .rowMain {
@@ -620,6 +626,13 @@
   max-width: 68ch;
 }
 
+.nextStepActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
 .nextStepLead {
   display: block;
   font-size: 12px;
@@ -631,8 +644,9 @@
 
 .checklist {
   list-style: none;
-  margin: 0;
+  margin: 0 0 var(--space-sm);
   padding: 0;
+  max-width: 52rem;
 }
 
 .checkItem {
@@ -695,9 +709,13 @@
  * (docs/DESIGN.md Shapes) — not wrapped in a card that then holds a second
  * bordered image and a third bordered fieldset.
  */
+/*
+ * No frame of its own: with an auto-fill grid a per-card rule draws a short
+ * line under the section heading whenever one photo is stored, which reads as
+ * a stray underline rather than a divider. The bordered photograph is the
+ * record's edge; the caption and roles group to it by proximity.
+ */
 .evidenceCard {
-  border-top: 1px solid var(--color-rule);
-  padding: var(--space-sm) 0 0;
   min-width: 0;
 }
 
@@ -806,7 +824,7 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   list-style: none;
-  margin: var(--space-md) 0 var(--space-lg);
+  margin: var(--space-md) 0 0;
   padding: 0;
 }
 
@@ -885,6 +903,16 @@
 
 .stepBar .actions {
   margin-top: 0;
+}
+
+/*
+ * The step panel's own separation comes from the bar below it, so it must not
+ * also draw `.section`'s bottom rule: the two used to render 50 px apart as a
+ * pair of parallel lines under every step.
+ */
+.stepPanel {
+  border-bottom: 0;
+  padding-bottom: 0;
 }
 
 /* One segmented control, not two adjacent cards. */

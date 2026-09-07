@@ -152,7 +152,10 @@ test("consent is required before a review request can be sent", async ({ page })
 
   await page.goto(`/pilot/reports/${reportId}/share`);
   await expect(page.getByRole("heading", { name: "Preview community version" })).toBeVisible();
-  await expect(page.getByText("Sample Pantry Rice Snaps")).toBeVisible();
+  // The header now names the record this screen is about, so the product also
+  // appears above the preview. The assertion is unchanged in meaning: this
+  // screen shows this product.
+  await expect(page.getByText("Sample Pantry Rice Snaps").first()).toBeVisible();
 
   const consent = page.getByRole("checkbox", { name: /I want this version and the photos/ });
   await expect(consent).not.toBeChecked();

@@ -58,7 +58,7 @@ const STEPS = ["Product", "Evidence", "Concern", "Review"] as const;
 const STEP_INTRO: readonly { heading: string; why: string }[] = [
   {
     heading: "Start with the product",
-    why: "Name the product and brand exactly as they appear on the pack, so this record still identifies the same label weeks from now.",
+    why: "Name the product and brand exactly as they appear on the pack, so this record still identifies the same label weeks from now. Use a sample or redacted product for this demo.",
   },
   {
     heading: "Photograph the label",
@@ -688,7 +688,11 @@ export function ReportEditorScreen({
         starts a screen reader at its heading; `stepPanelRef` is not focused on
         the first render, so entering the editor is unaffected.
       */}
-      <div className={styles.section} ref={stepPanelRef} tabIndex={-1}>
+      <div
+        className={`${styles.section} ${styles.stepPanel}`}
+        ref={stepPanelRef}
+        tabIndex={-1}
+      >
         {/*
           One heading and one sentence per step, rendered here rather than
           inside each step so the four steps cannot drift apart, and so the
@@ -1138,10 +1142,6 @@ function ProductStep({
 
   return (
     <div>
-      <p className={styles.small}>
-        Use a sample or redacted product for this demo.
-      </p>
-
       <TextField
         id="product-name"
         label="Product name"

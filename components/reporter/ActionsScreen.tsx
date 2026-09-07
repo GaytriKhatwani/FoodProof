@@ -400,6 +400,7 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
 
         {current ? (
           <>
+            <h3 className={styles.subTitle}>The message</h3>
             <TextField
               id={`draft-subject-${channel}`}
               label="Subject"

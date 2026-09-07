@@ -206,27 +206,26 @@ export function TimelineScreen({ reportId }: { reportId: string }) {
           <span className={styles.nextStepLead}>What to do next</span>
           {next.why}
         </p>
-        {next.href === base ? null : (
-          <Link className="btn-primary" href={next.href}>
-            {next.label}
-          </Link>
-        )}
+        <div className={styles.nextStepActions}>
+          {next.href === base ? null : (
+            <Link className="btn-primary" href={next.href}>
+              {next.label}
+            </Link>
+          )}
+          {routes.map((route) => (
+            <Link className={styles.btnSecondary} href={route.href} key={route.href}>
+              {route.label}
+            </Link>
+          ))}
+          {detail.community_visibility === "published" ? (
+            <Link className={styles.btnQuiet} href={`/pilot/concerns/${detail.report_id}`}>
+              See the community version
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       {actionFailure ? <FailureNotice failure={actionFailure} /> : null}
-
-      <div className={styles.actions}>
-        {routes.map((route) => (
-          <Link className={styles.btnSecondary} href={route.href} key={route.href}>
-            {route.label}
-          </Link>
-        ))}
-        {detail.community_visibility === "published" ? (
-          <Link className={styles.btnQuiet} href={`/pilot/concerns/${detail.report_id}`}>
-            See the community version
-          </Link>
-        ) : null}
-      </div>
 
       {(["brand", "government"] as const).map((channel) => {
         const submissions = detail.submissions.filter((item) => item.channel === channel);
