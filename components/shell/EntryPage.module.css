@@ -1,23 +1,70 @@
+/*
+ * Pilot entry composition (docs/FOODPROOF_SCREENS.md §2).
+ *
+ * At desktop the screen is two parts and the split carries the meaning: the
+ * left column explains what this demo is and what entering does; the right
+ * column holds the one surface that acts, on its own white panel. Below 900px
+ * it is a single column in source order, so the field is reached before the
+ * standing notices rather than after them.
+ */
+
 .main {
-  padding-bottom: calc(var(--space-lg) * 2);
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
 }
 
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.88fr) minmax(0, 1fr);
+  /*
+   * The second row absorbs the height of the form beside it. Without this the
+   * spanning panel would share its extra height between both rows and push the
+   * notices into the middle of an empty column.
+   */
+  grid-template-rows: auto 1fr;
+  column-gap: clamp(32px, 5vw, 80px);
+  row-gap: clamp(24px, 3vw, 36px);
+  align-items: start;
+  padding: clamp(32px, 4.5vw, 64px) 0 clamp(44px, 6vw, 80px);
+}
+
+/*
+ * Source order is intro, form, notes. The explicit placement puts the notes
+ * back under the intro at desktop while keeping the form second in the
+ * document, so keyboard order reaches the field right after the explanation.
+ */
 .intro {
-  padding: var(--space-lg) 0;
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.panel {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  min-width: 0;
+}
+
+.notes {
+  grid-column: 1;
+  grid-row: 2;
 }
 
 .title {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(36px, 5vw, 52px);
-  line-height: 1.05;
-  letter-spacing: -0.025em;
+  font-size: clamp(36px, 4.4vw, 56px);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
   margin: 0 0 var(--space-md);
+  max-width: 14ch;
 }
 
 .lede {
-  max-width: 56ch;
-  margin: 0 0 var(--space-lg);
+  max-width: 46ch;
+  font-size: 18px;
+  line-height: 1.5;
+  margin: 0;
 }
 
 /*
@@ -25,30 +72,34 @@
  * rule divides them the way DESIGN.md divides records elsewhere, rather than
  * a decorative card.
  */
-.pathSection {
-  margin-bottom: var(--space-lg);
-}
-
 .pathSection + .pathSection {
   border-top: 1px solid var(--color-rule);
-  padding-top: var(--space-lg);
+  margin-top: clamp(24px, 3vw, 36px);
+  padding-top: clamp(24px, 3vw, 36px);
 }
 
 .pathHeading {
   font-family: var(--font-display);
-  font-size: 22px;
+  font-weight: 700;
+  font-size: clamp(20px, 1.7vw, 24px);
   letter-spacing: -0.02em;
+  line-height: 1.2;
   margin: 0 0 6px;
 }
 
 .pathIntro {
-  max-width: 56ch;
+  max-width: 54ch;
   margin: 0 0 var(--space-md);
   color: var(--color-muted);
 }
 
-.identities {
-  max-width: 560px;
+/*
+ * The two-class selector beats the global `.notice` margin without depending
+ * on which stylesheet the bundler happens to emit first.
+ */
+.notes .identities {
+  max-width: 52ch;
+  margin: 0;
 }
 
 .identities p {
@@ -56,5 +107,25 @@
 }
 
 .footnote {
-  max-width: 56ch;
+  max-width: 52ch;
+  font-size: 14px;
+  margin: var(--space-md) 0 0;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+  }
+
+  .intro,
+  .panel,
+  .notes {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .title {
+    max-width: none;
+  }
 }
