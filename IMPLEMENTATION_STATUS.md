@@ -830,7 +830,7 @@ decisions; not started:
 - Owner deferred the Supabase SMTP and provider configuration to the next session. No
   Vercel variable for email sign-in has been set. Nothing is half-done in code.
 
-## Session (8 September 2026, UI improvement pass) — merged to local `main`, NOT pushed
+## Session (8 September 2026, UI improvement pass) — merged and PUSHED (`77274fc`)
 
 Owner's brief: "random white spaces and multiple UI issues; modern, not AI slop; a celiac
 should understand what the site is for, how it helps, how to use it, then raise a complaint
@@ -879,9 +879,13 @@ owner to decide commit or gitignore.
 
 ## Exact next action (continuation prompt for the next session)
 
-1. **Owner:** authorise the push of `main` (UI pass merged locally at `4af3cbf` plus this
-   handoff commit); every push deploys. Run `scripts/_cleanup.tmp.mjs` (above) and delete
-   it. Decide on the untracked taste-skill folders.
+1. **Pushed and deployed** on 8 September 2026 (`77274fc`; owner authorised after local
+   testing). Local-test fixes included: full-width email field; optional
+   `DEMO_PUBLIC_USER_CODE` publishes one user invitation on `/pilot` (set on Vercel to show
+   it live; documented in `.env.example` and the operations doc); the actions screen hides
+   its send stages until label facts are confirmed and deep-links to the editor's Concern
+   step (`/edit?step=concern`). Owner still to run `scripts/_cleanup.tmp.mjs` (untracked)
+   and delete it, and to decide on the untracked taste-skill folders.
 2. **Owner steps to switch on email sign-in** (unchanged; detail in
    `docs/FOODPROOF_SETUP_AND_OPERATIONS.md` "Phase two C.1"): Supabase Authentication
    (Email provider with confirm email, `{{ .Token }}` in the Magic Link template, OTP expiry
