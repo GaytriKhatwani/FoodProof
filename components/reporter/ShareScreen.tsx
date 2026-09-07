@@ -152,6 +152,10 @@ export function ShareScreen({ reportId }: { reportId: string }) {
             Preview community version
           </h1>
           <p className={styles.lede}>
+            <strong className={styles.ledeStrong}>
+              {detail.product_name}
+              {detail.variant ? ` · ${detail.variant}` : ""} · {detail.brand}
+            </strong>
             Only what is shown below would be shared with the pilot community.
           </p>
         </div>
@@ -162,6 +166,34 @@ export function ShareScreen({ reportId }: { reportId: string }) {
 
       <DemoDataNote />
 
+      {/*
+        Sharing and filing are two different acts and are the pair people most
+        often confuse (docs/DESIGN.md "Do distinguish sharing from filing an
+        official complaint"). Say which one this screen is, and where the other
+        one lives, before anything else on it.
+      */}
+      <div className={styles.callout}>
+        <h2 className={styles.sectionTitle}>This is not a complaint</h2>
+        <p>
+          Sharing puts an anonymous version of this concern in front of the pilot
+          community, after the owner has reviewed it. It is not a complaint,
+          it reaches no brand and no authority, and it establishes nothing about
+          whether the product is safe.
+        </p>
+        <p className={styles.small}>
+          Complaining is a separate act you carry out yourself, by email or
+          through the official portal. Either one can happen without the other.
+        </p>
+        <div className={styles.actions}>
+          <Link
+            className={styles.btnSecondary}
+            href={`/pilot/reports/${detail.report_id}/actions`}
+          >
+            Prepare a complaint instead
+          </Link>
+        </div>
+      </div>
+
       <p className={styles.inset}>
         Community status: <strong>{VISIBILITY_LABEL[detail.community_visibility]}</strong>.
         {published
@@ -171,7 +203,7 @@ export function ShareScreen({ reportId }: { reportId: string }) {
 
       {latest ? (
         <div className={styles.panel}>
-          <h2 className={styles.subTitle}>Your last review request</h2>
+          <h2 className={styles.sectionTitle}>Your last review request</h2>
           <p>
             Revision {latest.revision} · {REVISION_STATE_LABEL[latest.state]} · requested{" "}
             {formatDateTime(latest.created_at)}
