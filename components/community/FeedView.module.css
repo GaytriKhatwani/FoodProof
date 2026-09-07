@@ -2,14 +2,36 @@
  * Community feed. Open ruled rows rather than decorative cards (docs/DESIGN.md):
  * each record is separated by a thin rule, the concern leads, and the recorded
  * external status sits beside it in words.
+ *
+ * One vertical rhythm, declared once and used everywhere below:
+ *
+ *   --row-gap-tight   inside one text group (title → brand → excerpt → meta)
+ *   --row-gap-block   between blocks inside a record or a band
+ *   --row-gap-band    between the page's bands (head, tools, list, more)
+ *
+ * Every child of a band has zero margin; the band owns the space. The screen
+ * used to stack a section margin, a child margin and a rule's padding on top of
+ * each other, which is where the empty horizontal stripes came from.
  */
 
+.page {
+  --row-gap-tight: 6px;
+  --row-gap-block: var(--space-sm);
+  --row-gap-band: var(--space-lg);
+}
+
+/* Head: the page's claim on the left, the one action on the right. */
 .pageHead {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--space-md);
+  gap: var(--space-md) var(--space-lg);
+}
+
+.pageHeadText {
+  flex: 1 1 420px;
+  min-width: 0;
 }
 
 .title {
@@ -18,35 +40,42 @@
   font-size: clamp(34px, 4.6vw, 50px);
   line-height: 1.06;
   letter-spacing: -0.025em;
-  margin: 0 0 var(--space-sm);
+  margin: 0 0 var(--row-gap-block);
+  text-wrap: balance;
 }
 
 .lede {
-  max-width: 62ch;
+  max-width: 54ch;
   margin: 0;
+  font-size: 18px;
   color: var(--color-muted);
 }
 
+/*
+ * Tools band. The search field keeps a readable width instead of stretching to
+ * the container, and the ordering note takes the space that stretching used to
+ * waste, so the band reads as one row rather than a field with a hole after it.
+ */
 .tools {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: var(--space-md);
+  gap: var(--space-sm) var(--space-md);
+  margin-top: var(--row-gap-band);
   padding: var(--space-md) 0;
   border-top: 1px solid var(--color-rule);
-  border-bottom: 1px solid var(--color-rule);
-  margin: var(--space-lg) 0 var(--space-md);
 }
 
 .searchField {
-  flex: 1 1 320px;
+  flex: 1 1 300px;
+  max-width: 520px;
   min-width: 0;
 }
 
 .searchLabel {
   display: block;
   font-weight: 600;
-  margin-bottom: 6px;
+  margin-bottom: var(--row-gap-tight);
 }
 
 .searchInput {
@@ -71,9 +100,12 @@
   gap: var(--space-sm);
 }
 
+/* Right-hand caption for the band, top-aligned with the field's own label. */
 .toolsNote {
-  flex-basis: 100%;
-  margin: 0;
+  align-self: flex-start;
+  margin: 0 0 0 auto;
+  max-width: 34ch;
+  text-align: right;
   color: var(--color-muted);
   font-size: 13px;
 }
@@ -101,24 +133,40 @@
   cursor: default;
 }
 
+/* Result count: the list's caption, so it sits tight above the first rule. */
 .count {
-  margin: 0 0 var(--space-md);
+  margin: 0;
+  padding: var(--space-md) 0 var(--row-gap-block);
   color: var(--color-muted);
   font-size: 14px;
 }
 
-.list {
-  list-style: none;
-  margin: 0 0 var(--space-lg);
+.count:empty {
   padding: 0;
 }
 
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/*
+ * One record. Photograph, then what was found, then what the reporter has
+ * recorded about acting on it — left to right, in the order a reader needs it.
+ * The status column is bounded so the middle column cannot open a canyon at
+ * 1440px.
+ */
 .item {
   display: grid;
-  grid-template-columns: 132px minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-columns: 132px minmax(0, 1fr) minmax(0, 250px);
   gap: var(--space-lg);
   padding: var(--space-md) 0;
   border-top: 1px solid var(--color-rule);
+}
+
+.item:last-child {
+  border-bottom: 1px solid var(--color-rule);
 }
 
 /* Reviewed identity photo, or the placeholder that stands in its place. */
@@ -148,16 +196,15 @@
   text-align: center;
   color: var(--color-muted);
   background: var(--color-tint);
-  border: 1px dashed var(--color-rule);
+  border: 1px dashed var(--color-control-border);
   border-radius: var(--radius-control);
   font-size: 12px;
 }
 
-.item:last-child {
-  border-bottom: 1px solid var(--color-rule);
-}
-
 .itemMain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--row-gap-tight);
   min-width: 0;
 }
 
@@ -165,12 +212,17 @@
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 24px;
+  line-height: 1.15;
   letter-spacing: -0.015em;
-  margin: 0 0 4px;
+  margin: 0;
 }
 
 .itemBrand {
-  margin: 0 0 var(--space-sm);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
   color: var(--color-muted);
   font-size: 14px;
 }
@@ -185,7 +237,8 @@
 }
 
 .itemExcerpt {
-  margin: 0 0 var(--space-sm);
+  margin: 2px 0 0;
+  max-width: 62ch;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -193,18 +246,24 @@
 }
 
 .itemMeta {
-  margin: 0;
+  margin: auto 0 0;
+  padding-top: var(--row-gap-tight);
   color: var(--color-muted);
   font-size: 13px;
 }
 
+/* What the reporter recorded, and the way into the full record. */
 .itemStatuses {
+  display: flex;
+  flex-direction: column;
+  gap: var(--row-gap-tight);
   min-width: 0;
 }
 
 .status {
-  margin: 0 0 6px;
+  margin: 0;
   font-size: 13px;
+  line-height: 1.4;
   color: var(--color-muted);
 }
 
@@ -215,15 +274,51 @@
 
 .viewLink {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-end;
+  align-self: flex-start;
   min-height: 44px;
+  margin-top: auto;
   font-weight: 600;
 }
 
+.more {
+  margin-top: var(--row-gap-band);
+}
+
+@media (max-width: 900px) {
+  .toolsNote {
+    align-self: auto;
+    margin: 0;
+    max-width: 100%;
+    text-align: left;
+  }
+}
+
 @media (max-width: 680px) {
+  .lede {
+    font-size: 16px;
+  }
+
+  .tools {
+    align-items: stretch;
+  }
+
+  .searchField {
+    flex-basis: 100%;
+    max-width: 100%;
+  }
+
+  .searchActions {
+    flex-basis: 100%;
+  }
+
+  .searchActions > * {
+    flex: 1 1 140px;
+  }
+
   .item {
     grid-template-columns: 1fr;
-    gap: var(--space-sm);
+    gap: var(--row-gap-block);
   }
 
   /* At 360 px the photo becomes a full-width band above the record; it must
@@ -235,11 +330,11 @@
     height: 160px;
   }
 
-  .searchActions {
-    flex-basis: 100%;
+  .itemMeta {
+    margin-top: 0;
   }
 
-  .searchActions > * {
-    flex: 1 1 140px;
+  .viewLink {
+    margin-top: 0;
   }
 }

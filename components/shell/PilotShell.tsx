@@ -26,24 +26,59 @@ import styles from "./PilotShell.module.css";
  * actor keeps the existing demo label and "Test identity" wording. Either
  * way the reviewer nav link and every server-enforced check still derive from
  * `me.role` alone, never from `sign_in_method`.
+ *
+ * Composition: one ruled band read left to right as brand → navigation →
+ * session. DOM order is that order at EVERY width, because a wrapped header
+ * once put navigation visually last while Tab still reached it first
+ * (docs/FOODPROOF_UI_AUDIT.md A8). Below 900px the band becomes stacked rows
+ * in the same sequence, and neither "Exit demo" nor the analytics preference
+ * is ever hidden behind a disclosure.
  */
 
 interface NavItem {
   href: string;
   label: string;
+  /** True when this item represents the page currently open. */
+  match: (pathname: string) => boolean;
+  /** The one create action in the navigation; rendered as a filled control. */
+  action?: boolean;
 }
 
-/** `/pilot/reports` and `/pilot/reports/new` are the reporter routes (T2). */
+/**
+ * `/pilot/reports/new` is the reporter's entry point and `/pilot/reports/*`
+ * is the reporter's own record list (T2). They share a path prefix, so
+ * "Raise a concern" matches its exact path only and "My reports" claims every
+ * other `/pilot/reports` route — a plain prefix test would light both up on
+ * the new-report screen.
+ */
+const RAISE_HREF = "/pilot/reports/new";
+
 const BASE_NAV: NavItem[] = [
-  { href: "/pilot/feed", label: "Feed" },
-  { href: "/pilot/reports", label: "My reports" },
+  {
+    href: "/pilot/feed",
+    label: "Feed",
+    match: (pathname) => pathname === "/pilot/feed" || pathname.startsWith("/pilot/feed/"),
+  },
+  {
+    href: RAISE_HREF,
+    label: "Raise a concern",
+    match: (pathname) => pathname === RAISE_HREF,
+    action: true,
+  },
+  {
+    href: "/pilot/reports",
+    label: "My reports",
+    match: (pathname) =>
+      pathname !== RAISE_HREF &&
+      (pathname === "/pilot/reports" || pathname.startsWith("/pilot/reports/")),
+  },
 ];
 
-const REVIEW_NAV: NavItem = { href: "/pilot/review", label: "Review" };
-
-function isCurrent(pathname: string, href: string): boolean {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
+const REVIEW_NAV: NavItem = {
+  href: "/pilot/review",
+  label: "Review",
+  match: (pathname) => pathname === "/pilot/review" || pathname.startsWith("/pilot/review/"),
+};
 
 /**
  * Persistent control to allow or withdraw usage analytics. Both directions are
@@ -131,12 +166,13 @@ export function PilotShell({ children }: { children: ReactNode }) {
 
   let body: ReactNode;
   if (exiting) {
-    body = <LoadingBlock label="Ending the demo session…" lines={2} />;
+    body = <LoadingBlock label="Ending the demo session…" shape="page" />;
   } else if (status === "loading") {
-    body = <LoadingBlock label="Loading your pilot session…" />;
+    body = <LoadingBlock label="Loading your pilot session…" shape="page" />;
   } else if (status === "anonymous") {
     body = (
       <StateBlock
+        placement="page"
         title="Your pilot session has ended"
         headingLevel="h1"
         actions={
@@ -154,6 +190,7 @@ export function PilotShell({ children }: { children: ReactNode }) {
   } else if (status === "unavailable") {
     body = (
       <StateBlock
+        placement="page"
         tone="error"
         title="The demo backend is unavailable"
         headingLevel="h1"
@@ -178,8 +215,18 @@ export function PilotShell({ children }: { children: ReactNode }) {
     <div className={styles.shell}>
       <SkipLink />
       <header className={styles.header}>
-        <div className={`container ${styles.headerInner}`}>
-          <div className={styles.brandRow}>
+        {/*
+          Without a session there is no navigation and no session cluster, so
+          the band closes up instead of reserving a row of nothing. While the
+          session is still loading it DOES reserve that row, because the header
+          must not jump when `/api/me` answers.
+        */}
+        <div
+          className={`container ${styles.headerInner} ${
+            status === "ready" || status === "loading" ? "" : styles.headerInnerBare
+          }`}
+        >
+          <div className={styles.brand}>
             <span className="wordmark">
               <strong>Food</strong>Proof
             </span>
@@ -190,12 +237,15 @@ export function PilotShell({ children }: { children: ReactNode }) {
             {status === "ready" ? (
               <ul className={styles.navList}>
                 {navItems.map((item) => {
-                  const current = isCurrent(pathname, item.href);
+                  const current = item.match(pathname);
+                  const classes = [styles.navLink];
+                  if (item.action) classes.push(styles.navAction);
+                  if (current) classes.push(styles.navLinkCurrent);
                   return (
-                    <li key={item.href}>
+                    <li key={item.href} className={styles.navItem}>
                       <Link
                         href={item.href}
-                        className={current ? `${styles.navLink} ${styles.navLinkCurrent}` : styles.navLink}
+                        className={classes.join(" ")}
                         aria-current={current ? "page" : undefined}
                       >
                         {item.label}
@@ -204,24 +254,31 @@ export function PilotShell({ children }: { children: ReactNode }) {
                   );
                 })}
               </ul>
-            ) : (
+            ) : status === "loading" ? (
               <span className={styles.navPlaceholder} aria-hidden="true" />
-            )}
+            ) : null}
           </nav>
 
           <div className={styles.session}>
             {status === "ready" && me ? (
               <>
+                {/*
+                  Both two-line session units read marker-above-value, so the
+                  cluster sits on one baseline grid instead of the three
+                  competing ones the loose clusters produced.
+                */}
                 <span className={styles.identity}>
                   {me.sign_in_method === "email" ? (
                     <>
-                      <span className={styles.identityLabel}>{me.email ?? me.label}</span>
                       <span className={styles.identityMarker}>Signed in with email</span>
+                      <span className={styles.identityLabel}>{me.email ?? me.label}</span>
                     </>
                   ) : (
                     <>
+                      <span className={styles.identityMarker}>
+                        Test identity · not an email account
+                      </span>
                       <span className={styles.identityLabel}>{me.label}</span>
-                      <span className={styles.identityMarker}>Test identity · not an email account</span>
                     </>
                   )}
                 </span>
@@ -241,9 +298,9 @@ export function PilotShell({ children }: { children: ReactNode }) {
                   Exit demo
                 </button>
               </>
-            ) : (
+            ) : status === "loading" ? (
               <span className={styles.sessionPlaceholder} aria-hidden="true" />
-            )}
+            ) : null}
           </div>
         </div>
 
