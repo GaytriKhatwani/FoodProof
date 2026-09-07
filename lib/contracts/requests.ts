@@ -25,6 +25,28 @@ export const SessionCreateRequest = z
   .strict();
 export type SessionCreateRequest = z.infer<typeof SessionCreateRequest>;
 
+/**
+ * Email sign-in (phase two C.1). Shape validation only: the server case-folds
+ * the address itself (lib/server/moderators.ts) so one definition governs the
+ * provider call, the stored HMAC and the reviewer allowlist comparison. Neither
+ * body carries a role, an actor id or any other authority.
+ */
+const SignInEmail = z.string().trim().min(3).max(254).email();
+
+export const EmailSignInRequest = z.object({ email: SignInEmail }).strict();
+export type EmailSignInRequest = z.infer<typeof EmailSignInRequest>;
+
+/**
+ * The one-time code as typed. Six to eight digits covers the provider's
+ * configurable code length; any other shape is rejected before the provider is
+ * contacted, which keeps a malformed guess off the network while still counting
+ * against the rate limit.
+ */
+export const EmailSignInVerifyRequest = z
+  .object({ email: SignInEmail, code: z.string().trim().regex(/^\d{6,8}$/) })
+  .strict();
+export type EmailSignInVerifyRequest = z.infer<typeof EmailSignInVerifyRequest>;
+
 export const AnalyticsConsentRequest = z
   .object({ allowed: z.boolean() })
   .strict();
