@@ -19,6 +19,7 @@ import {
   TextField,
   cx,
   formatDate,
+  formatDateTime,
 } from "./ui";
 import styles from "./reporter.module.css";
 
@@ -92,6 +93,27 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
       baseline &&
       (current.subject !== baseline.subject || current.body !== baseline.body),
   );
+  /**
+   * A saved draft is built (or edited) from the record as it was then. If the
+   * record has been saved since — product details, dates, a re-confirmation of
+   * the label facts, new evidence — the saved wording may no longer match the
+   * facts listed on this screen. Detected, never silently loaded as current.
+   * The text is kept on screen: the reporter reviews it, edits it and saves,
+   * which makes the draft newer than the record again.
+   */
+  const draftOutdated = Boolean(
+    savedDraft && detail && savedDraft.updated_at < detail.updated_at,
+  );
+
+  useEffect(() => {
+    if (!unsavedChanges) return undefined;
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [unsavedChanges]);
 
   const prepare = useCallback(
     async (report: ReportDetail, target: Channel) => {
@@ -300,9 +322,9 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
         <div className={styles.callout}>
           <h2 className={styles.sectionTitle}>Confirm your label facts first</h2>
           <p>
-            The draft is built only from facts you have checked against your own
-            photo, so nothing in it is invented. Nothing below can be prepared,
-            copied or sent until that confirmation exists.
+            The draft is built from facts you have checked against your own
+            photo. Nothing below can be prepared, copied or sent until that
+            confirmation exists.
           </p>
           <ol className={styles.checklist}>
             <li className={cx(styles.checkItem, styles.checkNeutral)}>
@@ -420,6 +442,17 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
           {current ? (
             <>
               <h3 className={styles.subTitle}>The message</h3>
+              {draftOutdated && savedDraft ? (
+                <div className={styles.alert} role="status">
+                  <p>
+                    <strong>This record changed after this draft was saved.</strong>{" "}
+                    The draft below was saved at {formatDateTime(savedDraft.updated_at)} and
+                    the record was last saved at {formatDateTime(detail.updated_at)}, so its
+                    wording may no longer match the facts listed above. Check it line by
+                    line and save it again, or start again from the template.
+                  </p>
+                </div>
+              ) : null}
               <TextField
                 id={`draft-subject-${channel}`}
                 label="Subject"
@@ -522,8 +555,9 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
               ) : null}
               {draftMethod === "assisted" ? (
                 <p className={styles.inset} role="status">
-                  Written with AI assistance from your confirmed facts. Check
-                  every line before you save or send it. Nothing has been sent.
+                  Written with AI assistance from your confirmed facts. AI can
+                  make mistakes: check every statement against your photos before
+                  you save or send it. Nothing has been sent.
                 </p>
               ) : null}
               <SaveState state={saveState} />
@@ -552,7 +586,7 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
             The template is deterministic and built only from the facts you
             confirmed.
             {aiAvailable
-              ? " An assisted draft rewrites those same facts: it cannot add a fact you did not confirm, you edit it, and you save it yourself."
+              ? " An assisted draft is asked to use only those facts, but AI can make mistakes and can word things wrongly: check every statement against your photos, edit it, and save it yourself."
               : ""}
           </p>
         </section>

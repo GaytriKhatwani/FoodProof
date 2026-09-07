@@ -3,7 +3,9 @@ import type {
   Channel,
   ComplaintDraft,
   ComplaintDraftWriteRequest,
+  EvidenceRole,
 } from "@/lib/contracts";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { ApiError } from "./errors";
 import { getServiceClient } from "./supabase";
 import { loadOwnedReport } from "./data";
@@ -32,6 +34,61 @@ interface TemplateReport {
 }
 
 /**
+ * What the record can actually back up: the label roles its READY label
+ * photographs cover, and whether a ready purchase receipt is stored. The
+ * template must not promise evidence the reporter has not supplied.
+ */
+export interface TemplateEvidence {
+  labelRoles: ReadonlySet<EvidenceRole>;
+  receipt: boolean;
+}
+
+const ROLE_WORDING: Record<EvidenceRole, string> = {
+  identity: "the product identity",
+  claim: "the label claim",
+  ingredients: "the ingredient list",
+};
+
+/** "a", "a and b", "a, b and c" — in the fixed identity/claim/ingredients order. */
+function evidenceLines(evidence: TemplateEvidence): string[] {
+  const present = (["identity", "claim", "ingredients"] as const)
+    .filter((role) => evidence.labelRoles.has(role))
+    .map((role) => ROLE_WORDING[role]);
+  const lines: string[] = [];
+  if (present.length === 0) {
+    lines.push("- [No label photographs are on this record yet. Add them before sending.]");
+  } else {
+    const list =
+      present.length === 1
+        ? present[0]
+        : `${present.slice(0, -1).join(", ")} and ${present[present.length - 1]}`;
+    lines.push(`- Photographs of ${list}.`);
+  }
+  if (evidence.receipt) lines.push("- Purchase receipt.");
+  return lines;
+}
+
+/** Ready label roles and receipt presence for one report, from stored evidence. */
+export async function loadTemplateEvidence(
+  reportId: string,
+  supabase: SupabaseClient,
+): Promise<TemplateEvidence> {
+  const { data, error } = await supabase
+    .from("evidence")
+    .select("kind, roles")
+    .eq("report_id", reportId)
+    .eq("upload_state", "ready");
+  if (error) throw error;
+  const labelRoles = new Set<EvidenceRole>();
+  let receipt = false;
+  for (const row of (data ?? []) as { kind: string; roles: EvidenceRole[] | null }[]) {
+    if (row.kind === "label") for (const role of row.roles ?? []) labelRoles.add(role);
+    if (row.kind === "receipt") receipt = true;
+  }
+  return { labelRoles, receipt };
+}
+
+/**
  * Exported so the assisted path (lib/server/ai/) instructs the provider to keep
  * the identical notice and then re-asserts it on the returned body: template and
  * assisted drafts must be labelled sample content in exactly the same words.
@@ -42,6 +99,7 @@ export const SAMPLE_NOTICE =
 export function buildTemplate(
   report: TemplateReport,
   channel: Channel,
+  evidence: TemplateEvidence,
 ): { subject: string; body: string } {
   const identity = [report.brand, report.product_name, report.variant]
     .filter(Boolean)
@@ -79,8 +137,7 @@ export function buildTemplate(
   lines.push(`- Ingredients: ${report.ingredients_text?.trim() || "(not provided)"}`);
   lines.push("");
   lines.push("Evidence I can provide");
-  lines.push("- Photographs of the product identity, claim and ingredient panels.");
-  lines.push("- Purchase receipt, if requested.");
+  lines.push(...evidenceLines(evidence));
   lines.push("");
   lines.push(
     channel === "government"
@@ -105,7 +162,8 @@ export async function prepareDraft(
   if (!report.facts_confirmed_at) {
     throw new ApiError("VALIDATION_FAILED", "Confirm the label facts before preparing a complaint.");
   }
-  const { subject, body } = buildTemplate(report, channel);
+  const evidence = await loadTemplateEvidence(reportId, supabase);
+  const { subject, body } = buildTemplate(report, channel, evidence);
   return { channel, subject, body, method: "template" };
 }
 

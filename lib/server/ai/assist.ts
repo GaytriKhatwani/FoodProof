@@ -77,6 +77,7 @@ export interface AssistReport {
   product_name: string;
   variant: string | null;
   observation_date: string | null;
+  batch_number: string | null;
   concern_text: string | null;
   claim_text: string | null;
   ingredients_text: string | null;
@@ -398,6 +399,7 @@ export async function draftForReport(
     brand: report.brand,
     variant: report.variant,
     observationDate: report.observation_date,
+    batchNumber: report.batch_number,
     claimText: report.claim_text,
     ingredientsText: report.ingredients_text,
     concernText: report.concern_text ?? "",

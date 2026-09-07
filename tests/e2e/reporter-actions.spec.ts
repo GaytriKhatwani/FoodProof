@@ -123,6 +123,12 @@ test("prepares a deterministic template that tells testers not to send it", asyn
   await expect(body).toContainText("SAMPLE / DEMONSTRATION CONTENT");
   await expect(body).toContainText("Do not send it to any real brand or authority.");
   await expect(body).toContainText("Wheat starch, sugar, salt");
+  // The evidence section describes what the record actually holds: one label
+  // photograph covering the three roles, and no receipt.
+  await expect(body).toContainText(
+    "Photographs of the product identity, the label claim and the ingredient list.",
+  );
+  await expect(body).not.toContainText(/receipt/i);
   await expect(
     page.getByText("Do not send these practice messages to a real brand or a real authority."),
   ).toBeVisible();
@@ -145,6 +151,72 @@ test("saves an edited draft and the saved text comes back", async ({ page }) => 
     "Edited practice message. Fictional demo content — do not send.",
   );
   await expect(page.getByText(/A draft for this channel is saved/)).toBeVisible();
+});
+
+test("asks before the page is left with unsaved draft edits", async ({ page }) => {
+  test.skip(!readyReportId, "depends on the seeded report");
+  await signIn(page);
+  await page.goto(`/pilot/reports/${readyReportId}/actions`);
+  const body = page.getByLabel("Message", { exact: true });
+  await expect(body).toHaveValue(/Edited practice message/);
+
+  // Playwright cannot show the browser's own leave dialog, so the guard is
+  // exercised the way the browser does it: a cancelable beforeunload event
+  // is prevented only while something is unsaved.
+  const beforeUnloadPrevented = () =>
+    page.evaluate(() => {
+      const event = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+  expect(await beforeUnloadPrevented()).toBe(false);
+
+  await body.fill("Edited again, still fictional demo content — do not send.");
+  expect(await beforeUnloadPrevented()).toBe(true);
+
+  // "Saved" is announced before the record is re-read; the guard clears once
+  // the saved draft (now one version on) is the baseline again.
+  const versionLine = page.getByText(/A draft for this channel is saved \(\w+, version \d+\)/);
+  const before = (await versionLine.textContent())?.match(/version (\d+)/)?.[1];
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Saved to the demo service.")).toBeVisible();
+  await expect(versionLine).toContainText(`version ${Number(before) + 1}`);
+  expect(await beforeUnloadPrevented()).toBe(false);
+});
+
+test("a saved draft is flagged when the record changes after it was saved", async ({ page }) => {
+  test.skip(!readyReportId, "depends on the seeded report");
+  await signIn(page);
+  await page.goto(`/pilot/reports/${readyReportId}/actions`);
+  const outdated = page.getByText("This record changed after this draft was saved.");
+  await expect(page.getByLabel("Message", { exact: true })).toHaveValue(/Edited again/);
+  await expect(outdated).toHaveCount(0);
+
+  // The reporter changes a product detail that the draft was built from.
+  const current = await ok(page.request, "get", `/api/reports/${readyReportId}`);
+  await ok(page.request, "patch", `/api/reports/${readyReportId}`, {
+    headers: { Origin: E2E_ORIGIN, "Idempotency-Key": uuid() },
+    data: {
+      product_name: current.product_name,
+      brand: current.brand,
+      batch_number: "SAMPLE-B-77",
+      expected_version: current.version,
+    },
+  });
+
+  await page.reload();
+  await expect(outdated).toBeVisible();
+  // The saved wording is kept for review, not replaced.
+  await expect(page.getByLabel("Message", { exact: true })).toHaveValue(/Edited again/);
+  await expect(page.getByText("Supplied Batch number: SAMPLE-B-77")).toBeVisible();
+
+  // Reviewing and saving again makes the draft current.
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Saved to the demo service.")).toBeVisible();
+  await expect(outdated).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByLabel("Message", { exact: true })).toHaveValue(/Edited again/);
+  await expect(outdated).toHaveCount(0);
 });
 
 test("copying confirms a copy and never claims a send", async ({ page, context }) => {

@@ -32,6 +32,7 @@ export interface ConfirmedFacts {
   brand: string;
   variant: string | null;
   observationDate: string | null;
+  batchNumber: string | null;
   claimText: string | null;
   ingredientsText: string | null;
   concernText: string;

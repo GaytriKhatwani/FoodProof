@@ -200,6 +200,12 @@ export function EntryForm({ demoCode = null }: { demoCode?: string | null }) {
                 Use the demo code
               </button>
             </div>
+            <p className={styles.demoCodeNote}>
+              Everyone who uses this shared code enters the <strong>same</strong>{" "}
+              demo account. Anything you record with it can be seen, edited and
+              withdrawn by other people using the code, and their records appear
+              in your list. Use fictional details only.
+            </p>
           </div>
         ) : null}
       </div>

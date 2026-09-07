@@ -8,6 +8,7 @@ import {
   AI_SYSTEM_RULES,
   AiProviderError,
   createAnthropicAdapter,
+  draftPromptCharacters,
   type AiProviderClient,
 } from "@/lib/server/ai/anthropic";
 import {
@@ -50,6 +51,7 @@ const baseReport = (over?: Partial<AssistReport>): AssistReport => ({
   product_name: "Oat Crackers",
   variant: null,
   observation_date: "2026-08-01",
+  batch_number: "LOT-2041",
   concern_text: "The pack claims gluten-free but lists oat flour.",
   claim_text: "Gluten-free",
   ingredients_text: "Oat flour, sunflower oil, salt",
@@ -334,6 +336,53 @@ describe("provider adapter", () => {
     );
   });
 
+  it("passes the reporter's batch number to the provider instead of a placeholder", async () => {
+    const { client, requests } = fakeClient(() => ({
+      stop_reason: "end_turn",
+      parsed_output: { subject: "Labelling concern", body: "Body" },
+      usage: { input_tokens: 900, output_tokens: 10 },
+    }));
+    const adapter = createAnthropicAdapter({
+      client,
+      model: "test-model",
+      loadImage: async () => ({ bytes: LABEL_BYTES, mimeType: "image/png" }),
+    });
+    await adapter.draftComplaintMetered(
+      {
+        productName: "Oat Crackers",
+        brand: "Sample Pantry",
+        variant: null,
+        observationDate: "2026-08-01",
+        batchNumber: "LOT-2041",
+        claimText: "Gluten-free",
+        ingredientsText: "Oat flour, sunflower oil, salt",
+        concernText: "Concern",
+      },
+      "brand",
+    );
+    const messages = requests[0]?.messages as { content: string }[];
+    expect(messages[0]?.content).toContain("- Batch number: LOT-2041");
+    expect(draftPromptCharacters({
+      productName: "Oat Crackers",
+      brand: "Sample Pantry",
+      variant: null,
+      observationDate: null,
+      batchNumber: "LOT-2041",
+      claimText: null,
+      ingredientsText: null,
+      concernText: "",
+    })).toBeGreaterThan(draftPromptCharacters({
+      productName: "Oat Crackers",
+      brand: "Sample Pantry",
+      variant: null,
+      observationDate: null,
+      batchNumber: null,
+      claimText: null,
+      ingredientsText: null,
+      concernText: "",
+    }));
+  });
+
   it("rejects an empty draft", async () => {
     const { client } = fakeClient(() => ({
       stop_reason: "end_turn",
@@ -352,6 +401,7 @@ describe("provider adapter", () => {
           brand: "Sample Pantry",
           variant: null,
           observationDate: null,
+          batchNumber: null,
           claimText: null,
           ingredientsText: null,
           concernText: "Concern",
@@ -786,6 +836,7 @@ describe("drafting service checks (no provider, no ledger)", () => {
         brand: "Sample Pantry",
         variant: null,
         observationDate: "2026-08-01",
+        batchNumber: "LOT-2041",
         claimText: "Gluten-free",
         ingredientsText: "Oat flour, sunflower oil, salt",
         concernText: "The pack claims gluten-free but lists oat flour.",
