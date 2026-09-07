@@ -38,6 +38,22 @@ function requireLive(): void {
   }
 }
 
+/** Exposed so a spec can decide its own skip reason before calling other helpers. */
+export { missingLiveCredential };
+
+/**
+ * Cheap probe for the applied migration level, mirroring `schemaVersion` in
+ * tests/helpers/live.ts (duplicated for the same vitest-import reason noted
+ * above). Returns 0 when credentials are absent or the RPC fails, so a caller
+ * only has to compare against the migration it needs.
+ */
+export async function schemaVersion(): Promise<number> {
+  if (missingLiveCredential()) return 0;
+  const { data, error } = await liveClient().rpc("fp_schema_version");
+  if (error) return 0;
+  return typeof data === "number" ? data : 0;
+}
+
 /**
  * Service-key Supabase client for specs that must read what the app actually
  * persisted (e.g. the recorded `method` of a confirmation). Call it only after
@@ -123,6 +139,34 @@ export async function deleteInvitations(ids: string[]): Promise<void> {
   await del("reports", "id", reportIds);
   await del("demo_sessions", "access_id", ids);
   await del("demo_access", "id", ids);
+}
+
+/**
+ * Delete the auth accounts a verified-sign-in (phase two C.1) spec created.
+ * Must run AFTER `deleteInvitations`: `demo_access.auth_user_id` references
+ * `auth.users` ON DELETE RESTRICT (migration 0006), so the account cannot go
+ * while an actor row still points at it. Mirrors `deleteAuthUsers` in
+ * tests/helpers/live.ts (duplicated for the same vitest-import reason above).
+ */
+export async function deleteAuthUsers(userIds: string[]): Promise<void> {
+  const supabase = liveClient();
+  for (const id of userIds) {
+    const { error } = await supabase.auth.admin.deleteUser(id);
+    if (error && !/not found/i.test(error.message)) {
+      throw new Error(`cleanup auth user ${id} failed: ${error.message}`);
+    }
+  }
+}
+
+/** The `demo_access.id` mapped to a verified account's `auth_user_id`, or null. */
+export async function findVerifiedAccessId(authUserId: string): Promise<string | null> {
+  const { data, error } = await liveClient()
+    .from("demo_access")
+    .select("id")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+  if (error) throw new Error(`findVerifiedAccessId failed: ${error.message}`);
+  return (data?.id as string | undefined) ?? null;
 }
 
 /**
