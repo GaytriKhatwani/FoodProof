@@ -21,18 +21,22 @@ import styles from "@/components/shell/EntryPage.module.css";
  * the email path is rendered only when the deployment actually offers it,
  * never discovered by probing `/api/auth/email/*`. With the flag off this
  * page renders exactly as phase one — invitation entry only.
+ *
+ * Layout: at desktop the page is two parts, and the split is the explanation.
+ * The left column says what this is and what entering does; the right column
+ * is the one surface that acts. Below 900px it becomes a single column in
+ * source order — what it is, then the form, then what entering does.
  */
 export const metadata: Metadata = {
   title: "Enter the FoodProof pilot",
 };
 
 /**
- * The invitation identities notice and its closing footnote, shared by both
- * branches below so the copy exists once in source. `scopedFootnote` names
- * the invitation path specifically once email sign-in is also on the page
- * (that path does create or reuse an account, so the footnote can no longer
- * speak for "entering the demo" in general); with the flag off the sentence
- * is byte-for-byte the phase-one original.
+ * The invitation identities notice and its closing footnote. `scopedFootnote`
+ * names the invitation path specifically once email sign-in is also on the
+ * page (that path does create or reuse an account, so the footnote can no
+ * longer speak for "entering the demo" in general); with the flag off the
+ * sentence is byte-for-byte the phase-one original.
  */
 function InvitationNotices({ scopedFootnote }: { scopedFootnote: boolean }) {
   return (
@@ -60,67 +64,84 @@ export default function PilotEntryPage() {
   return (
     <>
       <SkipLink />
-      <header className="site-header container">
-        <span className="wordmark">
-          <strong>Food</strong>Proof
-        </span>
-        <nav className="nav-links" aria-label="Primary">
-          <Link href="/">Back to the introduction</Link>
-        </nav>
+      <header className="site-header">
+        <div className="container site-header-inner">
+          <span className="wordmark">
+            <strong>Food</strong>Proof
+          </span>
+          <nav className="nav-links" aria-label="Primary">
+            <Link href="/">Back to the introduction</Link>
+          </nav>
+        </div>
       </header>
 
-      <main id="main" className={`container ${styles.main}`}>
-        <section className={styles.intro}>
-          <h1 className={styles.title}>FoodProof pilot</h1>
-          <p className={styles.lede}>
-            This is an invited demo. It uses sample or redacted information and simulated
-            roles. Do not enter personal evidence, real complaint text, or anything you
-            would not want a reviewer to read.
-          </p>
+      <main id="main" className={`route-reveal ${styles.main}`}>
+        <div className={styles.grid}>
+          <div className={styles.intro}>
+            <h1 className={styles.title}>FoodProof pilot</h1>
+            <p className={styles.lede}>
+              This is an invited demo. It uses sample or redacted information and
+              simulated roles. Do not enter personal evidence, real complaint
+              text, or anything you would not want a reviewer to read.
+            </p>
+          </div>
 
-          {emailSignIn ? (
-            <>
-              <div className={styles.pathSection}>
-                <h2 className={styles.pathHeading}>Sign in with your email</h2>
-                <p className={styles.pathIntro}>
-                  Get a one-time code by email. Signing in creates or reuses an account
-                  tied to that address, and it does not connect to any demo reports.
-                </p>
-                <Suspense fallback={<LoadingBlock label="Loading email sign-in…" lines={2} />}>
-                  <EmailSignInForm />
-                </Suspense>
-              </div>
+          <div className={styles.panel}>
+            {emailSignIn ? (
+              <>
+                <section className={styles.pathSection}>
+                  <h2 className={styles.pathHeading}>Sign in with your email</h2>
+                  <p className={styles.pathIntro}>
+                    Get a one-time code by email. Signing in creates or reuses an
+                    account tied to that address, and it does not connect to any
+                    demo reports.
+                  </p>
+                  <Suspense
+                    fallback={<LoadingBlock label="Loading email sign-in…" lines={2} />}
+                  >
+                    <EmailSignInForm />
+                  </Suspense>
+                </section>
 
-              <div className={styles.pathSection}>
-                <h2 className={styles.pathHeading}>Have an invitation code?</h2>
-                <p className={styles.pathIntro}>
-                  Enter the code you were sent. It decides your role for this demo.
-                </p>
-                <Suspense fallback={<LoadingBlock label="Loading the entry form…" lines={2} />}>
-                  <EntryForm />
-                </Suspense>
-
-                <InvitationNotices scopedFootnote />
-              </div>
-            </>
-          ) : (
-            <>
-              <Suspense fallback={<LoadingBlock label="Loading the entry form…" lines={2} />}>
+                <section className={styles.pathSection}>
+                  <h2 className={styles.pathHeading}>Have an invitation code?</h2>
+                  <p className={styles.pathIntro}>
+                    Enter the code you were sent. It decides your role for this
+                    demo.
+                  </p>
+                  <Suspense
+                    fallback={<LoadingBlock label="Loading the entry form…" lines={2} />}
+                  >
+                    <EntryForm />
+                  </Suspense>
+                </section>
+              </>
+            ) : (
+              <Suspense
+                fallback={<LoadingBlock label="Loading the entry form…" lines={2} />}
+              >
                 <EntryForm />
               </Suspense>
+            )}
+          </div>
 
-              <InvitationNotices scopedFootnote={false} />
-            </>
-          )}
-        </section>
+          <div className={styles.notes}>
+            <InvitationNotices scopedFootnote={emailSignIn} />
+          </div>
+        </div>
       </main>
 
       <footer className="site-footer">
-        <div className="container">
-          <p>
-            FoodProof is an independent project, not affiliated with any
-            government agency.
-          </p>
+        <div className="container site-footer-inner">
+          <span className="wordmark">
+            <strong>Food</strong>Proof
+          </span>
+          <div>
+            <p>
+              FoodProof is an independent project, not affiliated with any
+              government agency.
+            </p>
+          </div>
         </div>
       </footer>
     </>
