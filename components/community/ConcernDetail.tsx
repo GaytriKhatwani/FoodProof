@@ -148,8 +148,8 @@ export function ConcernDetail({ reportId }: { reportId: string }) {
       <div className="notice">
         <p className={styles.noticeBody}>
           Approved for publication is not verified safety. Review checks evidence,
-          privacy and wording. FoodProof does not test products, certify them, or
-          file anything with any authority.
+          privacy and wording. FoodProof does not test or certify products, and it
+          does not file anything with any authority.
         </p>
       </div>
 

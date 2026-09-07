@@ -490,7 +490,7 @@ export function ActionsScreen({ reportId }: { reportId: string }) {
             {draftMethod === "assisted" ? (
               <p className={styles.inset} role="status">
                 Written with AI assistance from your confirmed facts. Check
-                every line before you save or send it.
+                every line before you save or send it. Nothing has been sent.
               </p>
             ) : null}
             <SaveState state={saveState} />

@@ -227,7 +227,7 @@ test("live assisted draft is labelled, editable, and saved as assisted", async (
   await page.getByRole("button", { name: "Draft with AI assistance" }).click();
   // #3: acknowledge the disclosure before the drafting call runs.
   await page.getByRole("button", { name: "Send to AI assistance" }).click();
-  await expect(page.getByText(/This draft was written with AI assistance/)).toBeVisible({
+  await expect(page.getByText(/Written with AI assistance/)).toBeVisible({
     timeout: 120_000,
   });
   await expect(page.getByText(/Nothing has been sent\./)).toBeVisible();
@@ -307,7 +307,7 @@ test("an unavailable draft leaves the template alone and saving still records te
   await page.getByRole("button", { name: "Send to AI assistance" }).click();
   await expect(page.getByText(UNAVAILABLE)).toBeVisible();
   await expect(body).toHaveValue(template);
-  await expect(page.getByText(/This draft was written with AI assistance/)).toHaveCount(0);
+  await expect(page.getByText(/Written with AI assistance/)).toHaveCount(0);
 
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Saved to the demo service.")).toBeVisible();
