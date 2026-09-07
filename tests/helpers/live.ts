@@ -80,21 +80,36 @@ const MIGRATION_FILE: Record<number, string> = {
   3: "0003_transactional_operations.sql",
   4: "0004_publication_atomicity_and_ai_spend.sql",
   5: "0005_pilot_integrity_hardening.sql",
+  6: "0006_verified_accounts.sql",
 };
 
 export async function liveSuite(
   name: string,
   opts?: {
-    /** Minimum `fp_schema_version()` the suite needs (3, 4 or 5). */
-    requiresSchema?: 3 | 4 | 5;
+    /** Minimum `fp_schema_version()` the suite needs (3 to 6). */
+    requiresSchema?: 3 | 4 | 5 | 6;
     /** Legacy alias for `requiresSchema: 3`. */
     requiresSchema3?: boolean;
+    /**
+     * An extra precondition checked before the schema probe (for example a
+     * feature flag or a test-only key). When it is not met the suite is SKIPPED
+     * carrying `reason` — never silently passed.
+     */
+    requires?: { met: boolean; reason: string };
   },
 ): Promise<SuiteGate> {
   if (!hasLiveSupabase) {
     return {
       run: describe.skip,
       title: `${name} — SKIPPED: SUPABASE_URL / SUPABASE_SECRET_KEY not set`,
+      enabled: false,
+    };
+  }
+  if (opts?.requires && !opts.requires.met) {
+    console.warn(`[foodproof tests] SKIPPED: "${name}" — ${opts.requires.reason}`);
+    return {
+      run: describe.skip,
+      title: `${name} — SKIPPED: ${opts.requires.reason}`,
       enabled: false,
     };
   }
@@ -218,6 +233,23 @@ export async function deleteAccess(client: SupabaseClient, ids: string[]) {
     // PGRST205 / 42P01: the table does not exist yet (migration not applied).
     if (error && !/does not exist|PGRST205|schema cache/i.test(`${error.code} ${error.message}`)) {
       throw new Error(`cleanup ${table} failed: ${error.message}`);
+    }
+  }
+}
+
+/**
+ * Delete the auth accounts a verified-sign-in test created. It must run AFTER
+ * `deleteAccess`, because `demo_access.auth_user_id` references `auth.users`
+ * ON DELETE RESTRICT (migration 0006): the account cannot go while an actor row
+ * still points at it. Errors are surfaced so a leaked test account is never
+ * silent. Safe on a pre-0006 project, where no such account exists.
+ */
+export async function deleteAuthUsers(client: SupabaseClient, userIds: string[]) {
+  for (const id of userIds) {
+    const { error } = await client.auth.admin.deleteUser(id);
+    // A user another step already removed is not a failure.
+    if (error && !/not found/i.test(error.message)) {
+      throw new Error(`cleanup auth user ${id} failed: ${error.message}`);
     }
   }
 }

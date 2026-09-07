@@ -74,11 +74,30 @@ async function listAllObjects(bucket) {
   return paths;
 }
 
+/**
+ * The auth accounts behind verified actors (migration 0006). Returns [] on a
+ * pre-0006 project, where the column does not exist yet. These accounts must be
+ * deleted AFTER `demo_access`: the foreign key is ON DELETE RESTRICT, so pilot
+ * content is never silently destroyed by removing an account.
+ */
+async function listVerifiedAuthUsers() {
+  const { data, error } = await supabase
+    .from("demo_access")
+    .select("auth_user_id")
+    .not("auth_user_id", "is", null);
+  if (error) {
+    if (/does not exist|column|PGRST/i.test(`${error.code} ${error.message}`)) return [];
+    throw new Error(`demo_access.auth_user_id: ${error.message}`);
+  }
+  return (data ?? []).map((r) => r.auth_user_id).filter(Boolean);
+}
+
 async function main() {
   // demo_access cascades sessions/reports/evidence/drafts/updates/publications/etc.
   const tables = ["demo_access", "products", "demo_access_attempts"];
   const counts = {};
   for (const t of tables) counts[t] = await countTable(t);
+  const authUserIds = await listVerifiedAuthUsers();
   const cascade = {
     reports: await countTable("reports"),
     evidence: await countTable("evidence"),
@@ -92,6 +111,7 @@ async function main() {
   console.log(`  demo_access:          ${counts.demo_access}  (cascades reports=${cascade.reports}, evidence=${cascade.evidence}, publications=${cascade.publications}, ...)`);
   console.log(`  products:             ${counts.products}`);
   console.log(`  demo_access_attempts: ${counts.demo_access_attempts}`);
+  console.log(`  auth accounts:        ${authUserIds.length}  (verified sign-ins; deleted after demo_access)`);
   console.log("Would delete (storage):");
   for (const b of BUCKETS) console.log(`  ${b}: ${storage[b]} object(s)`);
 
@@ -117,7 +137,14 @@ async function main() {
     const { error } = await supabase.from(table).delete().not(key, "is", null);
     if (error) throw new Error(`delete ${table}: ${error.message}`);
   }
-  console.log("\nDeleted demo records and storage copies.");
+  // Last: the auth accounts, now that no demo_access row references them.
+  for (const id of authUserIds) {
+    const { error } = await supabase.auth.admin.deleteUser(id);
+    if (error && !/not found/i.test(error.message)) {
+      throw new Error(`delete auth user ${id}: ${error.message}`);
+    }
+  }
+  console.log("\nDeleted demo records, verified accounts and storage copies.");
 }
 
 main().catch((e) => {

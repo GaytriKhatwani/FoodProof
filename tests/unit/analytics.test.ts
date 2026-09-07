@@ -40,7 +40,14 @@ function captureSink() {
 
 function session(overrides: Partial<SessionContext> = {}): SessionContext {
   return {
-    actor: { accessId: "a1", role: "user", label: "user@foodproof" },
+    actor: {
+      accessId: "a1",
+      role: "user",
+      label: "user@foodproof",
+      authUserId: null,
+      emailHmac: null,
+    },
+    signInMethod: "invitation",
     analytics: { consent: true, actorId: "act-1", sessionId: "sess-1" },
     ...overrides,
   };
@@ -106,7 +113,15 @@ describe("analytics ingestion", () => {
   it("maps a reviewer session to actor_role reviewer", async () => {
     const { sink, calls } = captureSink();
     await ingestClientEvent(
-      session({ actor: { accessId: "r1", role: "reviewer", label: "reviewer@foodproof" } }),
+      session({
+        actor: {
+          accessId: "r1",
+          role: "reviewer",
+          label: "reviewer@foodproof",
+          authUserId: null,
+          emailHmac: null,
+        },
+      }),
       { event_name: "feed_viewed", event_id: crypto.randomUUID(), occurred_at: new Date().toISOString(), properties: { result_count: 0 } },
       sink,
     );
