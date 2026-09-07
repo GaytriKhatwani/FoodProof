@@ -2,6 +2,22 @@
  * Pilot shell chrome. Flat surfaces and thin rules (docs/DESIGN.md): the header
  * is a single ruled band, navigation is text with an underline for the current
  * view, and nothing here competes with evidence photography below it.
+ *
+ * The band is composed as two rows rather than three wrapped clusters:
+ *
+ *   row 1   FoodProof  Demo · sample or redacted data
+ *   row 2   Feed  [Raise a concern]  My reports ............ session cluster
+ *
+ * Row 2 is the working row — where you are on the left, who you are and what
+ * you have consented to on the right — and the current-view underline sits on
+ * the band's own bottom rule, so navigation reads as part of the chrome rather
+ * than as loose text floating in it.
+ *
+ * DOM order is brand → navigation → session at EVERY width, and the wrapping
+ * below only ever gives a part its own full-width row in that same sequence.
+ * An earlier version reordered visually with `order`, which put navigation
+ * after the session controls on screen while Tab still reached it first
+ * (docs/FOODPROOF_UI_AUDIT.md A8). Do not reintroduce that.
  */
 
 .shell {
@@ -17,48 +33,67 @@
 .headerInner {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-md);
-  padding-top: var(--space-sm);
-  padding-bottom: var(--space-sm);
-  min-height: 76px;
+  align-items: stretch;
+  column-gap: var(--space-lg);
+  row-gap: 6px;
+  padding-top: 14px;
+  /* No bottom padding: the current-view underline lands on the header rule. */
+  padding-bottom: 0;
 }
 
-.brandRow {
+/* No session, so no second row: the band is the masthead alone. */
+.headerInnerBare {
+  padding-bottom: 14px;
+}
+
+/* Row 1: the masthead. The demo label stays beside the wordmark, because it
+   qualifies the product name — this whole build is sample or redacted data. */
+.brand {
+  flex: 1 0 100%;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  min-width: 0;
 }
 
 .demoTag {
   font-size: 12px;
+  line-height: 18px;
   color: var(--color-status-ink);
   background: var(--color-tint);
   border: 1px solid var(--color-rule);
   border-radius: var(--radius-control);
-  padding: 2px 8px;
-  align-self: flex-start;
+  padding: 1px 8px;
 }
 
+/* Row 2, left: where you are. */
 .nav {
-  flex: 1 1 auto;
+  align-self: stretch;
   min-width: 0;
 }
 
 .navList {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-lg);
+  align-items: stretch;
+  gap: 0 var(--space-lg);
+  height: 100%;
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+.navItem {
+  display: flex;
+  align-items: stretch;
 }
 
 .navLink {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--color-ink);
   border-bottom: 2px solid transparent;
@@ -75,50 +110,95 @@
   border-bottom-color: var(--color-primary);
 }
 
+/*
+ * The one create action in the navigation (FOODPROOF_SCREENS.md: Feed, Raise a
+ * concern, My reports). It is filled rather than underlined because it starts
+ * work instead of moving between views, and it keeps its own vertical centre so
+ * the filled block never touches the band's bottom rule.
+ */
+.navAction {
+  align-self: center;
+  padding: 0 14px;
+  font-size: 14px;
+  color: var(--color-surface);
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-control);
+}
+
+.navAction:hover {
+  color: var(--color-surface);
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.navAction.navLinkCurrent {
+  color: var(--color-surface);
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
 .navPlaceholder,
 .sessionPlaceholder {
   display: block;
-  height: 44px;
+  height: 52px;
 }
 
 .navPlaceholder {
-  width: 220px;
+  width: 300px;
 }
 
 .sessionPlaceholder {
   width: 260px;
 }
 
+/* Row 2, right: who you are, what you allowed, and the way out. */
 .session {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-md);
-  font-size: 13px;
+  gap: 0 16px;
+  margin-left: auto;
+  min-height: 52px;
+  padding-bottom: 8px;
 }
 
 .identity {
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  max-width: 30ch;
+  min-width: 0;
+}
+
+/* Marker above value: the qualifier labels the identity underneath it, and the
+   two session units then share one baseline grid instead of competing. */
+.identityMarker {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-muted);
 }
 
 .identityLabel {
+  font-size: 14px;
+  line-height: 20px;
   font-weight: 600;
-}
-
-.identityMarker {
-  color: var(--color-muted);
-  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .consent {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 8px;
+  padding-left: 16px;
+  border-left: 1px solid var(--color-rule);
 }
 
 .consentState {
-  color: var(--color-muted);
   font-size: 12px;
+  line-height: 16px;
+  color: var(--color-muted);
 }
 
 .linkButton {
@@ -127,8 +207,9 @@
   min-height: 44px;
   background: none;
   border: 0;
-  padding: 4px 0;
+  padding: 0;
   font: inherit;
+  font-size: 14px;
   font-weight: 600;
   color: var(--color-primary);
   text-align: left;
@@ -152,6 +233,7 @@
   border: 1px solid var(--color-primary);
   border-radius: var(--radius-control);
   font: inherit;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -177,28 +259,41 @@
   padding-bottom: calc(var(--space-lg) * 2);
 }
 
+/*
+ * Compact band. Each part takes its own full-width row IN DOM ORDER, so the
+ * reading sequence and the focus sequence stay identical (WCAG 1.3.2 / 2.4.3).
+ * Nothing is hidden: "Exit demo" and the analytics preference stay on screen
+ * on every pilot screen, at every width.
+ */
 @media (max-width: 900px) {
-  .headerInner {
-    align-items: flex-start;
-  }
-
-  /*
-   * The wrapped header keeps DOM order. `order: 3` used to push navigation
-   * below the session controls while Tab still reached it first, so the visual
-   * sequence disagreed with the focus sequence (WCAG 1.3.2 / 2.4.3). Each part
-   * simply takes its own row instead, and navigation stays where it reads
-   * first: it is the primary control on the screen.
-   */
   .nav,
   .session {
     flex-basis: 100%;
   }
 
   .navList {
-    gap: var(--space-md);
+    gap: 0 var(--space-md);
   }
 
   .session {
-    gap: var(--space-sm) var(--space-md);
+    margin-left: 0;
+    row-gap: 2px;
+    min-height: 0;
+  }
+
+  .identity {
+    flex-basis: 100%;
+    max-width: 100%;
+  }
+
+  .consent {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  /* Keeps the way out at the far edge of the controls row, where a thumb
+     reaches it, without moving it out of DOM order. */
+  .exitButton {
+    margin-left: auto;
   }
 }
