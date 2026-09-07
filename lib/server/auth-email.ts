@@ -65,7 +65,7 @@ export interface EmailAuthClient {
   signInWithOtp(credentials: {
     email: string;
     options?: { shouldCreateUser?: boolean };
-  }): Promise<{ error: { message?: string } | null }>;
+  }): Promise<{ error: { message?: string; status?: number } | null }>;
   verifyOtp(params: { email: string; token: string; type: "email" }): Promise<{
     data: {
       user: { id: string; email?: string | null; email_confirmed_at?: string | null } | null;
@@ -226,7 +226,13 @@ export async function requestEmailCode(
     options: { shouldCreateUser: true },
   });
   if (error) {
-    console.error("[foodproof] email sign-in code request failed");
+    // Operator diagnostics only: the provider's status and message name the
+    // cause (SMTP refused, provider rate limit, signups disabled). Neither the
+    // address nor any code is logged, and nothing here reaches the client.
+    console.error("[foodproof] email sign-in code request failed", {
+      status: error.status ?? null,
+      message: error.message,
+    });
     throw new ApiError("DEPENDENCY_UNAVAILABLE", SEND_FAILED_MESSAGE);
   }
   return { requested: true };
