@@ -2,20 +2,48 @@
  * Concern detail. Evidence sits beside its explanation, sections are separated
  * by thin rules, and no decorative badge is used for anything a reader could
  * mistake for a safety verdict (docs/DESIGN.md).
+ *
+ * One vertical rhythm for the whole screen, declared once:
+ *
+ *   --row-gap-tight   inside one text group
+ *   --row-gap-block   between blocks inside a section
+ *   --row-gap-band    above and below the rule that separates two bands
+ *
+ * A section is a flex column with a single gap, and no child of a section
+ * carries its own margin. The screen used to stack a section's padding, the
+ * heading's margin and the paragraph's margin, so every rule sat inside 64px
+ * of empty page.
  */
+
+.page {
+  --row-gap-tight: 6px;
+  --row-gap-block: var(--space-sm);
+  --row-gap-band: var(--space-lg);
+}
 
 .back {
   margin: 0 0 var(--space-md);
   font-weight: 600;
 }
 
+/* Identity of the record on the left; what publication means on the right. */
 .head {
-  margin-bottom: var(--space-md);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 400px);
+  align-items: start;
+  gap: var(--space-md) calc(var(--space-lg) * 1.5);
+}
+
+.headMain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--row-gap-tight);
+  min-width: 0;
 }
 
 .sampleTag {
-  display: inline-block;
-  margin: 0 0 var(--space-sm);
+  align-self: flex-start;
+  margin: 0 0 2px;
   color: var(--color-status-ink);
   background: var(--color-tint);
   border: 1px solid var(--color-rule);
@@ -30,11 +58,12 @@
   font-size: clamp(34px, 4.6vw, 50px);
   line-height: 1.06;
   letter-spacing: -0.025em;
-  margin: 0 0 4px;
+  margin: 0;
+  text-wrap: balance;
 }
 
 .brand {
-  margin: 0 0 var(--space-sm);
+  margin: 0;
   font-size: 18px;
 }
 
@@ -44,42 +73,113 @@
   font-size: 14px;
 }
 
+/* Overrides the global `.notice` block margin: the head grid owns the space. */
+.scopeNote {
+  margin: 0;
+  align-self: start;
+}
+
 .noticeBody {
   margin: 0;
 }
 
+/*
+ * Bands. `.section` carries the rule that opens it; `.sectionPlain` is a
+ * section that sits inside a band its parent already opened, so the rule is
+ * never drawn twice.
+ */
 .section {
-  padding: var(--space-lg) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--row-gap-block);
+  align-items: stretch;
+  margin-top: var(--row-gap-band);
+  padding-top: var(--row-gap-band);
   border-top: 1px solid var(--color-rule);
+}
+
+.sectionPlain {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
 }
 
 .sectionTitle {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(22px, 2.6vw, 30px);
+  font-size: clamp(22px, 2.2vw, 28px);
+  line-height: 1.15;
   letter-spacing: -0.02em;
-  margin: 0 0 var(--space-sm);
+  margin: 0;
 }
 
+/* Reporter-supplied text: line breaks they typed are part of the record. */
 .body {
-  margin: 0 0 var(--space-sm);
-  max-width: 68ch;
+  margin: 0;
+  max-width: 66ch;
   white-space: pre-wrap;
 }
 
+/* Interface prose written here, so it wraps normally. */
+.prose {
+  margin: 0;
+  max-width: 66ch;
+}
+
 .footnote {
-  margin: var(--space-sm) 0 0;
+  margin: 0;
   max-width: 68ch;
   color: var(--color-muted);
   font-size: 13px;
 }
 
+.sectionAction {
+  margin: var(--row-gap-tight) 0 0;
+}
+
+/*
+ * Evidence beside its explanation (docs/DESIGN.md). The photograph column runs
+ * the height of the band while the reading column carries the concern and then
+ * what the reporter recorded about acting on it, so neither column opens a
+ * stripe of empty page beside a short paragraph.
+ */
+.record {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 42%);
+  /*
+   * The reading column's first row hugs the concern; whatever extra height the
+   * spanning evidence column needs falls into the second row instead of
+   * opening a gap under a one-sentence paragraph.
+   */
+  grid-template-rows: min-content 1fr;
+  align-items: start;
+  column-gap: calc(var(--space-lg) * 1.5);
+  row-gap: 0;
+  margin-top: var(--row-gap-band);
+  padding-top: var(--row-gap-band);
+  border-top: 1px solid var(--color-rule);
+}
+
+.evidence {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  min-width: 0;
+}
+
+.sectionActions {
+  grid-column: 1;
+  grid-row: 2;
+  margin-top: var(--row-gap-band);
+  padding-top: var(--row-gap-band);
+  border-top: 1px solid var(--color-rule);
+}
+
 .assetList {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: var(--space-md);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-sm);
   list-style: none;
-  margin: 0 0 var(--space-md);
+  margin: 0;
   padding: 0;
 }
 
@@ -104,45 +204,65 @@
   border-color: var(--color-primary);
 }
 
+/* Bounded so one approved photo cannot stretch the column past the reading
+   it belongs to; the viewer is where the full-size image is read. */
 .assetImage {
   display: block;
   width: 100%;
-  height: 200px;
+  aspect-ratio: 4 / 3;
+  max-height: 300px;
   object-fit: cover;
   background: var(--color-tint);
 }
 
 .assetCaption {
   display: block;
-  padding: var(--space-sm);
+  padding: 10px var(--space-sm);
   font-size: 13px;
   color: var(--color-muted);
 }
 
+/* The reporter's own confirmed quotes, read as label-and-value pairs. */
 .facts {
+  display: grid;
+  gap: var(--row-gap-tight);
   margin: 0;
-  max-width: 68ch;
+  max-width: 66ch;
 }
 
 .facts dt {
   font-weight: 600;
-  margin-top: var(--space-sm);
+  font-size: 14px;
+  color: var(--color-muted);
 }
 
-.facts dd {
-  margin: 4px 0 0;
+.facts dt + dd {
+  margin: 0 0 var(--row-gap-block);
+  padding-bottom: var(--row-gap-block);
+  border-bottom: 1px solid var(--color-rule);
   white-space: pre-wrap;
+}
+
+.facts dd:last-of-type {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 .statusList {
   list-style: none;
   margin: 0;
   padding: 0;
+  max-width: 68ch;
 }
 
 .statusList li {
-  padding: 8px 0;
+  padding: 10px 0;
   border-bottom: 1px solid var(--color-rule);
+}
+
+.statusList li:first-child {
+  border-top: 1px solid var(--color-rule);
 }
 
 .statusChannel {
@@ -151,16 +271,66 @@
 
 .responseList {
   list-style: none;
-  margin: var(--space-md) 0 0;
+  margin: 0;
   padding: 0;
 }
 
 .response {
+  display: flex;
+  flex-direction: column;
+  gap: var(--row-gap-tight);
   padding: var(--space-md) 0;
   border-top: 1px solid var(--color-rule);
 }
 
 .responseHead {
-  margin: 0 0 4px;
+  margin: 0;
   font-weight: 600;
+}
+
+/* The two things a reader can do about this record, side by side. */
+.nextSteps {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-lg) calc(var(--space-lg) * 1.5);
+  margin-top: var(--row-gap-band);
+  padding-top: var(--row-gap-band);
+  border-top: 1px solid var(--color-rule);
+}
+
+@media (max-width: 900px) {
+  .head,
+  .record,
+  .nextSteps {
+    grid-template-columns: 1fr;
+  }
+
+  /* Stacked in DOM order: concern, evidence, then recorded actions. */
+  .evidence,
+  .sectionActions {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .evidence {
+    margin-top: var(--row-gap-band);
+    padding-top: var(--row-gap-band);
+    border-top: 1px solid var(--color-rule);
+  }
+
+  /* Stacked, the scope note needs its own separation from the title block. */
+  .scopeNote {
+    margin-top: var(--row-gap-tight);
+  }
+
+  .nextSteps {
+    gap: var(--space-lg);
+  }
+
+  /* Stacked, the second action needs the rule back to read as its own band. */
+  .nextSteps > .section + .section {
+    padding-top: var(--space-lg);
+    border-top: 1px solid var(--color-rule);
+  }
 }

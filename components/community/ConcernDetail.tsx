@@ -82,12 +82,12 @@ export function ConcernDetail({ reportId }: { reportId: string }) {
 
   if (status === "loading") {
     return (
-      <>
+      <div className={styles.page}>
         <p className={styles.back}>
           <Link href="/pilot/feed">Back to the feed</Link>
         </p>
-        <LoadingBlock label="Loading this concern…" lines={5} />
-      </>
+        <LoadingBlock label="Loading this concern…" shape="record" />
+      </div>
     );
   }
 
@@ -95,11 +95,12 @@ export function ConcernDetail({ reportId }: { reportId: string }) {
     const notFound = failureKind(error) === "not_found";
     const copy = loadFailureCopy(error);
     return (
-      <>
+      <div className={styles.page}>
         <p className={styles.back}>
           <Link href="/pilot/feed">Back to the feed</Link>
         </p>
         <StateBlock
+          placement="page"
           tone={notFound ? "neutral" : "error"}
           headingLevel="h1"
           title={notFound ? "This concern is not available" : copy.title}
@@ -122,7 +123,7 @@ export function ConcernDetail({ reportId }: { reportId: string }) {
               : copy.body}
           </p>
         </StateBlock>
-      </>
+      </div>
     );
   }
 
@@ -130,150 +131,189 @@ export function ConcernDetail({ reportId }: { reportId: string }) {
   const openIndex = openAsset ? report.approved_asset_ids.indexOf(openAsset) : -1;
 
   return (
-    <>
+    <div className={styles.page}>
       <p className={styles.back}>
         <Link href="/pilot/feed">Back to the feed</Link>
       </p>
 
+      {/*
+        The record's identity on the left, the scope of what publication means
+        on the right. The disclaimer used to be a full-width tinted band under
+        the title, which put a stripe of nothing between the two things a reader
+        needs together: what this concern is, and what approving it did not mean.
+      */}
       <header className={styles.head}>
-        <p className={styles.sampleTag}>Illustrative example · sample or redacted data</p>
-        <h1 className={styles.title}>{productTitle(report.product_name, report.variant)}</h1>
-        <p className={styles.brand}>{report.brand}</p>
-        <p className={styles.meta}>
-          {report.author_label} · published {formatDate(report.published_at) ?? "recently"}
-          {report.observation_date ? ` · observed ${formatDate(report.observation_date)}` : ""}
-        </p>
+        <div className={styles.headMain}>
+          <p className={styles.sampleTag}>Illustrative example · sample or redacted data</p>
+          <h1 className={styles.title}>{productTitle(report.product_name, report.variant)}</h1>
+          <p className={styles.brand}>{report.brand}</p>
+          <p className={styles.meta}>
+            {report.author_label} · published {formatDate(report.published_at) ?? "recently"}
+            {report.observation_date ? ` · observed ${formatDate(report.observation_date)}` : ""}
+          </p>
+        </div>
+
+        <div className={`notice ${styles.scopeNote}`}>
+          <p className={styles.noticeBody}>
+            Approved for publication is not verified safety. Review checks evidence,
+            privacy and wording. FoodProof does not test or certify products, and it
+            does not file anything with any authority.
+          </p>
+        </div>
       </header>
 
-      <div className="notice">
-        <p className={styles.noticeBody}>
-          Approved for publication is not verified safety. Review checks evidence,
-          privacy and wording. FoodProof does not test or certify products, and it
-          does not file anything with any authority.
-        </p>
+      {/* Evidence beside its explanation on wide screens; stacked below 900px. */}
+      <div className={styles.record}>
+        <section
+          className={`${styles.section} ${styles.sectionPlain}`}
+          aria-labelledby="concern-heading"
+        >
+          <h2 id="concern-heading" className={styles.sectionTitle}>
+            Reported concern
+          </h2>
+          <p className={styles.body}>{report.concern_summary}</p>
+        </section>
+
+        <section
+          className={`${styles.section} ${styles.sectionPlain} ${styles.evidence}`}
+          aria-labelledby="evidence-heading"
+        >
+          <h2 id="evidence-heading" className={styles.sectionTitle}>
+            Evidence
+          </h2>
+          {assetCount === 0 ? (
+            <p className="muted">No approved images are attached to this version.</p>
+          ) : (
+            <ul className={styles.assetList}>
+              {report.approved_asset_ids.map((assetId, index) => (
+                <li key={assetId} className={styles.asset}>
+                  <button
+                    type="button"
+                    className={styles.assetButton}
+                    onClick={() => setOpenAsset(assetId)}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element -- guarded API route, unknown intrinsic size */}
+                    <img
+                      className={styles.assetImage}
+                      src={publicationAssetUrl(assetId)}
+                      alt={`Approved evidence image ${index + 1} of ${assetCount} for this concern`}
+                    />
+                    <span className={styles.assetCaption}>
+                      Approved evidence {index + 1} of {assetCount} · open larger
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <dl className={styles.facts}>
+            <dt>Label claim, as confirmed by the reporter</dt>
+            <dd>
+              {report.confirmed_claim_text ?? (
+                <span className="muted">Not supplied in this version.</span>
+              )}
+            </dd>
+            <dt>Ingredients, as confirmed by the reporter</dt>
+            <dd>
+              {report.confirmed_ingredients_text ?? (
+                <span className="muted">Not supplied in this version.</span>
+              )}
+            </dd>
+          </dl>
+          <p className={styles.footnote}>
+            Quoted text is what the reporter confirmed from the label they photographed. It
+            is not a transcription checked by anyone else.
+          </p>
+        </section>
+
+        <section
+          className={`${styles.section} ${styles.sectionActions}`}
+          aria-labelledby="actions-heading"
+        >
+          <h2 id="actions-heading" className={styles.sectionTitle}>
+            Recorded actions and reviewed updates
+          </h2>
+          <ul className={styles.statusList}>
+            <li>
+              <span className={styles.statusChannel}>{CHANNEL_LABEL.brand}:</span>{" "}
+              {externalStatusLabel(report.external_status?.brand)}
+            </li>
+            <li>
+              <span className={styles.statusChannel}>{CHANNEL_LABEL.government}:</span>{" "}
+              {externalStatusLabel(report.external_status?.government)}
+            </li>
+          </ul>
+          <p className={styles.footnote}>
+            This is the reporter&rsquo;s own record of what they sent, frozen when this
+            version was approved
+            {report.external_status?.as_recorded_at
+              ? ` (recorded ${formatDate(report.external_status.as_recorded_at)})`
+              : ""}
+            . It is not a government status, it does not confirm that anything was received,
+            and &ldquo;no submission recorded&rdquo; does not mean anyone ignored the reporter.
+          </p>
+
+          {report.responses.length === 0 ? (
+            <p className="muted">No reviewed response has been published for this concern.</p>
+          ) : (
+            <ul className={styles.responseList}>
+              {report.responses.map((response) => (
+                <li key={response.publication_revision_id} className={styles.response}>
+                  <p className={styles.responseHead}>
+                    {CHANNEL_LABEL[response.channel]} ·{" "}
+                    {formatDate(response.occurred_at) ?? "date not recorded"}
+                  </p>
+                  <p className={styles.body}>{response.summary}</p>
+                  <p className={styles.footnote}>
+                    Recorded by reporter
+                    {response.has_attachment ? " · supporting attachment provided" : ""}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
 
-      <section className={styles.section} aria-labelledby="concern-heading">
-        <h2 id="concern-heading" className={styles.sectionTitle}>
-          Reported concern
-        </h2>
-        <p className={styles.body}>{report.concern_summary}</p>
-      </section>
+      {/*
+        The two things a reader can do about this record, side by side at the
+        foot of it. They used to be two more full-width bands with a rule and
+        32px of nothing between them, which read as the page trailing off.
+      */}
+      <div className={styles.nextSteps}>
+        <section
+          className={`${styles.section} ${styles.sectionPlain}`}
+          aria-labelledby="contribute-heading"
+        >
+          <h2 id="contribute-heading" className={styles.sectionTitle}>
+            Add your own experience
+          </h2>
+          <p className={styles.prose}>
+            If you have your own evidence about this product, start a separate report. It is
+            prefilled with the product identity only — never another person&rsquo;s evidence,
+            complaint text or action history — and it is reviewed on its own.
+          </p>
+          <p className={styles.sectionAction}>
+            <Link
+              className="btn-primary"
+              href={`/pilot/reports/new?from_concern=${report.report_id}`}
+            >
+              Report this product independently
+            </Link>
+          </p>
+        </section>
 
-      <section className={styles.section} aria-labelledby="evidence-heading">
-        <h2 id="evidence-heading" className={styles.sectionTitle}>
-          Evidence
-        </h2>
-        {assetCount === 0 ? (
-          <p className="muted">No approved images are attached to this version.</p>
-        ) : (
-          <ul className={styles.assetList}>
-            {report.approved_asset_ids.map((assetId, index) => (
-              <li key={assetId} className={styles.asset}>
-                <button
-                  type="button"
-                  className={styles.assetButton}
-                  onClick={() => setOpenAsset(assetId)}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element -- guarded API route, unknown intrinsic size */}
-                  <img
-                    className={styles.assetImage}
-                    src={publicationAssetUrl(assetId)}
-                    alt={`Approved evidence image ${index + 1} of ${assetCount} for this concern`}
-                  />
-                  <span className={styles.assetCaption}>
-                    Approved evidence {index + 1} of {assetCount} · open larger
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <dl className={styles.facts}>
-          <dt>Label claim, as confirmed by the reporter</dt>
-          <dd>
-            {report.confirmed_claim_text ?? (
-              <span className="muted">Not supplied in this version.</span>
-            )}
-          </dd>
-          <dt>Ingredients, as confirmed by the reporter</dt>
-          <dd>
-            {report.confirmed_ingredients_text ?? (
-              <span className="muted">Not supplied in this version.</span>
-            )}
-          </dd>
-        </dl>
-        <p className={styles.footnote}>
-          Quoted text is what the reporter confirmed from the label they photographed. It is
-          not a transcription checked by anyone else.
-        </p>
-      </section>
-
-      <section className={styles.section} aria-labelledby="actions-heading">
-        <h2 id="actions-heading" className={styles.sectionTitle}>
-          Recorded actions and reviewed updates
-        </h2>
-        <ul className={styles.statusList}>
-          <li>
-            <span className={styles.statusChannel}>{CHANNEL_LABEL.brand}:</span>{" "}
-            {externalStatusLabel(report.external_status?.brand)}
-          </li>
-          <li>
-            <span className={styles.statusChannel}>{CHANNEL_LABEL.government}:</span>{" "}
-            {externalStatusLabel(report.external_status?.government)}
-          </li>
-        </ul>
-        <p className={styles.footnote}>
-          This is the reporter&rsquo;s own record of what they sent, frozen when this version
-          was approved
-          {report.external_status?.as_recorded_at
-            ? ` (recorded ${formatDate(report.external_status.as_recorded_at)})`
-            : ""}
-          . It is not a government status, it does not confirm that anything was received,
-          and &ldquo;no submission recorded&rdquo; does not mean anyone ignored the reporter.
-        </p>
-
-        {report.responses.length === 0 ? (
-          <p className="muted">No reviewed response has been published for this concern.</p>
-        ) : (
-          <ul className={styles.responseList}>
-            {report.responses.map((response) => (
-              <li key={response.publication_revision_id} className={styles.response}>
-                <p className={styles.responseHead}>
-                  {CHANNEL_LABEL[response.channel]} · {formatDate(response.occurred_at) ?? "date not recorded"}
-                </p>
-                <p className={styles.body}>{response.summary}</p>
-                <p className={styles.footnote}>
-                  Recorded by reporter
-                  {response.has_attachment ? " · supporting attachment provided" : ""}
-                </p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className={styles.section} aria-labelledby="contribute-heading">
-        <h2 id="contribute-heading" className={styles.sectionTitle}>
-          Add your own experience
-        </h2>
-        <p>
-          If you have your own evidence about this product, start a separate report. It is
-          prefilled with the product identity only — never another person&rsquo;s evidence,
-          complaint text or action history — and it is reviewed on its own.
-        </p>
-        <Link className="btn-primary" href={`/pilot/reports/new?from_concern=${report.report_id}`}>
-          Report this product independently
-        </Link>
-      </section>
-
-      <section className={styles.section} aria-labelledby="flag-heading">
-        <h2 id="flag-heading" className={styles.sectionTitle}>
-          Something wrong here?
-        </h2>
-        <FlagForm reportId={report.report_id} />
-      </section>
+        <section
+          className={`${styles.section} ${styles.sectionPlain}`}
+          aria-labelledby="flag-heading"
+        >
+          <h2 id="flag-heading" className={styles.sectionTitle}>
+            Something wrong here?
+          </h2>
+          <FlagForm reportId={report.report_id} />
+        </section>
+      </div>
 
       {openIndex >= 0 && openAsset ? (
         <EvidenceViewer
@@ -287,6 +327,6 @@ export function ConcernDetail({ reportId }: { reportId: string }) {
           onClose={() => setOpenAsset(null)}
         />
       ) : null}
-    </>
+    </div>
   );
 }

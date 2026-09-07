@@ -164,9 +164,11 @@ export function FlagForm({ reportId }: { reportId: string }) {
             />
           </div>
 
-          <button type="submit" className="btn-primary" disabled={busy}>
-            {busy ? "Sending…" : "Send request to the reviewer"}
-          </button>
+          <div className={styles.submitRow}>
+            <button type="submit" className="btn-primary" disabled={busy}>
+              {busy ? "Sending…" : "Send request to the reviewer"}
+            </button>
+          </div>
 
           {submitError ? (
             <InlineNote tone="error" role="alert">
