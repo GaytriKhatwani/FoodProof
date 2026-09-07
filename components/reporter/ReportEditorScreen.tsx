@@ -873,8 +873,7 @@ export function ReportEditorScreen({
               <ReadinessPanel report={detail} />
             ) : (
               <p className={styles.inset}>
-                Nothing is saved yet. “Save report” stores this private draft; it
-                does not publish anything or contact anyone.
+                Nothing is saved yet. Save this draft to see the checklist below.
               </p>
             )}
           </div>
