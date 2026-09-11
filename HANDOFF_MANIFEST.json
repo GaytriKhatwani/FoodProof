@@ -137,8 +137,8 @@
     },
     {
       "path": "IMPLEMENTATION_STATUS.md",
-      "bytes": 68845,
-      "sha256": "686418300c10085b1374209628069a338f7f08c12d899d13cb0fe2ecec079db2"
+      "bytes": 74422,
+      "sha256": "930f03c9c094d7b7d60a26817c32a6205eae856c907fa5c47e587e1feda8d8f8"
     },
     {
       "path": "README.md",
@@ -147,5 +147,5 @@
     }
   ],
   "local_markdown_links": "passed",
-  "application_tests": "typecheck/lint/build pass; vitest 287 passed / 9 skipped live (Supabase, real AI provider, real Mixpanel) after migration 0005 \u2014 the 9 skipped are the C.1 email sign-in suite, BLOCKED until migration 0006 is applied; playwright 128 passed (desktop + 360 px); T0\u2013T4 plus the pilot-integrity hardening pass (migration 0005) and T5 merged on main; the C.1 server slice is on feat/c1-email-sign-in, not merged"
+  "application_tests": "typecheck/lint/build pass at 53d66b9 (11 September 2026); vitest unit + contracts 223 passed (live integration suites not rerun this session); playwright reporter-actions 16/16, reporter-ai + entry-session 26/26 (desktop + 360 px); main == origin/main, deployed and verified live in a real browser; C.1 email sign-in merged and flag ON live but the provider SMTP handoff still returns 500 (owner action)"
 }

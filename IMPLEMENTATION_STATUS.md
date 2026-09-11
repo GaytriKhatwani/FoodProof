@@ -1,6 +1,6 @@
 # FoodProof — Implementation status
 
-Last updated: 6 September 2026. Session: https://claude.ai/code/session_017V2mhjRn124qBo9kRS5MPb
+Last updated: 11 September 2026. Session: https://claude.ai/code/session_014jcFZ99v9EbDyFvjPCWQC8
 
 This is the current-state record for whoever picks up next. Authoritative product
 scope lives in `docs/` (start at `docs/FOODPROOF_BUILD_HANDOFF.md`); this file
@@ -920,10 +920,89 @@ function and seed parity.
   `select timestamp, event_message from auth_logs where timestamp > '<time>' and
   event_message ilike '%mail%' order by timestamp desc`.
 
+## Session (8–11 September 2026, review-fix pass) — merged, PUSHED and DEPLOYED (`53d66b9`)
+
+Eight potential issues from a local code review of `a96ac8a` were verified against the
+code and live behaviour. Five were confirmed and fixed; three are confirmed and wait on
+owner decisions (below). Nothing else changed.
+
+Fixed in `53d66b9` (typecheck/lint clean; vitest 223/223 incl. new
+`tests/unit/drafts.test.ts` ×5 and an AI batch-number case; Playwright reporter-actions
+16/16 with two new specs, reporter-ai + entry-session 26/26):
+
+- **Outdated saved draft** (`components/reporter/ActionsScreen.tsx`): a saved draft whose
+  `updated_at` is older than the report's `updated_at` shows a review notice with both
+  timestamps; the text is kept, saving again clears it. Close/reopen also bump the report
+  timestamp, so a draft saved before a close shows the notice once (wording stays true).
+- **Evidence-true template** (`lib/server/drafts.ts`): "Evidence I can provide" names only
+  the label roles covered by READY label photographs, adds "Purchase receipt." only when a
+  ready receipt is stored, and writes a bracketed "add them before sending" line when no
+  label photograph exists. `buildTemplate` takes a `TemplateEvidence` argument;
+  `loadTemplateEvidence` reads it. The AI prompt never asserted evidence; unchanged.
+- **Unsaved-edit guard** on the complaint screen (`beforeunload`, same as the editor).
+  Internal link navigation is still unguarded on both screens.
+- **AI copy**: no claim that an assisted draft "cannot add a fact"; now says AI can make
+  mistakes and every statement must be checked against the photos.
+- **Batch number** now reaches the assisted-draft prompt (`ConfirmedFacts.batchNumber`,
+  `AssistReport.batch_number`) and its cost estimate.
+- **Shared demo code**: the entry page states that everyone using the code enters the
+  same account and can see, edit and withdraw each other's records.
+
+Deployed verification (11 September, real browser, throwaway invitation, all rows and
+the stored file removed afterwards; demo project back at its six pre-existing actors):
+shared-demo note, evidence sentence ("product identity and the label claim", no receipt),
+batch number in template, honest AI wording, outdated-draft notice after a batch change,
+and the leave-page guard all confirmed live. Not verified live: an actual AI draft
+(provider spend) and the guard clearing after save (covered locally).
+
+Operational notes learned: Vercel's security checkpoint blocks curl and headless
+Playwright against the deployed origin (403 "Vercel Security Checkpoint"), so deployed
+checks must be manual in a real browser. Playwright fixtures created by a run that fails
+at `enterPilot` are still cleaned by `afterAll`, but a run aborted by the checkpoint left
+six `user@foodproof` actors with "Sample Pantry Crackers" reports; they were removed by
+hand (child to parent, as in `deleteInvitations`).
+
+### Confirmed findings waiting on owner decisions (do not assume)
+
+1. **Ban enforcement.** Only `GET /api/me` calls `verifiedAccountEmail`; every other route
+   resolves the session from `demo_sessions`/`demo_access` alone, so a banned or deleted
+   provider account with a live cookie keeps working elsewhere for up to 8 hours and a
+   second browser's session is never touched. Options: (a) set `demo_access.revoked_at`
+   on detection in `/api/me` (kills every session; permanent while a ban may be
+   temporary); (b) check the provider in `resolveSession` for verified actors with a
+   short in-memory cache (the round trip `/api/me` deliberately kept to one route).
+2. **Calendar day.** `todayIso()` (client) and `today()` in `lib/server/history.ts` use
+   UTC: between 00:00 and 05:29 IST the default date is yesterday and today's date is
+   rejected as "in the future" on both sides. No document settles a timezone. Client and
+   server must change together. Options: accept up to today in Asia/Kolkata, or up to
+   today anywhere on Earth (UTC+14).
+3. **In-app "Only you can see this" on the shared demo account.** The entry note is live;
+   making `VISIBILITY_MEANING.private` conditional needs an additive shared-account flag
+   on the `Me` contract so the client can tell it is on the shared code.
+
+### Pre-invitation audit (8 September, unchanged unless noted)
+
+- Email sign-in still 503 at the SMTP handoff (live request, 11 September).
+- Shared demo account holds a "Testing" draft every tester will see; decide per-tester
+  invitations vs the shared code, and clean it if the shared code stays.
+- Product catalogue: exact-string matching only, and the app never creates product
+  records (upsert on first publication approval recommended, ~half a day).
+- No custom `not-found.tsx`/`error.tsx`: unknown URLs render the bare Next.js 404.
+- Seed leaves the reviewer queue empty and has no correction flag, withdrawn, removed,
+  reopened, rejected or government-response example.
+- Copy: unspaced em-dash in "AI assistance unavailable—continue manually." (a test
+  asserts the exact string); mixed straight/curly apostrophes; home footer says there is
+  no public contact address although a private route was decided on 6 September.
+- Deferred UI audit items: `window.confirm` ×3, per-photo legend names, reviewer screens
+  on the older rhythm, footer not pinned on short viewports.
+- A `reviewer@foodproof` actor created 22:56 UTC on 7 September belongs to the parallel
+  UI-audit session (`.claude/worktrees/ui-polish`, untracked); leave it to that session.
+
 ## Exact next action (continuation prompt for the next session)
 
-1. **Everything is pushed and deployed** (owner authorised; every push deploys).
-   Confirm `/pilot` live shows "Use the demo code" if not already checked.
+1. **Everything is pushed and deployed** (`53d66b9`, verified live 11 September). Start
+   by asking the owner for the three decisions in "Confirmed findings waiting on owner
+   decisions" above; do not start any of them unasked.
 2. **Fix SMTP with the owner.** Ask which provider they configured, read the
    `auth_logs` line above, correct host/port/TLS, credentials and verified sender in
    Supabase Authentication, Emails, SMTP Settings. Retest with one request to the
